@@ -8,13 +8,8 @@ fi
 
 echo "=== Spinning up local environment ==="
 
-# 1️⃣ Setup cluster
 bash deployment/local/kind/setup.sh
-
-# 2️⃣ Deploy MongoDB
 bash deployment/local/mongo/setup.sh
-
-# 3️⃣ Run migrations
 bash deployment/local/migrate/setup.sh
 
 echo "✅ Local environment ready!"
