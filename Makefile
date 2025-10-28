@@ -19,5 +19,5 @@ mongo-up:
 
 migrate:
 	@echo "🏗️ Running migrations..."
-	go run cmd/migrate/main.go
+	bash deployment/local/migrate/setup.sh
 	@echo "✅ Migration completed."

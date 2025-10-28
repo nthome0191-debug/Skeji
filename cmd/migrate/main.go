@@ -19,20 +19,20 @@ func main() {
 
 	mongoURI := os.Getenv("MONGO_URI")
 	if mongoURI == "" {
-		mongoURI = "mongodb://localhost:27017"
+		log.Fatal("MONGO_URI environment variable is required")
 	}
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
 	if err != nil {
-		log.Fatalf("❌ Failed to connect to MongoDB: %v", err)
+		log.Fatalf("Failed to connect to MongoDB: %v", err)
 	}
 	defer client.Disconnect(ctx)
 
-	fmt.Printf("Connected to %s\n", mongoURI)
+	fmt.Printf("Connected to MongoDB: %s\n", mongoURI)
 
 	if err := mongoMigration.RunMigration(ctx, client); err != nil {
-		log.Fatalf("❌ Migration failed: %v", err)
+		log.Fatalf("Migration failed: %v", err)
 	}
 
-	fmt.Println("🎉 Migration completed.")
+	fmt.Println("Migration completed successfully.")
 }
