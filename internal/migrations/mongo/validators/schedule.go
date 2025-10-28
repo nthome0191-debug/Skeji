@@ -1,0 +1,34 @@
+package validators
+
+import "go.mongodb.org/mongo-driver/bson"
+
+var ScheduleValidator = bson.M{
+	"$jsonSchema": bson.M{
+		"bsonType": "object",
+		"required": []string{
+			"business_id",
+			"name",
+			"city",
+			"start_of_day",
+			"end_of_day",
+			"working_days",
+			"created_at",
+		},
+		"additionalProperties": true,
+		"properties": bson.M{
+			"_id":                          bson.M{"bsonType": "objectId"},
+			"business_id":                  bson.M{"bsonType": "string"},
+			"name":                         bson.M{"bsonType": "string"},
+			"city":                         bson.M{"bsonType": "string"},
+			"address":                      bson.M{"bsonType": "string"},
+			"start_of_day":                 bson.M{"bsonType": "string"},
+			"end_of_day":                   bson.M{"bsonType": "string"},
+			"working_days":                 bson.M{"bsonType": "array"},
+			"default_meeting_duration_min": bson.M{"bsonType": "long"},
+			"default_break_duration_min":   bson.M{"bsonType": "long"},
+			"max_participants_per_slot":    bson.M{"bsonType": "int"},
+			"exceptions":                   bson.M{"bsonType": "array"},
+			"created_at":                   bson.M{"bsonType": "date"},
+		},
+	},
+}
