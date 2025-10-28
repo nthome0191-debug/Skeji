@@ -1,0 +1,14 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: skeji-local
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 27017
+        hostPort: 27017
+        protocol: TCP
+      - containerPort: 9092
+        hostPort: 9092
+        protocol: TCP
+  - role: worker
+  - role: worker
