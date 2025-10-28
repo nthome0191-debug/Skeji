@@ -17,6 +17,12 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	migrateMongo(ctx)
+
+	fmt.Println("Migration completed successfully.")
+}
+
+func migrateMongo(ctx context.Context) {
 	mongoURI := os.Getenv("MONGO_URI")
 	if mongoURI == "" {
 		log.Fatal("MONGO_URI environment variable is required")
@@ -33,6 +39,4 @@ func main() {
 	if err := mongoMigration.RunMigration(ctx, client); err != nil {
 		log.Fatalf("Migration failed: %v", err)
 	}
-
-	fmt.Println("Migration completed successfully.")
 }
