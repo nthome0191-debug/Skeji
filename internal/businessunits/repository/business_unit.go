@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	DB_NAME         = "skeji"
-	COLLECTION_NAME = "Business_units"
+	DBName         = "skeji"
+	CollectionName = "Business_units"
 )
 
 type mongoBusinessUnitRepository struct {
@@ -45,10 +45,10 @@ type BusinessUnitRepository interface {
 }
 
 func NewMongoBusinessUnitRepository(client *mongo.Client) BusinessUnitRepository {
-	db := client.Database(DB_NAME)
+	db := client.Database(DBName)
 	return &mongoBusinessUnitRepository{
 		db:         db,
-		collection: db.Collection(COLLECTION_NAME),
+		collection: db.Collection(CollectionName),
 	}
 }
 
@@ -184,6 +184,7 @@ func (r *mongoBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phon
 	if err != nil {
 		return nil, fmt.Errorf("failed to find business units for phone [%s]: %w", phone, err)
 	}
+	defer cursor.Close(ctx)
 
 	var businessUnits []*model.BusinessUnit
 	if err = cursor.All(ctx, &businessUnits); err != nil {
