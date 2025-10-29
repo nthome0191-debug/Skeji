@@ -44,7 +44,7 @@ type BusinessUnitRepository interface {
 	Count(ctx context.Context) (int64, error)
 }
 
-func NewMongoBusinessUnitRepository(client *mongo.Client) *mongoBusinessUnitRepository {
+func NewMongoBusinessUnitRepository(client *mongo.Client) BusinessUnitRepository {
 	db := client.Database(DB_NAME)
 	return &mongoBusinessUnitRepository{
 		db:         db,
@@ -190,4 +190,29 @@ func (r *mongoBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phon
 		return nil, fmt.Errorf("failed to decode search results: %w", err)
 	}
 	return businessUnits, nil
+}
+
+func (r *mongoBusinessUnitRepository) FindByCity(ctx context.Context, city string) ([]*model.BusinessUnit, error) {
+	filter := bson.M{"cities": city}
+
+	opts := options.Find().SetSort(bson.D{{Key: "priority", Value: -1}})
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find business units in city [%s]: %w", city, err)
+	}
+	defer cursor.Close(ctx)
+
+	var businessUnits []*model.BusinessUnit
+	if err = cursor.All(ctx, &businessUnits); err != nil {
+		return nil, fmt.Errorf("failed to decode business units: %w", err)
+	}
+	return businessUnits, nil
+}
+
+func (r *mongoBusinessUnitRepository) Count(ctx context.Context) (int64, error) {
+	count, err := r.collection.CountDocuments(ctx, bson.M{})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count business units: %w", err)
+	}
+	return count, nil
 }
