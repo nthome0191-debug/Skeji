@@ -37,7 +37,7 @@ type BusinessUnitRepository interface {
 	Update(ctx context.Context, id string, bu *model.BusinessUnit) error
 	Delete(ctx context.Context, id string) error
 
-	FindByAdminPhone(ctx context.Context, phone string) (*model.BusinessUnit, error)
+	FindByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
 	FindByCity(ctx context.Context, city string) ([]*model.BusinessUnit, error)
 	Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error)
 
@@ -177,16 +177,17 @@ func (r *mongoBusinessUnitRepository) Search(ctx context.Context, cities []strin
 	return businessUnits, nil
 }
 
-func (r *mongoBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phone string) (*model.BusinessUnit, error) {
+func (r *mongoBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {
 	filter := bson.M{"admin_phone": phone}
 
-	var bu model.BusinessUnit
-	err := r.collection.FindOne(ctx, filter).Decode(&bu)
+	cursor, err := r.collection.Find(ctx, filter, options.Find())
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, fmt.Errorf("business unit not found for phone: %s", phone)
-		}
-		return nil, fmt.Errorf("failed to find business unit: %w", err)
+		return nil, fmt.Errorf("failed to find business units for phone [%s]: %w", phone, err)
 	}
-	return &bu, nil
+
+	var businessUnits []*model.BusinessUnit
+	if err = cursor.All(ctx, &businessUnits); err != nil {
+		return nil, fmt.Errorf("failed to decode search results: %w", err)
+	}
+	return businessUnits, nil
 }
