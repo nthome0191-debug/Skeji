@@ -56,7 +56,7 @@ func (r *mongoBusinessUnitRepository) Create(ctx context.Context, bu *model.Busi
 	bu.CreatedAt = time.Now()
 	result, err := r.collection.InsertOne(ctx, bu)
 	if err != nil {
-		return fmt.Errorf("failed to create business unit: %s", err)
+		return fmt.Errorf("failed to create business unit: %w", err)
 	}
 
 	if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
@@ -69,7 +69,7 @@ func (r *mongoBusinessUnitRepository) Create(ctx context.Context, bu *model.Busi
 func (r *mongoBusinessUnitRepository) FindByID(ctx context.Context, id string) (*model.BusinessUnit, error) {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, fmt.Errorf("invalid ID format: %s", err)
+		return nil, fmt.Errorf("invalid ID format: %w", err)
 	}
 	filter := bson.M{"_id": objectID}
 
@@ -79,7 +79,7 @@ func (r *mongoBusinessUnitRepository) FindByID(ctx context.Context, id string) (
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return nil, fmt.Errorf("business unit not found: %s", id)
 		}
-		return nil, fmt.Errorf("failed to find business unit: %s", err)
+		return nil, fmt.Errorf("failed to find business unit: %w", err)
 	}
 	return &bu, nil
 }
@@ -97,7 +97,7 @@ func (r *mongoBusinessUnitRepository) FindAll(ctx context.Context, limit int, of
 
 	var businessUnits []*model.BusinessUnit
 	if err = cursor.All(ctx, &businessUnits); err != nil {
-		return nil, fmt.Errorf("failed to decode business units: %s", err)
+		return nil, fmt.Errorf("failed to decode business units: %w", err)
 	}
 
 	return businessUnits, nil
@@ -106,7 +106,7 @@ func (r *mongoBusinessUnitRepository) FindAll(ctx context.Context, limit int, of
 func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu *model.BusinessUnit) error {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return fmt.Errorf("invalid ID format: %s", err)
+		return fmt.Errorf("invalid ID format: %w", err)
 	}
 
 	filter := bson.M{"_id": objectID}
@@ -124,7 +124,7 @@ func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu 
 
 	result, err := r.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
-		return fmt.Errorf("failed to update business unit: %s", err)
+		return fmt.Errorf("failed to update business unit: %w", err)
 	}
 
 	if result.MatchedCount == 0 {
@@ -137,13 +137,13 @@ func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu 
 func (r *mongoBusinessUnitRepository) Delete(ctx context.Context, id string) error {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return fmt.Errorf("invalid ID format: %s", err)
+		return fmt.Errorf("invalid ID format: %w", err)
 	}
 
 	filter := bson.M{"_id": objectID}
 	result, err := r.collection.DeleteOne(ctx, filter)
 	if err != nil {
-		return fmt.Errorf("failed to delete business unit: %s", err)
+		return fmt.Errorf("failed to delete business unit: %w", err)
 	}
 	if result.DeletedCount == 0 {
 		return fmt.Errorf("business unit not found: %s", id)
