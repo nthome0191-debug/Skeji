@@ -24,6 +24,8 @@ spec:
             - name: mongo-storage
               mountPath: /data/db
           env:
+            # ⚠️  LOCAL DEVELOPMENT ONLY - DO NOT USE IN PRODUCTION
+            # Production deployments must use Kubernetes Secrets for credentials
             - name: MONGO_INITDB_ROOT_USERNAME
               value: root
             - name: MONGO_INITDB_ROOT_PASSWORD
