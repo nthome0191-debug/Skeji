@@ -16,7 +16,7 @@ spec:
             # ⚠️  LOCAL DEVELOPMENT ONLY - DO NOT USE IN PRODUCTION
             # Production deployments must use Kubernetes Secrets for credentials
             - name: MONGO_URI
-              value: mongodb://root:rootpassword@mongo.mongo.svc.cluster.local:27017/admin?authSource=admin
+              value: mongodb://root:rootpassword@mongo.mongo.svc.cluster.local:27017/skeji?authSource=admin
           resources:
             requests:
               cpu: "100m"
