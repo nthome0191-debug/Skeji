@@ -21,8 +21,8 @@ import (
 )
 
 const (
-	DB_NAME         = "skeji"
-	COLLECTION_NAME = "Business_units"
+	DBName         = "skeji"
+	CollectionName = "Business_units"
 )
 
 type mongoBusinessUnitRepository struct {
@@ -45,10 +45,10 @@ type BusinessUnitRepository interface {
 }
 
 func NewMongoBusinessUnitRepository(client *mongo.Client) BusinessUnitRepository {
-	db := client.Database(DB_NAME)
+	db := client.Database(DBName)
 	return &mongoBusinessUnitRepository{
 		db:         db,
-		collection: db.Collection(COLLECTION_NAME),
+		collection: db.Collection(CollectionName),
 	}
 }
 
