@@ -148,11 +148,8 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 		return apperrors.Internal("Failed to check business unit existence", err)
 	}
 
-	// Merge: Only update fields that were provided (non-zero values)
-	// This implements PATCH semantics - partial updates only
 	merged := s.mergeBusinessUnitUpdates(existing, bu)
 
-	// Preserve immutable fields
 	merged.ID = existing.ID
 	merged.CreatedAt = existing.CreatedAt
 
@@ -300,49 +297,36 @@ func (s *businessUnitService) inferTimezoneFromPhone(phone string) string {
 	return DefaultTimezone
 }
 
-// mergeBusinessUnitUpdates merges update fields into existing business unit
-// Only non-zero values from updates are applied (PATCH semantics)
 func (s *businessUnitService) mergeBusinessUnitUpdates(existing, updates *model.BusinessUnit) *model.BusinessUnit {
-	merged := *existing // Start with existing values
+	merged := *existing
 
-	// Update Name if provided
 	if updates.Name != "" {
 		merged.Name = updates.Name
 	}
 
-	// Update Cities if provided (non-empty slice)
 	if len(updates.Cities) > 0 {
 		merged.Cities = updates.Cities
 	}
 
-	// Update Labels if provided (non-empty slice)
 	if len(updates.Labels) > 0 {
 		merged.Labels = updates.Labels
 	}
 
-	// Update AdminPhone if provided
 	if updates.AdminPhone != "" {
 		merged.AdminPhone = updates.AdminPhone
 	}
 
-	// Update Maintainers if provided (non-empty slice)
 	if len(updates.Maintainers) > 0 {
 		merged.Maintainers = updates.Maintainers
 	}
 
-	// Update Priority if provided (non-zero)
-	// Note: 0 is treated as "not provided", not "set to 0"
 	if updates.Priority != 0 {
 		merged.Priority = updates.Priority
 	}
 
-	// Update TimeZone if provided
 	if updates.TimeZone != "" {
 		merged.TimeZone = updates.TimeZone
 	}
-
-	// ID and CreatedAt are never updated (immutable)
-	// They will be explicitly set by the caller
 
 	return &merged
 }
