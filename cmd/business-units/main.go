@@ -13,21 +13,14 @@ import (
 )
 
 func main() {
-	// 1. Initialize logger (must be first to log Fatal errors)
 	log := logger.New(logger.Config{
 		Level:     logger.INFO,
 		Format:    logger.JSON,
 		AddSource: true,
 		Service:   "business-units",
 	})
-
 	log.Info("Starting Business Units service")
-
-	// 2. Load configuration (environment variables, config files, etc.)
-	// TODO: Implement configuration loading
 	mongoURI := "mongodb://localhost:27017" // TODO: Load from config
-
-	// 3. Connect to MongoDB
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -40,7 +33,6 @@ func main() {
 	}
 	defer client.Disconnect(context.Background())
 
-	// Ping MongoDB to verify connection
 	if err := client.Ping(ctx, nil); err != nil {
 		log.Fatal("Failed to ping MongoDB",
 			"error", err,
@@ -49,13 +41,8 @@ func main() {
 
 	log.Info("Successfully connected to MongoDB")
 
-	// 4. Initialize validator (Fatal on registration errors)
 	businessUnitValidator := validator.NewBusinessUnitValidator(log)
-
-	// 5. Initialize repository layer
 	businessUnitRepo := repository.NewMongoBusinessUnitRepository(client)
-
-	// 6. Initialize service layer
 	businessUnitService := service.NewBusinessUnitService(
 		businessUnitRepo,
 		businessUnitValidator,
