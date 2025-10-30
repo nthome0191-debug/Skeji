@@ -59,7 +59,7 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 			"admin_phone", bu.AdminPhone,
 			"error", err,
 		)
-		return apperrors.Validation("Business unit validation failed", map[string]interface{}{
+		return apperrors.Validation("Business unit validation failed", map[string]any{
 			"error": err.Error(),
 		})
 	}
@@ -158,7 +158,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 			"id", id,
 			"error", err,
 		)
-		return apperrors.Validation("Business unit validation failed", map[string]interface{}{
+		return apperrors.Validation("Business unit validation failed", map[string]any{
 			"error": err.Error(),
 		})
 	}

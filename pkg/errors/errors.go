@@ -20,11 +20,11 @@ const (
 )
 
 type AppError struct {
-	Code       string                 `json:"code"`
-	Message    string                 `json:"message"`
-	HTTPStatus int                    `json:"-"`
-	Details    map[string]interface{} `json:"details,omitempty"`
-	Err        error                  `json:"-"` // Original error for logging
+	Code       string         `json:"code"`
+	Message    string         `json:"message"`
+	HTTPStatus int            `json:"-"`
+	Details    map[string]any `json:"details,omitempty"`
+	Err        error          `json:"-"` // Original error for logging
 }
 
 func (e *AppError) Error() string {
@@ -53,9 +53,9 @@ func (e *AppError) ToJSON() []byte {
 }
 
 type ErrorResponse struct {
-	Code    string                 `json:"code"`
-	Message string                 `json:"message"`
-	Details map[string]interface{} `json:"details,omitempty"`
+	Code    string         `json:"code"`
+	Message string         `json:"message"`
+	Details map[string]any `json:"details,omitempty"`
 }
 
 func New(code, message string, httpStatus int) *AppError {
@@ -75,7 +75,7 @@ func Wrap(err error, code, message string, httpStatus int) *AppError {
 	}
 }
 
-func (e *AppError) WithDetails(details map[string]interface{}) *AppError {
+func (e *AppError) WithDetails(details map[string]any) *AppError {
 	e.Details = details
 	return e
 }
