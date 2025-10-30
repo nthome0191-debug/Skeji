@@ -83,7 +83,6 @@ func (v *BusinessUnitValidator) translateValidationErrors(errs validator.Validat
 	for _, err := range errs {
 		message := err.Error()
 
-		// Provide user-friendly messages for common validators
 		switch err.Tag() {
 		case "supported_country":
 			message = "phone number must be from a supported country, stated country is not supported by app yet"
@@ -113,7 +112,6 @@ func (v *BusinessUnitValidator) validateBusinessRules(bu *model.BusinessUnit) er
 	// Examples:
 	// - Check if cities are valid/supported
 	// - Check for duplicate cities/labels
-	// - Validate timezone against IANA database
 	// - Business-specific rules
 
 	return nil
