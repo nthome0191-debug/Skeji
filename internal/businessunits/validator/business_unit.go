@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"skeji/pkg/model"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -33,12 +34,31 @@ type BusinessUnitValidator struct {
 func NewBusinessUnitValidator() *BusinessUnitValidator {
 	v := validator.New()
 
-	// TODO: Register custom validators here
-	// Example: v.RegisterValidation("custom_tag", customValidationFunc)
-
+	err := v.RegisterValidation("supported_country", validateSupportedCountry)
+	if err != nil {
+		// todo: logger fatal
+	}
 	return &BusinessUnitValidator{
 		validate: v,
 	}
+}
+
+func validateSupportedCountry(fl validator.FieldLevel) bool {
+	phone := strings.TrimSpace(fl.Field().String())
+
+	// Supported country codes
+	supportedPrefixes := []string{
+		"+972", "972", // Israel
+		"+1", // United States and Canada
+	}
+
+	for _, prefix := range supportedPrefixes {
+		if strings.HasPrefix(phone, prefix) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (v *BusinessUnitValidator) Validate(bu *model.BusinessUnit) error {
@@ -61,10 +81,15 @@ func (v *BusinessUnitValidator) translateValidationErrors(errs validator.Validat
 	var validationErrors ValidationErrors
 
 	for _, err := range errs {
-		// TODO: Implement field name translation and user-friendly messages
+		message := err.Error()
+
+		if err.Tag() == "supported_country" {
+			message = "phone number must be from a supported country, stated country is not supported by app yet"
+		}
+
 		validationErrors = append(validationErrors, ValidationError{
 			Field:   err.Field(),
-			Message: err.Error(), // Placeholder - should be human-readable
+			Message: message,
 		})
 	}
 
@@ -75,10 +100,9 @@ func (v *BusinessUnitValidator) validateBusinessRules(bu *model.BusinessUnit) er
 	// TODO: Implement custom business rules here
 	// Examples:
 	// - Check if cities are valid/supported
-	// - Validate phone number format beyond e164
 	// - Check for duplicate cities/labels
 	// - Validate timezone against IANA database
-	// - Business-specific rules (e.g., certain labels require certain cities)
+	// - Business-specific rules
 
 	return nil
 }

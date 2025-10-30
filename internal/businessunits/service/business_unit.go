@@ -22,8 +22,10 @@ const (
 	DefaultPriority        = 10
 	DefaultTimezone        = "UTC"
 	IsraelTimezone         = "Asia/Jerusalem"
+	USTimezoneDefault      = "America/New_York" // Default to Eastern Time (most populous timezone)
 	IsraelPhonePrefix      = "+972"
 	IsraelPhonePrefixAlt   = "972" // Without plus sign
+	USPhonePrefix          = "+1"
 )
 
 // BusinessUnitService defines business logic operations for business units
@@ -306,10 +308,20 @@ func (s *businessUnitService) inferTimezoneFromPhone(phone string) string {
 		return IsraelTimezone
 	}
 
-	// TODO: Add more country code to timezone mappings as needed
-	// For now, default to UTC for unknown country codes
+	// Check for US/Canada country code
+	// NOTE: US has multiple timezones (Eastern, Central, Mountain, Pacific, Alaska, Hawaii)
+	// We default to Eastern Time as it covers the most populous region.
+	// Users should explicitly provide timezone if they're in other US timezones.
+	if strings.HasPrefix(normalizedPhone, USPhonePrefix) {
+		s.logger.Debug("US/Canada number detected, using default Eastern Time",
+			"phone", phone,
+			"timezone", USTimezoneDefault,
+		)
+		return USTimezoneDefault
+	}
 
-	s.logger.Debug("Using default timezone for unknown country code",
+	// Fallback to UTC for unsupported countries (should not reach here due to validation)
+	s.logger.Warn("Unexpected country code passed validation",
 		"phone", phone,
 		"timezone", DefaultTimezone,
 	)
