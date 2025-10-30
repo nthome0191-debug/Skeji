@@ -23,7 +23,7 @@ func WriteError(w http.ResponseWriter, err error) {
 	}
 }
 
-func WriteSuccess(w http.ResponseWriter, statusCode int, data interface{}) error {
+func WriteSuccess(w http.ResponseWriter, statusCode int, data any) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
