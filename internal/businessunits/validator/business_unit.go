@@ -83,8 +83,20 @@ func (v *BusinessUnitValidator) translateValidationErrors(errs validator.Validat
 	for _, err := range errs {
 		message := err.Error()
 
-		if err.Tag() == "supported_country" {
+		// Provide user-friendly messages for common validators
+		switch err.Tag() {
+		case "supported_country":
 			message = "phone number must be from a supported country, stated country is not supported by app yet"
+		case "timezone":
+			message = fmt.Sprintf("invalid timezone '%s', must be a valid IANA timezone (e.g., America/New_York, Asia/Jerusalem, UTC)", err.Value())
+		case "e164":
+			message = "phone number must be in E.164 format (e.g., +972501234567)"
+		case "required":
+			message = fmt.Sprintf("%s is required", err.Field())
+		case "min":
+			message = fmt.Sprintf("%s must be at least %s", err.Field(), err.Param())
+		case "max":
+			message = fmt.Sprintf("%s must be at most %s", err.Field(), err.Param())
 		}
 
 		validationErrors = append(validationErrors, ValidationError{
