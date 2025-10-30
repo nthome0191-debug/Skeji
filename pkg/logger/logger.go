@@ -71,3 +71,10 @@ func New(cfg Config) *Logger {
 
 	return &Logger{Logger: slog.New(handler)}
 }
+
+// Fatal logs a critical error and exits the application with status code 1
+// Use this for unrecoverable errors that prevent the application from starting or continuing
+func (l *Logger) Fatal(msg string, args ...any) {
+	l.Error(msg, args...)
+	os.Exit(1)
+}

@@ -3,6 +3,7 @@ package validator
 import (
 	"errors"
 	"fmt"
+	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"strings"
 
@@ -29,24 +30,29 @@ func (v ValidationErrors) Error() string {
 
 type BusinessUnitValidator struct {
 	validate *validator.Validate
+	logger   *logger.Logger
 }
 
-func NewBusinessUnitValidator() *BusinessUnitValidator {
+func NewBusinessUnitValidator(log *logger.Logger) *BusinessUnitValidator {
 	v := validator.New()
 
-	err := v.RegisterValidation("supported_country", validateSupportedCountry)
-	if err != nil {
-		// todo: logger fatal
+	if err := v.RegisterValidation("supported_country", validateSupportedCountry); err != nil {
+		log.Fatal("Failed to register 'supported_country' validator",
+			"error", err,
+		)
 	}
+
+	log.Info("Business unit validator initialized successfully")
+
 	return &BusinessUnitValidator{
 		validate: v,
+		logger:   log,
 	}
 }
 
 func validateSupportedCountry(fl validator.FieldLevel) bool {
 	phone := strings.TrimSpace(fl.Field().String())
 
-	// Supported country codes
 	supportedPrefixes := []string{
 		"+972", "972", // Israel
 		"+1", // United States and Canada
