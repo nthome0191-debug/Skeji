@@ -7,8 +7,8 @@ import (
 
 func WriteError(w http.ResponseWriter, err error) {
 	appErr := AsAppError(err)
-	w.WriteHeader(appErr.StatusCode())
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(appErr.StatusCode())
 
 	response := ErrorResponse{
 		Code:    appErr.Code,
