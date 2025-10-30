@@ -17,20 +17,16 @@ func WriteError(w http.ResponseWriter, err error) {
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		// Fallback: write a plain text error if JSON encoding fails - let us implement the fallback #todo
-		http.Error(w, "Internal server error: failed to encode error response", http.StatusInternalServerError)
+		// todo: write out to stdout the failure so it could be tracked
 	}
 }
 
-func WriteSuccess(w http.ResponseWriter, statusCode int, data interface{}) {
+func WriteSuccess(w http.ResponseWriter, statusCode int, data interface{}) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		// Note: We can't change status code here as WriteHeader was already called.
-		// The response body may be partially written. This is a critical error
-		// that should be logged by the handler layer.
-		// For now, we silently fail as there's no recovery possible at this point.
-
-		// todo: please log the error internallt so at least we will be aware of it and could see how many times it appears and take action as SREs
+		// Return error so caller can log - no recovery possible after WriteHeader
+		return err
 	}
+	return nil
 }
