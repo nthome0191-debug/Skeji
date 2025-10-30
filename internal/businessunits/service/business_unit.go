@@ -8,6 +8,7 @@ import (
 	"skeji/pkg/locale"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
+	"skeji/pkg/sanitizer"
 	"strings"
 )
 
@@ -46,6 +47,7 @@ func NewBusinessUnitService(
 }
 
 func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit) error {
+	s.sanitize(bu)
 	s.applyDefaults(bu)
 
 	if err := s.validator.Validate(bu); err != nil {
@@ -147,6 +149,8 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 
 	merged.ID = existing.ID
 	merged.CreatedAt = existing.CreatedAt
+
+	s.sanitize(merged)
 
 	if err := s.validator.Validate(merged); err != nil {
 		s.logger.Warn("Business unit update validation failed",
@@ -256,6 +260,14 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 	)
 
 	return units, nil
+}
+
+func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
+	bu.Name = sanitizer.NormalizeName(bu.Name)
+	bu.Cities = sanitizer.NormalizeCities(bu.Cities)
+	bu.Labels = sanitizer.NormalizeLabels(bu.Labels)
+	bu.AdminPhone = sanitizer.NormalizePhone(bu.AdminPhone)
+	bu.Maintainers = sanitizer.NormalizeMaintainers(bu.Maintainers)
 }
 
 func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
