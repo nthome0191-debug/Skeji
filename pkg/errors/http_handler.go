@@ -2,7 +2,9 @@ package errors
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 )
 
 func WriteError(w http.ResponseWriter, err error) {
@@ -17,7 +19,8 @@ func WriteError(w http.ResponseWriter, err error) {
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		// todo: write out to stdout the failure so it could be tracked
+		// Write to stdout so it can be tracked in logs
+		fmt.Fprintf(os.Stdout, "ERROR: Failed to encode error response to JSON: %v (original error: %s)\n", err, appErr.Error())
 	}
 }
 
