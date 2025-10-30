@@ -11,16 +11,15 @@ import (
 )
 
 const (
-	DefaultPriority        = 10
-	DefaultTimezone        = "UTC"
-	IsraelTimezone         = "Asia/Jerusalem"
-	USTimezoneDefault      = "America/New_York" // Default to Eastern Time (most populous timezone)
-	IsraelPhonePrefix      = "+972"
-	IsraelPhonePrefixAlt   = "972" // Without plus sign
-	USPhonePrefix          = "+1"
+	DefaultPriority      = 10
+	DefaultTimezone      = "UTC"
+	IsraelTimezone       = "Asia/Jerusalem"
+	USTimezoneDefault    = "America/New_York"
+	IsraelPhonePrefix    = "+972"
+	IsraelPhonePrefixAlt = "972"
+	USPhonePrefix        = "+1"
 )
 
-// BusinessUnitService defines business logic operations for business units
 type BusinessUnitService interface {
 	Create(ctx context.Context, bu *model.BusinessUnit) error
 	GetByID(ctx context.Context, id string) (*model.BusinessUnit, error)
@@ -39,7 +38,6 @@ type businessUnitService struct {
 	logger    *logger.Logger
 }
 
-// NewBusinessUnitService creates a new business unit service
 func NewBusinessUnitService(
 	repo repository.BusinessUnitRepository,
 	validator *validator.BusinessUnitValidator,
@@ -52,12 +50,9 @@ func NewBusinessUnitService(
 	}
 }
 
-// Create creates a new business unit with defaults and validation
 func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit) error {
-	// Apply defaults before validation
 	s.applyDefaults(bu)
 
-	// Validate
 	if err := s.validator.Validate(bu); err != nil {
 		s.logger.Warn("Business unit validation failed",
 			"name", bu.Name,
@@ -69,7 +64,6 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 		})
 	}
 
-	// Create in repository
 	if err := s.repo.Create(ctx, bu); err != nil {
 		s.logger.Error("Failed to create business unit",
 			"name", bu.Name,
@@ -90,7 +84,6 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 	return nil
 }
 
-// GetByID retrieves a business unit by ID
 func (s *businessUnitService) GetByID(ctx context.Context, id string) (*model.BusinessUnit, error) {
 	if id == "" {
 		return nil, apperrors.InvalidInput("Business unit ID cannot be empty")
@@ -111,14 +104,12 @@ func (s *businessUnitService) GetByID(ctx context.Context, id string) (*model.Bu
 	return bu, nil
 }
 
-// GetAll retrieves all business units with pagination and total count
 func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error) {
-	// Set reasonable defaults for pagination
 	if limit <= 0 {
 		limit = 10
 	}
 	if limit > 100 {
-		limit = 100 // Max limit for safety
+		limit = 100
 	}
 	if offset < 0 {
 		offset = 0
@@ -144,13 +135,11 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 	return units, count, nil
 }
 
-// Update updates an existing business unit
 func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.BusinessUnit) error {
 	if id == "" {
 		return apperrors.InvalidInput("Business unit ID cannot be empty")
 	}
 
-	// Check if business unit exists first
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
@@ -159,14 +148,12 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 		return apperrors.Internal("Failed to check business unit existence", err)
 	}
 
-	// Preserve fields that shouldn't be updated through this method
 	bu.ID = existing.ID
 	bu.CreatedAt = existing.CreatedAt
 
-	// Apply defaults for any missing optional fields
+	// TODO: dont we want the "unchanged" attributes to stay the same? i.e if some attribute was not populated in the provided bu, we should take the value from the existing one? so only the "requested change" will be applied as the update?
 	s.applyDefaults(bu)
 
-	// Validate updated data
 	if err := s.validator.Validate(bu); err != nil {
 		s.logger.Warn("Business unit update validation failed",
 			"id", id,
@@ -177,7 +164,6 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 		})
 	}
 
-	// Update in repository
 	if err := s.repo.Update(ctx, id, bu); err != nil {
 		s.logger.Error("Failed to update business unit",
 			"id", id,
@@ -194,7 +180,6 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 	return nil
 }
 
-// Delete deletes a business unit by ID
 func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return apperrors.InvalidInput("Business unit ID cannot be empty")
@@ -219,7 +204,6 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// GetByAdminPhone retrieves business units by admin phone number
 func (s *businessUnitService) GetByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {
 	if phone == "" {
 		return nil, apperrors.InvalidInput("Admin phone number cannot be empty")
@@ -237,7 +221,6 @@ func (s *businessUnitService) GetByAdminPhone(ctx context.Context, phone string)
 	return units, nil
 }
 
-// GetByCity retrieves business units in a specific city
 func (s *businessUnitService) GetByCity(ctx context.Context, city string) ([]*model.BusinessUnit, error) {
 	if city == "" {
 		return nil, apperrors.InvalidInput("City cannot be empty")
@@ -255,10 +238,9 @@ func (s *businessUnitService) GetByCity(ctx context.Context, city string) ([]*mo
 	return units, nil
 }
 
-// Search searches for business units by cities and/or labels
 func (s *businessUnitService) Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error) {
-	if len(cities) == 0 && len(labels) == 0 {
-		return nil, apperrors.InvalidInput("At least one search criteria (cities or labels) must be provided")
+	if len(cities) == 0 || len(labels) == 0 {
+		return nil, apperrors.InvalidInput("Both search criteria (cities and labels) must be provided")
 	}
 
 	units, err := s.repo.Search(ctx, cities, labels)
@@ -280,34 +262,24 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 	return units, nil
 }
 
-// applyDefaults sets default values for optional fields
 func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
-	// Set default timezone based on phone number if not provided
 	if bu.TimeZone == "" {
 		bu.TimeZone = s.inferTimezoneFromPhone(bu.AdminPhone)
 	}
 
-	// Set default priority if not provided (0 is the zero value, treat as not set)
 	if bu.Priority == 0 {
 		bu.Priority = DefaultPriority
 	}
 }
 
-// inferTimezoneFromPhone infers timezone from phone number country code
 func (s *businessUnitService) inferTimezoneFromPhone(phone string) string {
-	// Normalize phone number for comparison
 	normalizedPhone := strings.TrimSpace(phone)
 
-	// Check for Israel country code
 	if strings.HasPrefix(normalizedPhone, IsraelPhonePrefix) ||
 		strings.HasPrefix(normalizedPhone, IsraelPhonePrefixAlt) {
 		return IsraelTimezone
 	}
 
-	// Check for US/Canada country code
-	// NOTE: US has multiple timezones (Eastern, Central, Mountain, Pacific, Alaska, Hawaii)
-	// We default to Eastern Time as it covers the most populous region.
-	// Users should explicitly provide timezone if they're in other US timezones.
 	if strings.HasPrefix(normalizedPhone, USPhonePrefix) {
 		s.logger.Debug("US/Canada number detected, using default Eastern Time",
 			"phone", phone,
@@ -316,7 +288,6 @@ func (s *businessUnitService) inferTimezoneFromPhone(phone string) string {
 		return USTimezoneDefault
 	}
 
-	// Fallback to UTC for unsupported countries (should not reach here due to validation)
 	s.logger.Warn("Unexpected country code passed validation",
 		"phone", phone,
 		"timezone", DefaultTimezone,
