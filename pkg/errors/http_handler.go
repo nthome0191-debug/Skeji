@@ -19,7 +19,6 @@ func WriteError(w http.ResponseWriter, err error) {
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		// Write to stdout so it can be tracked in logs
 		fmt.Fprintf(os.Stdout, "ERROR: Failed to encode error response to JSON: %v (original error: %s)\n", err, appErr.Error())
 	}
 }
@@ -28,7 +27,6 @@ func WriteSuccess(w http.ResponseWriter, statusCode int, data interface{}) error
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	if err := json.NewEncoder(w).Encode(data); err != nil {
-		// Return error so caller can log - no recovery possible after WriteHeader
 		return err
 	}
 	return nil
