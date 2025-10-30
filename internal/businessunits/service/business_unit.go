@@ -5,19 +5,14 @@ import (
 	"skeji/internal/businessunits/repository"
 	"skeji/internal/businessunits/validator"
 	apperrors "skeji/pkg/errors"
+	"skeji/pkg/locale"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"strings"
 )
 
 const (
-	DefaultPriority      = 10
-	DefaultTimezone      = "UTC"
-	IsraelTimezone       = "Asia/Jerusalem"
-	USTimezoneDefault    = "America/New_York"
-	IsraelPhonePrefix    = "+972"
-	IsraelPhonePrefixAlt = "972"
-	USPhonePrefix        = "+1"
+	DefaultPriority = 10
 )
 
 type BusinessUnitService interface {
@@ -265,36 +260,12 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 
 func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
 	if bu.TimeZone == "" {
-		bu.TimeZone = s.inferTimezoneFromPhone(bu.AdminPhone)
+		bu.TimeZone = locale.InferTimezoneFromPhone(bu.AdminPhone)
 	}
 
 	if bu.Priority == 0 {
 		bu.Priority = DefaultPriority
 	}
-}
-
-func (s *businessUnitService) inferTimezoneFromPhone(phone string) string {
-	normalizedPhone := strings.TrimSpace(phone)
-
-	if strings.HasPrefix(normalizedPhone, IsraelPhonePrefix) ||
-		strings.HasPrefix(normalizedPhone, IsraelPhonePrefixAlt) {
-		return IsraelTimezone
-	}
-
-	if strings.HasPrefix(normalizedPhone, USPhonePrefix) {
-		s.logger.Debug("US/Canada number detected, using default Eastern Time",
-			"phone", phone,
-			"timezone", USTimezoneDefault,
-		)
-		return USTimezoneDefault
-	}
-
-	s.logger.Warn("Unexpected country code passed validation",
-		"phone", phone,
-		"timezone", DefaultTimezone,
-	)
-
-	return DefaultTimezone
 }
 
 func (s *businessUnitService) mergeBusinessUnitUpdates(existing, updates *model.BusinessUnit) *model.BusinessUnit {
