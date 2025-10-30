@@ -2,20 +2,12 @@ package service
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"skeji/internal/businessunits/repository"
 	"skeji/internal/businessunits/validator"
+	apperrors "skeji/pkg/errors"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"strings"
-)
-
-// Service errors
-var (
-	ErrBusinessUnitNotFound = errors.New("business unit not found")
-	ErrInvalidInput         = errors.New("invalid input")
-	ErrUnauthorized         = errors.New("unauthorized operation")
 )
 
 const (
@@ -72,7 +64,9 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 			"admin_phone", bu.AdminPhone,
 			"error", err,
 		)
-		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
+		return apperrors.Validation("Business unit validation failed", map[string]interface{}{
+			"error": err.Error(),
+		})
 	}
 
 	// Create in repository
@@ -82,7 +76,7 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 			"admin_phone", bu.AdminPhone,
 			"error", err,
 		)
-		return fmt.Errorf("failed to create business unit: %w", err)
+		return apperrors.Internal("Failed to create business unit", err)
 	}
 
 	s.logger.Info("Business unit created successfully",
@@ -99,19 +93,19 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 // GetByID retrieves a business unit by ID
 func (s *businessUnitService) GetByID(ctx context.Context, id string) (*model.BusinessUnit, error) {
 	if id == "" {
-		return nil, fmt.Errorf("%w: id cannot be empty", ErrInvalidInput)
+		return nil, apperrors.InvalidInput("Business unit ID cannot be empty")
 	}
 
 	bu, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			return nil, ErrBusinessUnitNotFound
+			return nil, apperrors.NotFoundWithID("Business unit", id)
 		}
 		s.logger.Error("Failed to get business unit by ID",
 			"id", id,
 			"error", err,
 		)
-		return nil, fmt.Errorf("failed to get business unit: %w", err)
+		return nil, apperrors.Internal("Failed to retrieve business unit", err)
 	}
 
 	return bu, nil
@@ -134,7 +128,7 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 	count, err := s.repo.Count(ctx)
 	if err != nil {
 		s.logger.Error("Failed to count business units", "error", err)
-		return nil, 0, fmt.Errorf("failed to count business units: %w", err)
+		return nil, 0, apperrors.Internal("Failed to count business units", err)
 	}
 
 	units, err := s.repo.FindAll(ctx, limit, offset)
@@ -144,7 +138,7 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 			"offset", offset,
 			"error", err,
 		)
-		return nil, 0, fmt.Errorf("failed to get business units: %w", err)
+		return nil, 0, apperrors.Internal("Failed to retrieve business units", err)
 	}
 
 	return units, count, nil
@@ -153,16 +147,16 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 // Update updates an existing business unit
 func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.BusinessUnit) error {
 	if id == "" {
-		return fmt.Errorf("%w: id cannot be empty", ErrInvalidInput)
+		return apperrors.InvalidInput("Business unit ID cannot be empty")
 	}
 
 	// Check if business unit exists first
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			return ErrBusinessUnitNotFound
+			return apperrors.NotFoundWithID("Business unit", id)
 		}
-		return fmt.Errorf("failed to check business unit existence: %w", err)
+		return apperrors.Internal("Failed to check business unit existence", err)
 	}
 
 	// Preserve fields that shouldn't be updated through this method
@@ -178,7 +172,9 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 			"id", id,
 			"error", err,
 		)
-		return fmt.Errorf("%w: %v", ErrInvalidInput, err)
+		return apperrors.Validation("Business unit validation failed", map[string]interface{}{
+			"error": err.Error(),
+		})
 	}
 
 	// Update in repository
@@ -187,7 +183,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 			"id", id,
 			"error", err,
 		)
-		return fmt.Errorf("failed to update business unit: %w", err)
+		return apperrors.Internal("Failed to update business unit", err)
 	}
 
 	s.logger.Info("Business unit updated successfully",
@@ -201,7 +197,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 // Delete deletes a business unit by ID
 func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 	if id == "" {
-		return fmt.Errorf("%w: id cannot be empty", ErrInvalidInput)
+		return apperrors.InvalidInput("Business unit ID cannot be empty")
 	}
 
 	// Note: In production, you might want to check for dependent entities
@@ -209,13 +205,13 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 
 	if err := s.repo.Delete(ctx, id); err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			return ErrBusinessUnitNotFound
+			return apperrors.NotFoundWithID("Business unit", id)
 		}
 		s.logger.Error("Failed to delete business unit",
 			"id", id,
 			"error", err,
 		)
-		return fmt.Errorf("failed to delete business unit: %w", err)
+		return apperrors.Internal("Failed to delete business unit", err)
 	}
 
 	s.logger.Info("Business unit deleted successfully", "id", id)
@@ -226,7 +222,7 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 // GetByAdminPhone retrieves business units by admin phone number
 func (s *businessUnitService) GetByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {
 	if phone == "" {
-		return nil, fmt.Errorf("%w: phone cannot be empty", ErrInvalidInput)
+		return nil, apperrors.InvalidInput("Admin phone number cannot be empty")
 	}
 
 	units, err := s.repo.FindByAdminPhone(ctx, phone)
@@ -235,7 +231,7 @@ func (s *businessUnitService) GetByAdminPhone(ctx context.Context, phone string)
 			"phone", phone,
 			"error", err,
 		)
-		return nil, fmt.Errorf("failed to get business units by phone: %w", err)
+		return nil, apperrors.Internal("Failed to retrieve business units by phone", err)
 	}
 
 	return units, nil
@@ -244,7 +240,7 @@ func (s *businessUnitService) GetByAdminPhone(ctx context.Context, phone string)
 // GetByCity retrieves business units in a specific city
 func (s *businessUnitService) GetByCity(ctx context.Context, city string) ([]*model.BusinessUnit, error) {
 	if city == "" {
-		return nil, fmt.Errorf("%w: city cannot be empty", ErrInvalidInput)
+		return nil, apperrors.InvalidInput("City cannot be empty")
 	}
 
 	units, err := s.repo.FindByCity(ctx, city)
@@ -253,7 +249,7 @@ func (s *businessUnitService) GetByCity(ctx context.Context, city string) ([]*mo
 			"city", city,
 			"error", err,
 		)
-		return nil, fmt.Errorf("failed to get business units by city: %w", err)
+		return nil, apperrors.Internal("Failed to retrieve business units by city", err)
 	}
 
 	return units, nil
@@ -262,7 +258,7 @@ func (s *businessUnitService) GetByCity(ctx context.Context, city string) ([]*mo
 // Search searches for business units by cities and/or labels
 func (s *businessUnitService) Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error) {
 	if len(cities) == 0 && len(labels) == 0 {
-		return nil, fmt.Errorf("%w: at least one search criteria (cities or labels) must be provided", ErrInvalidInput)
+		return nil, apperrors.InvalidInput("At least one search criteria (cities or labels) must be provided")
 	}
 
 	units, err := s.repo.Search(ctx, cities, labels)
@@ -272,7 +268,7 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 			"labels", labels,
 			"error", err,
 		)
-		return nil, fmt.Errorf("failed to search business units: %w", err)
+		return nil, apperrors.Internal("Failed to search business units", err)
 	}
 
 	s.logger.Debug("Business units search completed",
