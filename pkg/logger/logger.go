@@ -7,12 +7,13 @@ import (
 )
 
 const (
-	EMPTY = ""
-	DEBUG = "debug"
-	INFO  = "info"
-	WARN  = "warn"
-	ERROR = "error"
-	JSON  = "json"
+	EMPTY   = ""
+	DEBUG   = "debug"
+	INFO    = "info"
+	WARN    = "warn"
+	ERROR   = "error"
+	JSON    = "json"
+	SERVICE = "service"
 )
 
 type Logger struct {
@@ -64,7 +65,7 @@ func New(cfg Config) *Logger {
 
 	if cfg.Service != EMPTY {
 		handler = handler.WithAttrs([]slog.Attr{
-			slog.String("service", cfg.Service),
+			slog.String(SERVICE, cfg.Service),
 		})
 	}
 
