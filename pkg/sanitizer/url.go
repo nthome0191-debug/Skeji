@@ -9,10 +9,15 @@ func NormalizeURL(url string) string {
 	if url == "" {
 		return ""
 	}
-	url = strings.ToLower(url)
 	url = strings.TrimPrefix(url, "http://")
 	url = strings.TrimPrefix(url, "https://")
-	url = "https://" + url
-	url = strings.TrimSuffix(url, "/")
-	return url
+	parts := strings.SplitN(url, "/", 2)
+	domain := strings.ToLower(parts[0])
+	var path string
+	if len(parts) > 1 {
+		path = "/" + parts[1]
+	}
+	result := "https://" + domain + path
+	result = strings.TrimSuffix(result, "/")
+	return result
 }

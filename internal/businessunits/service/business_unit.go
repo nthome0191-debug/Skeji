@@ -162,7 +162,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 		})
 	}
 
-	bu = merged // Use merged result for update
+	bu = merged
 
 	if err := s.repo.Update(ctx, id, bu); err != nil {
 		s.logger.Error("Failed to update business unit",
