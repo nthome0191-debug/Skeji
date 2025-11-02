@@ -11,5 +11,6 @@ type BusinessUnit struct {
 	Maintainers []string  `bson:"maintainers" validate:"omitempty,dive,required"`
 	Priority    int       `bson:"priority" validate:"omitempty,min=0"`
 	TimeZone    string    `bson:"time_zone" validate:"omitempty,timezone"`
+	WebsiteURL  string    `json:"website_url,omitempty" bson:"website_url,omitempty" validate:"omitempty,url,startswith=https://"`
 	CreatedAt   time.Time `bson:"created_at" validate:"omitempty"`
 }

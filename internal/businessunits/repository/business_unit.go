@@ -112,6 +112,7 @@ func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu 
 			"maintainers": bu.Maintainers,
 			"priority":    bu.Priority,
 			"time_zone":   bu.TimeZone,
+			"website_url": bu.WebsiteURL,
 		},
 	}
 

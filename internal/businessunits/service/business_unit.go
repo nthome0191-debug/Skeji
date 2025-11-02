@@ -268,6 +268,7 @@ func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
 	bu.Labels = sanitizer.NormalizeLabels(bu.Labels)
 	bu.AdminPhone = sanitizer.NormalizePhone(bu.AdminPhone)
 	bu.Maintainers = sanitizer.NormalizeMaintainers(bu.Maintainers)
+	bu.WebsiteURL = sanitizer.NormalizeURL(bu.WebsiteURL)
 }
 
 func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
@@ -309,6 +310,10 @@ func (s *businessUnitService) mergeBusinessUnitUpdates(existing, updates *model.
 
 	if updates.TimeZone != "" {
 		merged.TimeZone = updates.TimeZone
+	}
+
+	if updates.WebsiteURL != "" {
+		merged.WebsiteURL = updates.WebsiteURL
 	}
 
 	return &merged
