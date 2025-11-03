@@ -16,12 +16,12 @@ type BusinessUnit struct {
 }
 
 type BusinessUnitUpdate struct {
-	Name        string   `json:"name,omitempty" validate:"omitempty,min=2,max=100"`
-	Cities      []string `json:"cities,omitempty" validate:"omitempty,min=1,max=50,dive,required"`
-	Labels      []string `json:"labels,omitempty" validate:"omitempty,min=1,max=10,dive,required"`
-	AdminPhone  string   `json:"admin_phone,omitempty" validate:"omitempty,e164,supported_country"`
-	Maintainers []string `json:"maintainers,omitempty" validate:"omitempty,dive,required"`
-	Priority    *int     `json:"priority,omitempty" validate:"omitempty,min=0"`
-	TimeZone    string   `json:"time_zone,omitempty" validate:"omitempty,timezone"`
-	WebsiteURL  *string  `json:"website_url,omitempty" validate:"omitempty,url,startswith=https://"`
+	Name        string    `json:"name,omitempty" validate:"omitempty,min=2,max=100"`
+	Cities      []string  `json:"cities,omitempty" validate:"omitempty,min=1,max=50,dive,required"`
+	Labels      []string  `json:"labels,omitempty" validate:"omitempty,min=1,max=10,dive,required"`
+	AdminPhone  string    `json:"admin_phone,omitempty" validate:"omitempty,e164,supported_country"`
+	Maintainers *[]string `json:"maintainers,omitempty" validate:"omitempty,dive,required"`
+	Priority    *int      `json:"priority,omitempty" validate:"omitempty,min=0"`
+	TimeZone    string    `json:"time_zone,omitempty" validate:"omitempty,timezone"`
+	WebsiteURL  *string   `json:"website_url,omitempty" validate:"omitempty,url,startswith=https://"`
 }
