@@ -119,10 +119,6 @@ func (v *BusinessUnitValidator) translateValidationErrors(errs validator.Validat
 
 func (v *BusinessUnitValidator) validateBusinessRules(bu *model.BusinessUnit) error {
 	// TODO: Implement custom business rules here
-	// Examples:
-	// - Check if cities are valid/supported
-	// - Check for duplicate cities/labels
 	// - Business-specific rules
-
 	return nil
 }

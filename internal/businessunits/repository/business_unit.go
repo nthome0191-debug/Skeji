@@ -31,7 +31,6 @@ type BusinessUnitRepository interface {
 	Delete(ctx context.Context, id string) error
 
 	FindByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
-	FindByCity(ctx context.Context, city string) ([]*model.BusinessUnit, error)
 	Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error)
 
 	Count(ctx context.Context) (int64, error)
@@ -183,23 +182,6 @@ func (r *mongoBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phon
 	var businessUnits []*model.BusinessUnit
 	if err = cursor.All(ctx, &businessUnits); err != nil {
 		return nil, fmt.Errorf("failed to decode search results: %w", err)
-	}
-	return businessUnits, nil
-}
-
-func (r *mongoBusinessUnitRepository) FindByCity(ctx context.Context, city string) ([]*model.BusinessUnit, error) {
-	filter := bson.M{"cities": city}
-
-	opts := options.Find().SetSort(bson.D{{Key: "priority", Value: -1}})
-	cursor, err := r.collection.Find(ctx, filter, opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find business units in city [%s]: %w", city, err)
-	}
-	defer cursor.Close(ctx)
-
-	var businessUnits []*model.BusinessUnit
-	if err = cursor.All(ctx, &businessUnits); err != nil {
-		return nil, fmt.Errorf("failed to decode business units: %w", err)
 	}
 	return businessUnits, nil
 }

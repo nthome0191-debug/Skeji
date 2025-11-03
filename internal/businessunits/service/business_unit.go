@@ -24,7 +24,6 @@ type BusinessUnitService interface {
 	Delete(ctx context.Context, id string) error
 
 	GetByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
-	GetByCity(ctx context.Context, city string) ([]*model.BusinessUnit, error)
 	Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error)
 }
 
@@ -48,7 +47,7 @@ func NewBusinessUnitService(
 
 func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit) error {
 	s.sanitize(bu)
-	s.applyDefaults(bu)
+	s.applyDefaultsForNewCreatedBusiness(bu)
 
 	if err := s.validator.Validate(bu); err != nil {
 		s.logger.Warn("Business unit validation failed",
@@ -221,25 +220,6 @@ func (s *businessUnitService) GetByAdminPhone(ctx context.Context, phone string)
 	return units, nil
 }
 
-func (s *businessUnitService) GetByCity(ctx context.Context, city string) ([]*model.BusinessUnit, error) {
-	if city == "" {
-		return nil, apperrors.InvalidInput("City cannot be empty")
-	}
-
-	city = sanitizer.NormalizeCity(city)
-
-	units, err := s.repo.FindByCity(ctx, city)
-	if err != nil {
-		s.logger.Error("Failed to get business units by city",
-			"city", city,
-			"error", err,
-		)
-		return nil, apperrors.Internal("Failed to retrieve business units by city", err)
-	}
-
-	return units, nil
-}
-
 func (s *businessUnitService) Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error) {
 	if len(cities) == 0 || len(labels) == 0 {
 		return nil, apperrors.InvalidInput("Both search criteria (cities and labels) must be provided")
@@ -310,7 +290,7 @@ func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) 
 	}
 }
 
-func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
+func (s *businessUnitService) applyDefaultsForNewCreatedBusiness(bu *model.BusinessUnit) {
 	if bu.TimeZone == "" {
 		bu.TimeZone = locale.InferTimezoneFromPhone(bu.AdminPhone)
 	}
