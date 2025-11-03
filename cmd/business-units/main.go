@@ -81,7 +81,7 @@ func initServices(mongoClient *mongo.Client, log *logger.Logger) service.Busines
 
 func setupHTTPServer(businessUnitService service.BusinessUnitService, log *logger.Logger) *http.Server {
 	router := httprouter.New()
-	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService, log)
+	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService)
 	businessUnitHandler.RegisterRoutes(router)
 
 	port := os.Getenv("PORT")

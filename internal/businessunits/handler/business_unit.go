@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"skeji/internal/businessunits/service"
 	httputil "skeji/pkg/http"
-	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"strconv"
 	"strings"
@@ -15,13 +14,11 @@ import (
 
 type BusinessUnitHandler struct {
 	service service.BusinessUnitService
-	logger  *logger.Logger
 }
 
-func NewBusinessUnitHandler(service service.BusinessUnitService, logger *logger.Logger) *BusinessUnitHandler {
+func NewBusinessUnitHandler(service service.BusinessUnitService) *BusinessUnitHandler {
 	return &BusinessUnitHandler{
 		service: service,
-		logger:  logger,
 	}
 }
 
