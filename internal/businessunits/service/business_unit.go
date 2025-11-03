@@ -20,7 +20,7 @@ type BusinessUnitService interface {
 	Create(ctx context.Context, bu *model.BusinessUnit) error
 	GetByID(ctx context.Context, id string) (*model.BusinessUnit, error)
 	GetAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error)
-	Update(ctx context.Context, id string, bu *model.BusinessUnit) error
+	Update(ctx context.Context, id string, updates *model.BusinessUnitUpdate) error
 	Delete(ctx context.Context, id string) error
 
 	GetByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
@@ -132,7 +132,7 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 	return units, count, nil
 }
 
-func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.BusinessUnit) error {
+func (s *businessUnitService) Update(ctx context.Context, id string, updates *model.BusinessUnitUpdate) error {
 	if id == "" {
 		return apperrors.InvalidInput("Business unit ID cannot be empty")
 	}
@@ -145,12 +145,12 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 		return apperrors.Internal("Failed to check business unit existence", err)
 	}
 
-	merged := s.mergeBusinessUnitUpdates(existing, bu)
+	s.sanitizeUpdate(updates)
+
+	merged := s.mergeBusinessUnitUpdates(existing, updates)
 
 	merged.ID = existing.ID
 	merged.CreatedAt = existing.CreatedAt
-
-	s.sanitize(merged)
 
 	if err := s.validator.Validate(merged); err != nil {
 		s.logger.Warn("Business unit update validation failed",
@@ -162,9 +162,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 		})
 	}
 
-	bu = merged
-
-	if err := s.repo.Update(ctx, id, bu); err != nil {
+	if err := s.repo.Update(ctx, id, merged); err != nil {
 		s.logger.Error("Failed to update business unit",
 			"id", id,
 			"error", err,
@@ -174,7 +172,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 
 	s.logger.Info("Business unit updated successfully",
 		"id", id,
-		"name", bu.Name,
+		"name", merged.Name,
 	)
 
 	return nil
@@ -283,6 +281,35 @@ func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
 	bu.Priority = sanitizer.NormalizePriority(bu.Priority)
 }
 
+func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) {
+	if updates.Name != "" {
+		updates.Name = sanitizer.NormalizeName(updates.Name)
+	}
+	if len(updates.Cities) > 0 {
+		updates.Cities = sanitizer.NormalizeCities(updates.Cities)
+	}
+	if len(updates.Labels) > 0 {
+		updates.Labels = sanitizer.NormalizeLabels(updates.Labels)
+	}
+	if updates.AdminPhone != "" {
+		updates.AdminPhone = sanitizer.NormalizePhone(updates.AdminPhone)
+	}
+	if len(updates.Maintainers) > 0 {
+		updates.Maintainers = sanitizer.NormalizeMaintainers(updates.Maintainers)
+	}
+	if updates.Priority != nil {
+		normalized := sanitizer.NormalizePriority(*updates.Priority)
+		updates.Priority = &normalized
+	}
+	if updates.WebsiteURL != nil {
+		normalized := sanitizer.NormalizeURL(*updates.WebsiteURL)
+		updates.WebsiteURL = &normalized
+	}
+	if updates.TimeZone != "" {
+		updates.TimeZone = sanitizer.TrimAndNormalize(updates.TimeZone)
+	}
+}
+
 func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
 	if bu.TimeZone == "" {
 		bu.TimeZone = locale.InferTimezoneFromPhone(bu.AdminPhone)
@@ -293,7 +320,7 @@ func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
 	}
 }
 
-func (s *businessUnitService) mergeBusinessUnitUpdates(existing, updates *model.BusinessUnit) *model.BusinessUnit {
+func (s *businessUnitService) mergeBusinessUnitUpdates(existing *model.BusinessUnit, updates *model.BusinessUnitUpdate) *model.BusinessUnit {
 	merged := *existing
 
 	if updates.Name != "" {
@@ -316,18 +343,17 @@ func (s *businessUnitService) mergeBusinessUnitUpdates(existing, updates *model.
 		merged.Maintainers = updates.Maintainers
 	}
 
-	if updates.Priority != 0 {
-		merged.Priority = updates.Priority
+	if updates.Priority != nil {
+		merged.Priority = *updates.Priority
 	}
 
 	if updates.TimeZone != "" {
 		merged.TimeZone = updates.TimeZone
 	}
 
-	// TODO: HTTP layer must distinguish "field not in request" vs "field set to empty"
-	// Current approach: WebsiteURL is always merged to allow clearing
-	// Consider using pointers (*string) for clearable optional fields in update requests
-	merged.WebsiteURL = updates.WebsiteURL
+	if updates.WebsiteURL != nil {
+		merged.WebsiteURL = *updates.WebsiteURL
+	}
 
 	return &merged
 }
