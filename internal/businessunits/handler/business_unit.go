@@ -110,6 +110,13 @@ func (h *BusinessUnitHandler) Search(w http.ResponseWriter, r *http.Request, _ h
 	cities := splitAndTrim(citiesParam)
 	labels := splitAndTrim(labelsParam)
 
+	if len(cities) == 0 || len(labels) == 0 {
+		httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+			Error: "Cities and labels must contain at least one non-empty value",
+		})
+		return
+	}
+
 	units, err := h.service.Search(r.Context(), cities, labels)
 	if err != nil {
 		httputil.WriteError(w, err)
