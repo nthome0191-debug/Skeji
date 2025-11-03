@@ -96,6 +96,10 @@ func (v *BusinessUnitValidator) translateValidationErrors(errs validator.Validat
 			message = fmt.Sprintf("invalid timezone '%s', must be a valid IANA timezone (e.g., America/New_York, Asia/Jerusalem, UTC)", err.Value())
 		case "e164":
 			message = "phone number must be in E.164 format (e.g., +972501234567)"
+		case "url":
+			message = fmt.Sprintf("invalid URL format '%s'", err.Value())
+		case "startswith":
+			message = fmt.Sprintf("URL must start with '%s'", err.Param())
 		case "required":
 			message = fmt.Sprintf("%s is required", err.Field())
 		case "min":

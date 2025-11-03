@@ -8,6 +8,7 @@ import (
 	"skeji/pkg/locale"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
+	"skeji/pkg/sanitizer"
 	"strings"
 )
 
@@ -46,6 +47,7 @@ func NewBusinessUnitService(
 }
 
 func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit) error {
+	s.sanitize(bu)
 	s.applyDefaults(bu)
 
 	if err := s.validator.Validate(bu); err != nil {
@@ -148,6 +150,8 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 	merged.ID = existing.ID
 	merged.CreatedAt = existing.CreatedAt
 
+	s.sanitize(merged)
+
 	if err := s.validator.Validate(merged); err != nil {
 		s.logger.Warn("Business unit update validation failed",
 			"id", id,
@@ -158,7 +162,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, bu *model.B
 		})
 	}
 
-	bu = merged // Use merged result for update
+	bu = merged
 
 	if err := s.repo.Update(ctx, id, bu); err != nil {
 		s.logger.Error("Failed to update business unit",
@@ -205,6 +209,8 @@ func (s *businessUnitService) GetByAdminPhone(ctx context.Context, phone string)
 		return nil, apperrors.InvalidInput("Admin phone number cannot be empty")
 	}
 
+	phone = sanitizer.NormalizePhone(phone)
+
 	units, err := s.repo.FindByAdminPhone(ctx, phone)
 	if err != nil {
 		s.logger.Error("Failed to get business units by admin phone",
@@ -222,6 +228,8 @@ func (s *businessUnitService) GetByCity(ctx context.Context, city string) ([]*mo
 		return nil, apperrors.InvalidInput("City cannot be empty")
 	}
 
+	city = sanitizer.NormalizeCity(city)
+
 	units, err := s.repo.FindByCity(ctx, city)
 	if err != nil {
 		s.logger.Error("Failed to get business units by city",
@@ -237,6 +245,13 @@ func (s *businessUnitService) GetByCity(ctx context.Context, city string) ([]*mo
 func (s *businessUnitService) Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error) {
 	if len(cities) == 0 || len(labels) == 0 {
 		return nil, apperrors.InvalidInput("Both search criteria (cities and labels) must be provided")
+	}
+
+	cities = sanitizer.NormalizeCities(cities)
+	labels = sanitizer.NormalizeLabels(labels)
+
+	if len(cities) == 0 || len(labels) == 0 {
+		return nil, apperrors.InvalidInput("Search criteria resulted in no valid items after normalization")
 	}
 
 	units, err := s.repo.Search(ctx, cities, labels)
@@ -256,6 +271,16 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 	)
 
 	return units, nil
+}
+
+func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
+	bu.Name = sanitizer.NormalizeName(bu.Name)
+	bu.Cities = sanitizer.NormalizeCities(bu.Cities)
+	bu.Labels = sanitizer.NormalizeLabels(bu.Labels)
+	bu.AdminPhone = sanitizer.NormalizePhone(bu.AdminPhone)
+	bu.Maintainers = sanitizer.NormalizeMaintainers(bu.Maintainers)
+	bu.WebsiteURL = sanitizer.NormalizeURL(bu.WebsiteURL)
+	bu.Priority = sanitizer.NormalizePriority(bu.Priority)
 }
 
 func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
@@ -298,6 +323,11 @@ func (s *businessUnitService) mergeBusinessUnitUpdates(existing, updates *model.
 	if updates.TimeZone != "" {
 		merged.TimeZone = updates.TimeZone
 	}
+
+	// TODO: HTTP layer must distinguish "field not in request" vs "field set to empty"
+	// Current approach: WebsiteURL is always merged to allow clearing
+	// Consider using pointers (*string) for clearable optional fields in update requests
+	merged.WebsiteURL = updates.WebsiteURL
 
 	return &merged
 }
