@@ -35,10 +35,33 @@ func NormalizeName(name string) string {
 }
 
 func NormalizeCity(city string) string {
-	return TrimAndNormalize(city)
+	city = strings.TrimSpace(city)
+	if city == "" {
+		return ""
+	}
+
+	var result strings.Builder
+	for _, r := range city {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			result.WriteRune(unicode.ToLower(r))
+		}
+	}
+
+	return result.String()
 }
 
 func NormalizeLabel(label string) string {
-	normalized := TrimAndNormalize(label)
-	return strings.ToLower(normalized)
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return ""
+	}
+
+	var result strings.Builder
+	for _, r := range label {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			result.WriteRune(unicode.ToLower(r))
+		}
+	}
+
+	return result.String()
 }

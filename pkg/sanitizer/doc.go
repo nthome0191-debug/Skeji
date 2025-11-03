@@ -11,7 +11,8 @@
 //   - Phone numbers: Convert to E.164 format (+[country][number])
 //   - URLs: Enforce HTTPS, lowercase domains, preserve paths and query parameters
 //   - Strings: Collapse whitespace, trim leading/trailing spaces
-//   - Labels: Lowercase for case-insensitive matching
+//   - Cities: Lowercase, remove all special characters (spaces, hyphens, etc.) - "Tel Aviv" becomes "telaviv"
+//   - Labels: Lowercase, remove all special characters (spaces, hyphens, etc.) - "hair-dresser" becomes "hairdresser"
 //   - Slices: Remove duplicates and empty values after normalization
 //   - Numbers: Clamp to valid ranges
 package sanitizer
