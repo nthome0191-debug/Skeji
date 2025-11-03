@@ -324,9 +324,10 @@ func (s *businessUnitService) mergeBusinessUnitUpdates(existing, updates *model.
 		merged.TimeZone = updates.TimeZone
 	}
 
-	if updates.WebsiteURL != "" {
-		merged.WebsiteURL = updates.WebsiteURL
-	}
+	// TODO: HTTP layer must distinguish "field not in request" vs "field set to empty"
+	// Current approach: WebsiteURL is always merged to allow clearing
+	// Consider using pointers (*string) for clearable optional fields in update requests
+	merged.WebsiteURL = updates.WebsiteURL
 
 	return &merged
 }
