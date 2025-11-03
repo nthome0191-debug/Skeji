@@ -10,6 +10,7 @@ import (
 	"skeji/internal/businessunits/service"
 	"skeji/internal/businessunits/validator"
 	"skeji/pkg/logger"
+	"skeji/pkg/middleware"
 	"syscall"
 	"time"
 
@@ -84,6 +85,9 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, log *logge
 	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService)
 	businessUnitHandler.RegisterRoutes(router)
 
+	var handler http.Handler = router
+	handler = middleware.RequestLogging(log)(handler)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -91,7 +95,7 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, log *logge
 
 	server := &http.Server{
 		Addr:         ":" + port,
-		Handler:      router,
+		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
