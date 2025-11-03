@@ -18,14 +18,34 @@ import (
 )
 
 func main() {
-	log := logger.New(logger.Config{
+	log := initLogger()
+	log.Info("Starting Business Units service")
+
+	mongoClient := connectMongoDB(log)
+	defer mongoClient.Disconnect(context.Background())
+
+	businessUnitService := initServices(mongoClient, log)
+
+	server := setupHTTPServer(businessUnitService, log)
+
+	run(server, log)
+}
+
+func initLogger() *logger.Logger {
+	return logger.New(logger.Config{
 		Level:     logger.INFO,
 		Format:    logger.JSON,
 		AddSource: true,
 		Service:   "business-units",
 	})
-	log.Info("Starting Business Units service")
-	mongoURI := "mongodb://localhost:27017" // TODO: Load from config
+}
+
+func connectMongoDB(log *logger.Logger) *mongo.Client {
+	mongoURI := os.Getenv("MONGO_URI")
+	if mongoURI == "" {
+		mongoURI = "mongodb://localhost:27017"
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -36,24 +56,29 @@ func main() {
 			"uri", mongoURI,
 		)
 	}
-	defer client.Disconnect(context.Background())
 
 	if err := client.Ping(ctx, nil); err != nil {
-		log.Fatal("Failed to ping MongoDB",
-			"error", err,
-		)
+		log.Fatal("Failed to ping MongoDB", "error", err)
 	}
 
 	log.Info("Successfully connected to MongoDB")
+	return client
+}
 
+func initServices(mongoClient *mongo.Client, log *logger.Logger) service.BusinessUnitService {
 	businessUnitValidator := validator.NewBusinessUnitValidator(log)
-	businessUnitRepo := repository.NewMongoBusinessUnitRepository(client)
+	businessUnitRepo := repository.NewMongoBusinessUnitRepository(mongoClient)
 	businessUnitService := service.NewBusinessUnitService(
 		businessUnitRepo,
 		businessUnitValidator,
 		log,
 	)
 
+	log.Info("Business unit service initialized")
+	return businessUnitService
+}
+
+func setupHTTPServer(businessUnitService service.BusinessUnitService, log *logger.Logger) *http.Server {
 	mux := http.NewServeMux()
 	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService, log)
 	businessUnitHandler.RegisterRoutes(mux)
@@ -71,12 +96,15 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	log.Info("HTTP server configured", "port", port)
+	return server
+}
+
+func run(server *http.Server, log *logger.Logger) {
 	serverErrors := make(chan error, 1)
+
 	go func() {
-		log.Info("Starting HTTP server",
-			"port", port,
-			"address", server.Addr,
-		)
+		log.Info("Starting HTTP server", "address", server.Addr)
 		serverErrors <- server.ListenAndServe()
 	}()
 
@@ -88,22 +116,21 @@ func main() {
 		log.Fatal("HTTP server failed", "error", err)
 
 	case sig := <-shutdown:
-		log.Info("Shutdown signal received",
-			"signal", sig,
-		)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		if err := server.Shutdown(ctx); err != nil {
-			log.Error("Server shutdown failed",
-				"error", err,
-			)
-			if err := server.Close(); err != nil {
-				log.Fatal("Could not stop server gracefully", "error", err)
-			}
-		}
-
-		log.Info("Server stopped gracefully")
+		log.Info("Shutdown signal received", "signal", sig)
+		gracefulShutdown(server, log)
 	}
+}
+
+func gracefulShutdown(server *http.Server, log *logger.Logger) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Error("Server shutdown failed", "error", err)
+		if err := server.Close(); err != nil {
+			log.Fatal("Could not stop server gracefully", "error", err)
+		}
+	}
+
+	log.Info("Server stopped gracefully")
 }
