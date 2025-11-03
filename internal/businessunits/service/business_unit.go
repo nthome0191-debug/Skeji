@@ -274,8 +274,9 @@ func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) 
 	if updates.AdminPhone != "" {
 		updates.AdminPhone = sanitizer.NormalizePhone(updates.AdminPhone)
 	}
-	if len(updates.Maintainers) > 0 {
-		updates.Maintainers = sanitizer.NormalizeMaintainers(updates.Maintainers)
+	if updates.Maintainers != nil {
+		normalized := sanitizer.NormalizeMaintainers(*updates.Maintainers)
+		updates.Maintainers = &normalized
 	}
 	if updates.Priority != nil {
 		normalized := sanitizer.NormalizePriority(*updates.Priority)
@@ -319,8 +320,8 @@ func (s *businessUnitService) mergeBusinessUnitUpdates(existing *model.BusinessU
 		merged.AdminPhone = updates.AdminPhone
 	}
 
-	if len(updates.Maintainers) > 0 {
-		merged.Maintainers = updates.Maintainers
+	if updates.Maintainers != nil {
+		merged.Maintainers = *updates.Maintainers
 	}
 
 	if updates.Priority != nil {
