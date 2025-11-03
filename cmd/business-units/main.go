@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/julienschmidt/httprouter"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -79,9 +80,9 @@ func initServices(mongoClient *mongo.Client, log *logger.Logger) service.Busines
 }
 
 func setupHTTPServer(businessUnitService service.BusinessUnitService, log *logger.Logger) *http.Server {
-	mux := http.NewServeMux()
+	router := httprouter.New()
 	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService, log)
-	businessUnitHandler.RegisterRoutes(mux)
+	businessUnitHandler.RegisterRoutes(router)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -90,7 +91,7 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, log *logge
 
 	server := &http.Server{
 		Addr:         ":" + port,
-		Handler:      mux,
+		Handler:      router,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
