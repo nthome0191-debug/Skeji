@@ -225,10 +225,19 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 		return nil, apperrors.InvalidInput("Both search criteria (cities and labels) must be provided")
 	}
 
+	originalCities := append([]string(nil), cities...)
+	originalLabels := append([]string(nil), labels...)
+
 	cities = sanitizer.NormalizeCities(cities)
 	labels = sanitizer.NormalizeLabels(labels)
 
 	if len(cities) == 0 || len(labels) == 0 {
+		s.logger.Warn("Search criteria normalized to empty",
+			"original_cities", originalCities,
+			"original_labels", originalLabels,
+			"normalized_cities", cities,
+			"normalized_labels", labels,
+		)
 		return nil, apperrors.InvalidInput("Search criteria resulted in no valid items after normalization")
 	}
 
