@@ -209,6 +209,8 @@ func (s *businessUnitService) GetByAdminPhone(ctx context.Context, phone string)
 		return nil, apperrors.InvalidInput("Admin phone number cannot be empty")
 	}
 
+	phone = sanitizer.NormalizePhone(phone)
+
 	units, err := s.repo.FindByAdminPhone(ctx, phone)
 	if err != nil {
 		s.logger.Error("Failed to get business units by admin phone",
@@ -226,6 +228,8 @@ func (s *businessUnitService) GetByCity(ctx context.Context, city string) ([]*mo
 		return nil, apperrors.InvalidInput("City cannot be empty")
 	}
 
+	city = sanitizer.NormalizeCity(city)
+
 	units, err := s.repo.FindByCity(ctx, city)
 	if err != nil {
 		s.logger.Error("Failed to get business units by city",
@@ -241,6 +245,13 @@ func (s *businessUnitService) GetByCity(ctx context.Context, city string) ([]*mo
 func (s *businessUnitService) Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error) {
 	if len(cities) == 0 || len(labels) == 0 {
 		return nil, apperrors.InvalidInput("Both search criteria (cities and labels) must be provided")
+	}
+
+	cities = sanitizer.NormalizeCities(cities)
+	labels = sanitizer.NormalizeLabels(labels)
+
+	if len(cities) == 0 || len(labels) == 0 {
+		return nil, apperrors.InvalidInput("Search criteria resulted in no valid items after normalization")
 	}
 
 	units, err := s.repo.Search(ctx, cities, labels)
@@ -269,6 +280,7 @@ func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
 	bu.AdminPhone = sanitizer.NormalizePhone(bu.AdminPhone)
 	bu.Maintainers = sanitizer.NormalizeMaintainers(bu.Maintainers)
 	bu.WebsiteURL = sanitizer.NormalizeURL(bu.WebsiteURL)
+	bu.Priority = sanitizer.NormalizePriority(bu.Priority)
 }
 
 func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
