@@ -8,6 +8,7 @@ import (
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"strconv"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -123,48 +124,13 @@ func (h *BusinessUnitHandler) Search(w http.ResponseWriter, r *http.Request, _ h
 
 func splitAndTrim(param string) []string {
 	parts := make([]string, 0)
-	for _, part := range splitByComma(param) {
-		trimmed := trimSpace(part)
+	for _, part := range strings.Split(param, ",") {
+		trimmed := strings.TrimSpace(part)
 		if trimmed != "" {
 			parts = append(parts, trimmed)
 		}
 	}
 	return parts
-}
-
-func splitByComma(s string) []string {
-	var result []string
-	var current []rune
-
-	for _, r := range s {
-		if r == ',' {
-			result = append(result, string(current))
-			current = current[:0]
-		} else {
-			current = append(current, r)
-		}
-	}
-	result = append(result, string(current))
-	return result
-}
-
-func trimSpace(s string) string {
-	start := 0
-	end := len(s)
-
-	for start < end && isSpace(s[start]) {
-		start++
-	}
-
-	for end > start && isSpace(s[end-1]) {
-		end--
-	}
-
-	return s[start:end]
-}
-
-func isSpace(b byte) bool {
-	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
 }
 
 func (h *BusinessUnitHandler) RegisterRoutes(router *httprouter.Router) {
