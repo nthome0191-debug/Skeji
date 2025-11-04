@@ -92,6 +92,13 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, log *logge
 	handler = middleware.Idempotency(idempotencyStore, "Idempotency-Key")(handler)
 	handler = middleware.RequestTimeout(30 * time.Second)(handler)
 	handler = middleware.RequestLogging(log)(handler)
+
+	whatsappSecret := os.Getenv("WHATSAPP_APP_SECRET")
+	if whatsappSecret != "" {
+		handler = middleware.WhatsAppSignatureVerification(whatsappSecret, log)(handler)
+		log.Info("WhatsApp signature verification enabled")
+	}
+
 	handler = middleware.Recovery(log)(handler)
 
 	port := os.Getenv("PORT")
