@@ -1,4 +1,4 @@
-.PHONY: local-up mongo-up kind-up kind-down migrate business-units-up
+.PHONY: local-up mongo-up kind-up kind-down migrate business-units-up test-integration
 
 local-up:
 	@echo "🚀 Spinning up full local environment..."
@@ -26,3 +26,7 @@ business-units-up:
 	@echo "🏢 Deploying Business Units service..."
 	bash deployment/local/business-units/setup.sh
 	@echo "✅ Business Units service deployed successfully."
+
+test-integration:
+	@echo "🧪 Running integration tests..."
+	bash scripts/run-integration-tests.sh
