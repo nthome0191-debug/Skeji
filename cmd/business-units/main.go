@@ -86,12 +86,19 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, log *logge
 	businessUnitHandler.RegisterRoutes(router)
 
 	idempotencyStore := middleware.NewInMemoryIdempotencyStore(24 * time.Hour)
+	phoneRateLimiter := middleware.NewPhoneRateLimiter(
+		10,                        // 10 requests
+		1*time.Minute,             // per minute
+		middleware.DefaultPhoneExtractor,
+		log,
+	)
 
 	var handler http.Handler = router
 	handler = middleware.MaxRequestSize(1024 * 1024)(handler)
 	handler = middleware.Idempotency(idempotencyStore, "Idempotency-Key")(handler)
 	handler = middleware.RequestTimeout(30 * time.Second)(handler)
 	handler = middleware.RequestLogging(log)(handler)
+	handler = middleware.PhoneRateLimit(phoneRateLimiter)(handler)
 
 	whatsappSecret := os.Getenv("WHATSAPP_APP_SECRET")
 	if whatsappSecret != "" {
