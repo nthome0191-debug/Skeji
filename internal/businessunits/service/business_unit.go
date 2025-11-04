@@ -115,7 +115,7 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 		offset = 0
 	}
 
-	// Get total count and items in parallel would be ideal, but for now sequential
+	// TODO: Get total count and items in parallel for better performance
 	count, err := s.repo.Count(ctx)
 	if err != nil {
 		s.logger.Error("Failed to count business units", "error", err)
@@ -189,8 +189,7 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 		return apperrors.InvalidInput("Business unit ID cannot be empty")
 	}
 
-	// Note: In production, you might want to check for dependent entities
-	// (e.g., active bookings) before allowing deletion
+	// NOTE: In production, check for dependent entities (e.g., active bookings) before deletion
 
 	if err := s.repo.Delete(ctx, id); err != nil {
 		if errors.Is(err, businessunitserrors.ErrNotFound) {
