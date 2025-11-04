@@ -103,6 +103,7 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClien
 	handler = middleware.RequestTimeout(30 * time.Second)(handler)
 	handler = middleware.RequestLogging(log)(handler)
 	handler = middleware.PhoneRateLimit(phoneRateLimiter)(handler)
+	handler = middleware.ContentTypeValidation(log)(handler)
 
 	whatsappSecret := os.Getenv("WHATSAPP_APP_SECRET")
 	if whatsappSecret != "" {
