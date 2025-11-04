@@ -19,6 +19,26 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+const (
+	// MongoDB configuration
+	DefaultMongoConnTimeout = 10 * time.Second
+
+	// Rate limiting configuration
+	DefaultRateLimitRequests = 10
+	DefaultRateLimitWindow   = 1 * time.Minute
+
+	// Middleware configuration
+	DefaultRequestTimeout  = 30 * time.Second
+	DefaultIdempotencyTTL  = 24 * time.Hour
+	DefaultMaxRequestSize  = 1 * 1024 * 1024 // 1MB
+
+	// HTTP server configuration
+	DefaultReadTimeout     = 15 * time.Second
+	DefaultWriteTimeout    = 15 * time.Second
+	DefaultIdleTimeout     = 60 * time.Second
+	DefaultShutdownTimeout = 30 * time.Second
+)
+
 func main() {
 	log := initLogger()
 	log.Info("Starting Business Units service")
@@ -48,7 +68,7 @@ func connectMongoDB(log *logger.Logger) *mongo.Client {
 		mongoURI = "mongodb://localhost:27017"
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultMongoConnTimeout)
 	defer cancel()
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
@@ -94,10 +114,10 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClien
 	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService)
 	businessUnitHandler.RegisterRoutes(businessRouter)
 
-	idempotencyStore := middleware.NewInMemoryIdempotencyStore(24 * time.Hour)
+	idempotencyStore := middleware.NewInMemoryIdempotencyStore(DefaultIdempotencyTTL)
 	phoneRateLimiter := middleware.NewPhoneRateLimiter(
-		10,
-		1*time.Minute,
+		DefaultRateLimitRequests,
+		DefaultRateLimitWindow,
 		middleware.DefaultPhoneExtractor,
 		log,
 	)
@@ -106,7 +126,7 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClien
 	// Execution order will be: Recovery → Logging → MaxSize → ContentType → Signature → RateLimit → Timeout → Idempotency → Router
 	var businessHTTPHandler http.Handler = businessRouter
 	businessHTTPHandler = middleware.Idempotency(idempotencyStore, "Idempotency-Key")(businessHTTPHandler)
-	businessHTTPHandler = middleware.RequestTimeout(30 * time.Second)(businessHTTPHandler)
+	businessHTTPHandler = middleware.RequestTimeout(DefaultRequestTimeout)(businessHTTPHandler)
 	businessHTTPHandler = middleware.PhoneRateLimit(phoneRateLimiter)(businessHTTPHandler)
 
 	whatsappSecret := os.Getenv("WHATSAPP_APP_SECRET")
@@ -116,7 +136,7 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClien
 	}
 
 	businessHTTPHandler = middleware.ContentTypeValidation(log)(businessHTTPHandler)
-	businessHTTPHandler = middleware.MaxRequestSize(1024 * 1024)(businessHTTPHandler)
+	businessHTTPHandler = middleware.MaxRequestSize(DefaultMaxRequestSize)(businessHTTPHandler)
 	businessHTTPHandler = middleware.RequestLogging(log)(businessHTTPHandler)
 	businessHTTPHandler = middleware.Recovery(log)(businessHTTPHandler)
 	log.Info("Business endpoints configured with full security middleware stack")
@@ -135,9 +155,9 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClien
 	server := &http.Server{
 		Addr:         ":" + port,
 		Handler:      mux,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  DefaultReadTimeout,
+		WriteTimeout: DefaultWriteTimeout,
+		IdleTimeout:  DefaultIdleTimeout,
 	}
 
 	log.Info("HTTP server configured", "port", port)
@@ -166,7 +186,7 @@ func run(server *http.Server, log *logger.Logger) {
 }
 
 func gracefulShutdown(server *http.Server, log *logger.Logger) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), DefaultShutdownTimeout)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {

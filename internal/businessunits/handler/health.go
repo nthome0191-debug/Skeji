@@ -47,8 +47,9 @@ func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request, _ httprout
 			"error", err,
 			"path", r.URL.Path,
 		)
-		httputil.WriteJSON(w, http.StatusServiceUnavailable, httputil.ErrorResponse{
-			Error: "database unavailable",
+		httputil.WriteJSON(w, http.StatusServiceUnavailable, HealthResponse{
+			Status:   "unavailable",
+			Database: "error",
 		})
 		return
 	}
