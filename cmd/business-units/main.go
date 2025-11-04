@@ -20,6 +20,13 @@ import (
 	"skeji/pkg/middleware"
 )
 
+type application struct {
+	server           *http.Server
+	mongoClient      *mongo.Client
+	idempotencyStore *middleware.InMemoryIdempotencyStore
+	rateLimiter      *middleware.PhoneRateLimiter
+}
+
 func main() {
 	cfg := config.Load()
 
@@ -31,9 +38,9 @@ func main() {
 
 	businessUnitService := initServices(cfg, mongoClient, log)
 
-	server := setupHTTPServer(cfg, businessUnitService, mongoClient, log)
+	app := setupApplication(cfg, businessUnitService, mongoClient, log)
 
-	run(cfg, server, log)
+	run(cfg, app, log)
 }
 
 func initLogger() *logger.Logger {
@@ -78,7 +85,7 @@ func initServices(cfg *config.Config, mongoClient *mongo.Client, log *logger.Log
 	return businessUnitService
 }
 
-func setupHTTPServer(cfg *config.Config, businessUnitService service.BusinessUnitService, mongoClient *mongo.Client, log *logger.Logger) *http.Server {
+func setupApplication(cfg *config.Config, businessUnitService service.BusinessUnitService, mongoClient *mongo.Client, log *logger.Logger) *application {
 	healthRouter := httprouter.New()
 	healthHandler := handler.NewHealthHandler(mongoClient, log)
 	healthHandler.RegisterRoutes(healthRouter)
@@ -131,15 +138,21 @@ func setupHTTPServer(cfg *config.Config, businessUnitService service.BusinessUni
 	}
 
 	log.Info("HTTP server configured", "port", cfg.Port)
-	return server
+
+	return &application{
+		server:           server,
+		mongoClient:      mongoClient,
+		idempotencyStore: idempotencyStore,
+		rateLimiter:      phoneRateLimiter,
+	}
 }
 
-func run(cfg *config.Config, server *http.Server, log *logger.Logger) {
+func run(cfg *config.Config, app *application, log *logger.Logger) {
 	serverErrors := make(chan error, 1)
 
 	go func() {
-		log.Info("Starting HTTP server", "address", server.Addr)
-		serverErrors <- server.ListenAndServe()
+		log.Info("Starting HTTP server", "address", app.server.Addr)
+		serverErrors <- app.server.ListenAndServe()
 	}()
 
 	shutdown := make(chan os.Signal, 1)
@@ -151,17 +164,26 @@ func run(cfg *config.Config, server *http.Server, log *logger.Logger) {
 
 	case sig := <-shutdown:
 		log.Info("Shutdown signal received", "signal", sig)
-		gracefulShutdown(cfg, server, log)
+		gracefulShutdown(cfg, app, log)
 	}
 }
 
-func gracefulShutdown(cfg *config.Config, server *http.Server, log *logger.Logger) {
+func gracefulShutdown(cfg *config.Config, app *application, log *logger.Logger) {
+	log.Info("Starting graceful shutdown...")
+
+	// Stop background workers first
+	log.Info("Stopping background workers...")
+	app.idempotencyStore.Stop()
+	app.rateLimiter.Stop()
+	log.Info("Background workers stopped")
+
+	// Shutdown HTTP server
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 
-	if err := server.Shutdown(ctx); err != nil {
+	if err := app.server.Shutdown(ctx); err != nil {
 		log.Error("Server shutdown failed", "error", err)
-		if err := server.Close(); err != nil {
+		if err := app.server.Close(); err != nil {
 			log.Fatal("Could not stop server gracefully", "error", err)
 		}
 	}
