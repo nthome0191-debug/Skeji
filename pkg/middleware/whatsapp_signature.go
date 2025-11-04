@@ -86,5 +86,5 @@ func logAndReject(w http.ResponseWriter, log *logger.Logger, r *http.Request, re
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
-	w.Write([]byte(`{"error":"Unauthorized"}`))
+	_, _ = w.Write([]byte(`{"error":"Unauthorized"}`))
 }
