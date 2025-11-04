@@ -28,7 +28,7 @@ func main() {
 
 	businessUnitService := initServices(mongoClient, log)
 
-	server := setupHTTPServer(businessUnitService, log)
+	server := setupHTTPServer(businessUnitService, mongoClient, log)
 
 	run(server, log)
 }
@@ -80,8 +80,12 @@ func initServices(mongoClient *mongo.Client, log *logger.Logger) service.Busines
 	return businessUnitService
 }
 
-func setupHTTPServer(businessUnitService service.BusinessUnitService, log *logger.Logger) *http.Server {
+func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClient *mongo.Client, log *logger.Logger) *http.Server {
 	router := httprouter.New()
+
+	healthHandler := handler.NewHealthHandler(mongoClient)
+	healthHandler.RegisterRoutes(router)
+
 	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService)
 	businessUnitHandler.RegisterRoutes(router)
 
