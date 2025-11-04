@@ -20,15 +20,17 @@ type CachedResponse struct {
 }
 
 type InMemoryIdempotencyStore struct {
-	mu    sync.RWMutex
-	store map[string]*CachedResponse
-	ttl   time.Duration
+	mu     sync.RWMutex
+	store  map[string]*CachedResponse
+	ttl    time.Duration
+	stopCh chan struct{}
 }
 
 func NewInMemoryIdempotencyStore(ttl time.Duration) *InMemoryIdempotencyStore {
 	store := &InMemoryIdempotencyStore{
-		store: make(map[string]*CachedResponse),
-		ttl:   ttl,
+		store:  make(map[string]*CachedResponse),
+		ttl:    ttl,
+		stopCh: make(chan struct{}),
 	}
 
 	go store.cleanup()
@@ -64,15 +66,25 @@ func (s *InMemoryIdempotencyStore) cleanup() {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		s.mu.Lock()
-		for key, response := range s.store {
-			if time.Since(response.CreatedAt) > s.ttl {
-				delete(s.store, key)
+	for {
+		select {
+		case <-ticker.C:
+			s.mu.Lock()
+			for key, response := range s.store {
+				if time.Since(response.CreatedAt) > s.ttl {
+					delete(s.store, key)
+				}
 			}
+			s.mu.Unlock()
+		case <-s.stopCh:
+			return
 		}
-		s.mu.Unlock()
 	}
+}
+
+// Stop gracefully shuts down the cleanup goroutine
+func (s *InMemoryIdempotencyStore) Stop() {
+	close(s.stopCh)
 }
 
 type responseCapture struct {

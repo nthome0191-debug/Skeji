@@ -10,21 +10,23 @@ import (
 type PhoneExtractor func(r *http.Request) string
 
 type PhoneRateLimiter struct {
-	mu          sync.RWMutex
-	requests    map[string][]time.Time
-	limit       int
-	window      time.Duration
+	mu             sync.RWMutex
+	requests       map[string][]time.Time
+	limit          int
+	window         time.Duration
 	phoneExtractor PhoneExtractor
-	log         *logger.Logger
+	log            *logger.Logger
+	stopCh         chan struct{}
 }
 
 func NewPhoneRateLimiter(limit int, window time.Duration, extractor PhoneExtractor, log *logger.Logger) *PhoneRateLimiter {
 	limiter := &PhoneRateLimiter{
-		requests:    make(map[string][]time.Time),
-		limit:       limit,
-		window:      window,
+		requests:       make(map[string][]time.Time),
+		limit:          limit,
+		window:         window,
 		phoneExtractor: extractor,
-		log:         log,
+		log:            log,
+		stopCh:         make(chan struct{}),
 	}
 
 	go limiter.cleanup()
@@ -36,15 +38,25 @@ func (rl *PhoneRateLimiter) cleanup() {
 	ticker := time.NewTicker(1 * time.Hour)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		rl.mu.Lock()
-		for phone, timestamps := range rl.requests {
-			if len(timestamps) == 0 || time.Since(timestamps[len(timestamps)-1]) > rl.window {
-				delete(rl.requests, phone)
+	for {
+		select {
+		case <-ticker.C:
+			rl.mu.Lock()
+			for phone, timestamps := range rl.requests {
+				if len(timestamps) == 0 || time.Since(timestamps[len(timestamps)-1]) > rl.window {
+					delete(rl.requests, phone)
+				}
 			}
+			rl.mu.Unlock()
+		case <-rl.stopCh:
+			return
 		}
-		rl.mu.Unlock()
 	}
+}
+
+// Stop gracefully shuts down the cleanup goroutine
+func (rl *PhoneRateLimiter) Stop() {
+	close(rl.stopCh)
 }
 
 func (rl *PhoneRateLimiter) Allow(phone string) bool {
