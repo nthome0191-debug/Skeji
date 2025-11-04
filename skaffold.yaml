@@ -2,6 +2,7 @@ apiVersion: skaffold/v4beta7
 kind: Config
 metadata:
   name: skeji
+
 build:
   local:
     push: false
@@ -10,18 +11,21 @@ build:
       context: .
       docker:
         dockerfile: build/docker/business-units.Dockerfile
+
+manifests:
+  rawYaml:
+    - deployment/local/business-units/*.yaml
+    - deployment/local/mongo/*.yaml
+    - deployment/local/migrate/*.yaml
+
 deploy:
-  kubectl:
-    manifests:
-      - deployment/local/**/*.yaml
+  kubectl: {}
+
 portForward:
   - resourceType: service
     resourceName: business-units
     port: 8080
     localPort: 8080
-manifests:
-  rawYaml:
-    - deployment/local/**/*.yaml
 
 profiles:
   - name: kind
@@ -31,7 +35,4 @@ profiles:
       local:
         push: false
     deploy:
-      kubectl:
-        flags:
-          apply:
-            - --prune
+      kubectl: {}

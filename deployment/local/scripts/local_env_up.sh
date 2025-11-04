@@ -14,3 +14,5 @@ bash deployment/local/migrate/setup.sh
 bash deployment/local/business-units/setup.sh
 
 echo "✅ Local environment ready!"
+
+skaffold dev -p kind
