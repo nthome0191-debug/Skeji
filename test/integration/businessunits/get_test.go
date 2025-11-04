@@ -1,4 +1,4 @@
-package integration
+package businessunits
 
 import (
 	"fmt"
@@ -6,17 +6,17 @@ import (
 	"testing"
 
 	"skeji/pkg/model"
-	"skeji/test/integration/testutil"
+	"skeji/test/integration/common"
 )
 
 func TestGetByID_ExistingBusinessUnit(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	bu := testutil.ValidBusinessUnit()
+	bu := ValidBusinessUnit()
 	createResp := client.POST(t, "/api/v1/business-units", bu)
-	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
+	common.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
 	if err := createResp.DecodeJSON(&created); err != nil {
@@ -25,7 +25,7 @@ func TestGetByID_ExistingBusinessUnit(t *testing.T) {
 
 	getResp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
-	testutil.AssertStatusCode(t, getResp, http.StatusOK)
+	common.AssertStatusCode(t, getResp, http.StatusOK)
 
 	var fetched model.BusinessUnit
 	if err := getResp.DecodeJSON(&fetched); err != nil {
@@ -44,7 +44,7 @@ func TestGetByID_ExistingBusinessUnit(t *testing.T) {
 }
 
 func TestGetByID_NonExistentID(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
@@ -52,12 +52,12 @@ func TestGetByID_NonExistentID(t *testing.T) {
 	nonExistentID := "507f1f77bcf86cd799439011" // Valid MongoDB ObjectID format
 	resp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", nonExistentID))
 
-	testutil.AssertStatusCode(t, resp, http.StatusNotFound)
-	testutil.AssertContains(t, resp, "not found")
+	common.AssertStatusCode(t, resp, http.StatusNotFound)
+	common.AssertContains(t, resp, "not found")
 }
 
 func TestGetByID_InvalidIDFormat(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
@@ -86,13 +86,13 @@ func TestGetByID_InvalidIDFormat(t *testing.T) {
 }
 
 func TestGetAll_EmptyDatabase(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
 	resp := client.GET(t, "/api/v1/business-units")
 
-	testutil.AssertStatusCode(t, resp, http.StatusOK)
+	common.AssertStatusCode(t, resp, http.StatusOK)
 
 	var response struct {
 		Data       []model.BusinessUnit `json:"data"`
@@ -113,24 +113,24 @@ func TestGetAll_EmptyDatabase(t *testing.T) {
 }
 
 func TestGetAll_MultipleBusinessUnits(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
 	businessUnits := []model.BusinessUnit{
-		testutil.NewBusinessUnitBuilder().WithName("Low Priority").WithPriority(5).WithAdminPhone("+972501111111").Build(),
-		testutil.NewBusinessUnitBuilder().WithName("High Priority").WithPriority(100).WithAdminPhone("+972502222222").Build(),
-		testutil.NewBusinessUnitBuilder().WithName("Medium Priority").WithPriority(50).WithAdminPhone("+972503333333").Build(),
+		NewBusinessUnitBuilder().WithName("Low Priority").WithPriority(5).WithAdminPhone("+972501111111").Build(),
+		NewBusinessUnitBuilder().WithName("High Priority").WithPriority(100).WithAdminPhone("+972502222222").Build(),
+		NewBusinessUnitBuilder().WithName("Medium Priority").WithPriority(50).WithAdminPhone("+972503333333").Build(),
 	}
 
 	for _, bu := range businessUnits {
 		resp := client.POST(t, "/api/v1/business-units", bu)
-		testutil.AssertStatusCode(t, resp, http.StatusCreated)
+		common.AssertStatusCode(t, resp, http.StatusCreated)
 	}
 
 	resp := client.GET(t, "/api/v1/business-units")
 
-	testutil.AssertStatusCode(t, resp, http.StatusOK)
+	common.AssertStatusCode(t, resp, http.StatusOK)
 
 	var response struct {
 		Data       []model.BusinessUnit `json:"data"`
@@ -153,17 +153,17 @@ func TestGetAll_MultipleBusinessUnits(t *testing.T) {
 }
 
 func TestGetAll_Pagination(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
 	for i := 1; i <= 5; i++ {
-		bu := testutil.NewBusinessUnitBuilder().
+		bu := NewBusinessUnitBuilder().
 			WithName(fmt.Sprintf("Business %d", i)).
 			WithAdminPhone(fmt.Sprintf("+97250%07d", i)).
 			Build()
 		resp := client.POST(t, "/api/v1/business-units", bu)
-		testutil.AssertStatusCode(t, resp, http.StatusCreated)
+		common.AssertStatusCode(t, resp, http.StatusCreated)
 	}
 
 	testCases := []struct {
@@ -185,7 +185,7 @@ func TestGetAll_Pagination(t *testing.T) {
 			url := fmt.Sprintf("/api/v1/business-units?limit=%d&offset=%d", tc.limit, tc.offset)
 			resp := client.GET(t, url)
 
-			testutil.AssertStatusCode(t, resp, http.StatusOK)
+			common.AssertStatusCode(t, resp, http.StatusOK)
 
 			var response struct {
 				Data       []model.BusinessUnit `json:"data"`
@@ -214,22 +214,22 @@ func TestGetAll_Pagination(t *testing.T) {
 }
 
 func TestGetAll_DefaultPagination(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
 	for i := 1; i <= 15; i++ {
-		bu := testutil.NewBusinessUnitBuilder().
+		bu := NewBusinessUnitBuilder().
 			WithName(fmt.Sprintf("Business %d", i)).
 			WithAdminPhone(fmt.Sprintf("+97250%07d", i)).
 			Build()
 		resp := client.POST(t, "/api/v1/business-units", bu)
-		testutil.AssertStatusCode(t, resp, http.StatusCreated)
+		common.AssertStatusCode(t, resp, http.StatusCreated)
 	}
 
 	resp := client.GET(t, "/api/v1/business-units")
 
-	testutil.AssertStatusCode(t, resp, http.StatusOK)
+	common.AssertStatusCode(t, resp, http.StatusOK)
 
 	var response struct {
 		Data       []model.BusinessUnit `json:"data"`
@@ -250,13 +250,13 @@ func TestGetAll_DefaultPagination(t *testing.T) {
 }
 
 func TestGetAll_MaxLimit(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
 	resp := client.GET(t, "/api/v1/business-units?limit=200")
 
-	testutil.AssertStatusCode(t, resp, http.StatusOK)
+	common.AssertStatusCode(t, resp, http.StatusOK)
 
 	var response struct {
 		Limit int `json:"limit"`

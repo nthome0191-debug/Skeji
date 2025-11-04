@@ -1,4 +1,4 @@
-package testutil
+package businessunits
 
 import (
 	"skeji/pkg/model"

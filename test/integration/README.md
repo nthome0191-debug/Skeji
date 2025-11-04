@@ -1,14 +1,42 @@
 # Integration Tests
 
-This directory contains comprehensive integration tests for the Business Units service.
+This directory contains comprehensive integration tests for all Skeji microservices.
 
-## Overview
+## Directory Structure
 
-The integration test suite validates the complete HTTP API by making real requests to a running instance of the Business Units service connected to MongoDB.
+```
+test/integration/
+├── common/                  # Shared test utilities (reusable across services)
+│   ├── client.go           # HTTP client helpers
+│   ├── mongo.go            # MongoDB test utilities
+│   └── env.go              # Environment configuration
+├── businessunits/          # Business Units service tests
+│   ├── fixtures.go         # Test data builders
+│   ├── create_test.go
+│   ├── get_test.go
+│   ├── search_test.go
+│   └── update_delete_test.go
+├── booking/                # Booking service tests (future)
+├── schedule/               # Schedule service tests (future)
+└── README.md               # This file
+```
 
-## Test Coverage
+## Test Organization
 
-### Endpoints Tested
+Each microservice has its own test package:
+- **common/** - Generic utilities shared by all services (MongoDB, HTTP client, env setup)
+- **businessunits/** - Tests specific to the Business Units service
+- **booking/** (future) - Tests for the Booking service
+- **schedule/** (future) - Tests for the Schedule service
+
+This structure ensures:
+- Clear separation of concerns per service
+- Reusable infrastructure code in `common/`
+- Easy addition of new service test suites
+
+## Business Units Service Tests
+
+### Test Coverage
 
 1. **POST /api/v1/business-units** - Create business unit
    - Valid input
@@ -51,6 +79,8 @@ The integration test suite validates the complete HTTP API by making real reques
    - Invalid ID
    - Double delete
 
+**Total: 36+ test cases**
+
 ## Running Tests
 
 ### Prerequisites
@@ -62,17 +92,33 @@ The integration test suite validates the complete HTTP API by making real reques
 ### Quick Start
 
 ```bash
-# Run all integration tests
+# Run all integration tests (all services)
 ./scripts/run-integration-tests.sh
+
+# Or use Make
+make test-integration
 ```
 
 This script will:
 1. Check MongoDB connectivity
 2. Build the application
 3. Run migrations on test database
-4. Start the application in the background
+4. Start the application in background
 5. Run all integration tests
 6. Clean up (stop app, etc.)
+
+### Running Specific Service Tests
+
+```bash
+# Run only Business Units tests
+go test -v ./test/integration/businessunits/... -count=1
+
+# Run only create tests
+go test -v ./test/integration/businessunits -run TestCreate -count=1
+
+# Run a specific test case
+go test -v ./test/integration/businessunits -run TestCreate_ValidBusinessUnit -count=1
+```
 
 ### Manual Test Execution
 
@@ -91,20 +137,7 @@ PORT=8080 MONGO_URI="mongodb://localhost:27017" MONGO_DATABASE_NAME="skeji_test"
 TEST_SERVER_URL="http://localhost:8080" \
 TEST_MONGO_URI="mongodb://localhost:27017" \
 TEST_DB_NAME="skeji_test" \
-go test -v ./test/integration/... -count=1
-```
-
-### Running Specific Tests
-
-```bash
-# Run only create tests
-go test -v ./test/integration -run TestCreate -count=1
-
-# Run only search tests
-go test -v ./test/integration -run TestSearch -count=1
-
-# Run a specific test case
-go test -v ./test/integration -run TestCreate_ValidBusinessUnit -count=1
+go test -v ./test/integration/businessunits/... -count=1
 ```
 
 ## Environment Variables
@@ -118,66 +151,61 @@ Configure tests using environment variables:
 | `TEST_DB_NAME` | Test database name | `skeji_test` |
 | `TEST_SERVER_PORT` | Port for test server | `8080` |
 
-## Test Structure
+## Common Test Utilities
 
-```
-test/integration/
-├── README.md                    # This file
-├── create_test.go              # POST /api/v1/business-units tests
-├── get_test.go                 # GET by ID and List tests
-├── search_test.go              # Search endpoint tests
-├── update_delete_test.go       # PATCH and DELETE tests
-└── testutil/
-    ├── client.go               # HTTP client helpers
-    ├── mongo.go                # MongoDB test utilities
-    ├── fixtures.go             # Test data builders
-    └── env.go                  # Environment configuration
-```
-
-## Test Utilities
-
-### HTTP Client (`testutil.Client`)
+### HTTP Client (`common.Client`)
 
 ```go
-client := testutil.NewClient("http://localhost:8080")
+import "skeji/test/integration/common"
 
-// Make requests
-resp := client.POST(t, "/api/v1/business-units", businessUnit)
-resp := client.GET(t, "/api/v1/business-units/id/123")
-resp := client.PATCH(t, "/api/v1/business-units/id/123", update)
-resp := client.DELETE(t, "/api/v1/business-units/id/123")
+client := common.NewClient("http://localhost:8080")
 
-// Assertions
-testutil.AssertStatusCode(t, resp, http.StatusOK)
-testutil.AssertContains(t, resp, "expected text")
+resp := common.POST(t, "/api/v1/business-units", businessUnit)
+resp := common.GET(t, "/api/v1/business-units/id/123")
+resp := common.PATCH(t, "/api/v1/business-units/id/123", update)
+resp := common.DELETE(t, "/api/v1/business-units/id/123")
+
+common.AssertStatusCode(t, resp, http.StatusOK)
+common.AssertContains(t, resp, "expected text")
 ```
 
-### MongoDB Helper (`testutil.MongoHelper`)
+### MongoDB Helper (`common.MongoHelper`)
 
 ```go
-mongo := testutil.NewMongoHelper(t, mongoURI, dbName)
+import "skeji/test/integration/common"
+
+mongo := common.NewMongoHelper(t, mongoURI, dbName)
 defer mongo.Close(t)
 
-// Clean database
 mongo.CleanDatabase(t)
-
-// Clean specific collection
 mongo.CleanCollection(t, "Business_units")
-
-// Count documents
 count := mongo.CountDocuments(t, "Business_units")
 ```
 
-### Test Data Builders (`testutil.BusinessUnitBuilder`)
+### Test Environment (`common.TestEnv`)
 
 ```go
-// Use predefined fixtures
-bu := testutil.ValidBusinessUnit()
-bu := testutil.MinimalBusinessUnit()
-bu := testutil.EmptyBusinessUnit()
+import "skeji/test/integration/common"
 
-// Or build custom
-bu := testutil.NewBusinessUnitBuilder().
+env := common.NewTestEnv()
+mongo, client := env.Setup(t)
+defer env.Cleanup(t, mongo)
+```
+
+## Service-Specific Fixtures
+
+Each service package has its own `fixtures.go` with test data builders.
+
+### Business Units Fixtures
+
+```go
+// In businessunits package - no import needed
+
+bu := ValidBusinessUnit()
+bu := MinimalBusinessUnit()
+bu := EmptyBusinessUnit()
+
+bu := NewBusinessUnitBuilder().
     WithName("My Business").
     WithCities("Tel Aviv").
     WithLabels("cafe").
@@ -193,19 +221,15 @@ Each test follows this pattern:
 
 ```go
 func TestSomething(t *testing.T) {
-    // Setup
-    env := testutil.NewTestEnv()
+    env := common.NewTestEnv()
     mongo, client := env.Setup(t)
     defer env.Cleanup(t, mongo)
 
     // Test logic
-    // ...
 }
 ```
 
 ### Table-Driven Tests
-
-For testing multiple scenarios:
 
 ```go
 testCases := []struct {
@@ -223,6 +247,55 @@ for _, tc := range testCases {
     })
 }
 ```
+
+## Adding Tests for a New Service
+
+To add integration tests for a new service:
+
+1. **Create service directory**
+   ```bash
+   mkdir test/integration/myservice
+   ```
+
+2. **Create fixtures**
+   ```go
+   // test/integration/myservice/fixtures.go
+   package myservice
+
+   import "skeji/pkg/model"
+
+   func ValidMyEntity() model.MyEntity {
+       return model.MyEntity{
+           Field: "value",
+       }
+   }
+   ```
+
+3. **Create test files**
+   ```go
+   // test/integration/myservice/create_test.go
+   package myservice
+
+   import (
+       "testing"
+       "skeji/test/integration/common"
+   )
+
+   func TestCreate_ValidEntity(t *testing.T) {
+       env := common.NewTestEnv()
+       mongo, client := env.Setup(t)
+       defer env.Cleanup(t, mongo)
+
+       entity := ValidMyEntity()
+       resp := client.POST(t, "/api/v1/myservice", entity)
+       common.AssertStatusCode(t, resp, http.StatusCreated)
+   }
+   ```
+
+4. **Run tests**
+   ```bash
+   go test -v ./test/integration/myservice/... -count=1
+   ```
 
 ## Debugging
 
@@ -247,7 +320,7 @@ LOG_LEVEL=debug ./bin/business-units
 
 ```go
 resp := client.GET(t, "/api/v1/business-units")
-testutil.PrintResponse(t, resp)  // Shows status, body, headers
+common.PrintResponse(t, resp)
 ```
 
 ## CI/CD Integration
@@ -270,20 +343,13 @@ Example GitHub Actions:
 ## Best Practices
 
 1. **Always clean database between tests** - Use `env.Setup()` and `env.Cleanup()`
-2. **Use unique phone numbers** - Prevents conflicts in multi-admin tests
+2. **Use unique identifiers** - Prevents conflicts in concurrent tests
 3. **Test both success and error paths** - Validate errors as well as success
 4. **Use descriptive test names** - `TestCreate_InvalidPhoneFormat` not `TestCreate1`
 5. **Verify database state** - Don't just check HTTP responses
 6. **Test edge cases** - Empty strings, max values, special characters
-
-## Extending Tests
-
-To add new test cases:
-
-1. Create test data in `testutil/fixtures.go` if needed
-2. Add test function in appropriate file (create_test.go, etc.)
-3. Follow existing patterns for setup/teardown
-4. Run tests: `./scripts/run-integration-tests.sh`
+7. **Keep fixtures in service packages** - Don't pollute `common/` with service-specific data
+8. **Reuse common utilities** - HTTP client, MongoDB helpers, environment setup
 
 ## Troubleshooting
 
@@ -311,19 +377,22 @@ go build ./cmd/business-units
 
 ### "Tests hang or timeout"
 
-- Ensure no other process is using port 8080
+- Ensure no other process is using the test port
 - Check firewall settings
 - Verify MongoDB is accessible
+- Check service-specific logs
 
 ## Future Enhancements
 
 Planned improvements:
 
-- [ ] Add tests for invalid JSON payloads
+- [ ] Add tests for Booking service
+- [ ] Add tests for Schedule service
+- [ ] Add tests for Search service
+- [ ] Test invalid JSON payloads
 - [ ] Test concurrent requests
-- [ ] Test database constraints (unique indexes, etc.)
 - [ ] Add performance/load tests
-- [ ] Test authentication/authorization (when implemented)
+- [ ] Test authentication/authorization
 - [ ] Test WhatsApp webhook signature verification
 - [ ] Test idempotency keys
 - [ ] Test rate limiting

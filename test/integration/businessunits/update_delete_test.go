@@ -1,4 +1,4 @@
-package integration
+package businessunits
 
 import (
 	"fmt"
@@ -6,31 +6,31 @@ import (
 	"testing"
 
 	"skeji/pkg/model"
-	"skeji/test/integration/testutil"
+	"skeji/test/integration/common"
 )
 
 func TestUpdate_ValidUpdate(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	bu := testutil.ValidBusinessUnit()
+	bu := ValidBusinessUnit()
 	createResp := client.POST(t, "/api/v1/business-units", bu)
-	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
+	common.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
 	if err := createResp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal create response: %v", err)
 	}
 
-	update := testutil.ValidBusinessUnitUpdate()
+	update := ValidBusinessUnitUpdate()
 
 	updateResp := client.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), update)
 
-	testutil.AssertStatusCode(t, updateResp, http.StatusNoContent)
+	common.AssertStatusCode(t, updateResp, http.StatusNoContent)
 
 	getResp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	testutil.AssertStatusCode(t, getResp, http.StatusOK)
+	common.AssertStatusCode(t, getResp, http.StatusOK)
 
 	var updated model.BusinessUnit
 	if err := getResp.DecodeJSON(&updated); err != nil {
@@ -46,27 +46,27 @@ func TestUpdate_ValidUpdate(t *testing.T) {
 }
 
 func TestUpdate_PartialUpdate(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	bu := testutil.ValidBusinessUnit()
+	bu := ValidBusinessUnit()
 	createResp := client.POST(t, "/api/v1/business-units", bu)
-	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
+	common.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
 	if err := createResp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal create response: %v", err)
 	}
 
-	update := testutil.PartialBusinessUnitUpdate()
+	update := PartialBusinessUnitUpdate()
 
 	updateResp := client.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), update)
 
-	testutil.AssertStatusCode(t, updateResp, http.StatusNoContent)
+	common.AssertStatusCode(t, updateResp, http.StatusNoContent)
 
 	getResp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	testutil.AssertStatusCode(t, getResp, http.StatusOK)
+	common.AssertStatusCode(t, getResp, http.StatusOK)
 
 	var updated model.BusinessUnit
 	if err := getResp.DecodeJSON(&updated); err != nil {
@@ -83,27 +83,27 @@ func TestUpdate_PartialUpdate(t *testing.T) {
 }
 
 func TestUpdate_EmptyUpdate(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	bu := testutil.ValidBusinessUnit()
+	bu := ValidBusinessUnit()
 	createResp := client.POST(t, "/api/v1/business-units", bu)
-	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
+	common.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
 	if err := createResp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal create response: %v", err)
 	}
 
-	update := testutil.EmptyBusinessUnitUpdate()
+	update := EmptyBusinessUnitUpdate()
 
 	updateResp := client.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), update)
 
-	testutil.AssertStatusCode(t, updateResp, http.StatusNoContent)
+	common.AssertStatusCode(t, updateResp, http.StatusNoContent)
 
 	getResp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	testutil.AssertStatusCode(t, getResp, http.StatusOK)
+	common.AssertStatusCode(t, getResp, http.StatusOK)
 
 	var updated model.BusinessUnit
 	if err := getResp.DecodeJSON(&updated); err != nil {
@@ -116,21 +116,21 @@ func TestUpdate_EmptyUpdate(t *testing.T) {
 }
 
 func TestUpdate_NonExistentID(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
 	nonExistentID := "507f1f77bcf86cd799439011"
-	update := testutil.ValidBusinessUnitUpdate()
+	update := ValidBusinessUnitUpdate()
 
 	resp := client.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", nonExistentID), update)
 
-	testutil.AssertStatusCode(t, resp, http.StatusNotFound)
-	testutil.AssertContains(t, resp, "not found")
+	common.AssertStatusCode(t, resp, http.StatusNotFound)
+	common.AssertContains(t, resp, "not found")
 }
 
 func TestUpdate_InvalidID(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
@@ -145,7 +145,7 @@ func TestUpdate_InvalidID(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			update := testutil.ValidBusinessUnitUpdate()
+			update := ValidBusinessUnitUpdate()
 
 			resp := client.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", tc.id), update)
 
@@ -157,13 +157,13 @@ func TestUpdate_InvalidID(t *testing.T) {
 }
 
 func TestUpdate_InvalidPhoneFormat(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	bu := testutil.ValidBusinessUnit()
+	bu := ValidBusinessUnit()
 	createResp := client.POST(t, "/api/v1/business-units", bu)
-	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
+	common.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
 	if err := createResp.DecodeJSON(&created); err != nil {
@@ -188,58 +188,58 @@ func TestUpdate_InvalidPhoneFormat(t *testing.T) {
 
 			resp := client.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), update)
 
-			testutil.AssertStatusCode(t, resp, http.StatusUnprocessableEntity)
-			testutil.AssertContains(t, resp, "phone")
+			common.AssertStatusCode(t, resp, http.StatusUnprocessableEntity)
+			common.AssertContains(t, resp, "phone")
 		})
 	}
 }
 
 func TestDelete_ExistingBusinessUnit(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	bu := testutil.ValidBusinessUnit()
+	bu := ValidBusinessUnit()
 	createResp := client.POST(t, "/api/v1/business-units", bu)
-	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
+	common.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
 	if err := createResp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal create response: %v", err)
 	}
 
-	initialCount := mongo.CountDocuments(t, testutil.BusinessUnitsCollection)
+	initialCount := mongo.CountDocuments(t, common.BusinessUnitsCollection)
 	if initialCount != 1 {
 		t.Fatalf("expected 1 document before delete, got %d", initialCount)
 	}
 
 	deleteResp := client.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
-	testutil.AssertStatusCode(t, deleteResp, http.StatusNoContent)
+	common.AssertStatusCode(t, deleteResp, http.StatusNoContent)
 
-	count := mongo.CountDocuments(t, testutil.BusinessUnitsCollection)
+	count := mongo.CountDocuments(t, common.BusinessUnitsCollection)
 	if count != 0 {
 		t.Errorf("expected 0 documents after delete, got %d", count)
 	}
 
 	getResp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	testutil.AssertStatusCode(t, getResp, http.StatusNotFound)
+	common.AssertStatusCode(t, getResp, http.StatusNotFound)
 }
 
 func TestDelete_NonExistentID(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
 	nonExistentID := "507f1f77bcf86cd799439011"
 	resp := client.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", nonExistentID))
 
-	testutil.AssertStatusCode(t, resp, http.StatusNotFound)
-	testutil.AssertContains(t, resp, "not found")
+	common.AssertStatusCode(t, resp, http.StatusNotFound)
+	common.AssertContains(t, resp, "not found")
 }
 
 func TestDelete_InvalidID(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
@@ -264,13 +264,13 @@ func TestDelete_InvalidID(t *testing.T) {
 }
 
 func TestDelete_DeletedIDCannotBeRetrieved(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	bu := testutil.ValidBusinessUnit()
+	bu := ValidBusinessUnit()
 	createResp := client.POST(t, "/api/v1/business-units", bu)
-	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
+	common.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
 	if err := createResp.DecodeJSON(&created); err != nil {
@@ -278,21 +278,21 @@ func TestDelete_DeletedIDCannotBeRetrieved(t *testing.T) {
 	}
 
 	deleteResp := client.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	testutil.AssertStatusCode(t, deleteResp, http.StatusNoContent)
+	common.AssertStatusCode(t, deleteResp, http.StatusNoContent)
 
 	getResp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
-	testutil.AssertStatusCode(t, getResp, http.StatusNotFound)
+	common.AssertStatusCode(t, getResp, http.StatusNotFound)
 }
 
 func TestDelete_DoubleDelete(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	bu := testutil.ValidBusinessUnit()
+	bu := ValidBusinessUnit()
 	createResp := client.POST(t, "/api/v1/business-units", bu)
-	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
+	common.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
 	if err := createResp.DecodeJSON(&created); err != nil {
@@ -300,9 +300,9 @@ func TestDelete_DoubleDelete(t *testing.T) {
 	}
 
 	deleteResp1 := client.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	testutil.AssertStatusCode(t, deleteResp1, http.StatusNoContent)
+	common.AssertStatusCode(t, deleteResp1, http.StatusNoContent)
 
 	deleteResp2 := client.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
-	testutil.AssertStatusCode(t, deleteResp2, http.StatusNotFound)
+	common.AssertStatusCode(t, deleteResp2, http.StatusNotFound)
 }

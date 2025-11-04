@@ -1,4 +1,4 @@
-package integration
+package businessunits
 
 import (
 	"net/http"
@@ -6,29 +6,29 @@ import (
 	"testing"
 
 	"skeji/pkg/model"
-	"skeji/test/integration/testutil"
+	"skeji/test/integration/common"
 )
 
 func TestSearch_ValidCitiesAndLabels(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
 	businessUnits := []model.BusinessUnit{
-		testutil.NewBusinessUnitBuilder().WithName("TLV Barbershop").WithCities("Tel Aviv").WithLabels("barbershop").WithAdminPhone("+972501111111").Build(),
-		testutil.NewBusinessUnitBuilder().WithName("TLV Cafe").WithCities("Tel Aviv").WithLabels("cafe").WithAdminPhone("+972502222222").Build(),
-		testutil.NewBusinessUnitBuilder().WithName("JLM Barbershop").WithCities("Jerusalem").WithLabels("barbershop").WithAdminPhone("+972503333333").Build(),
+		NewBusinessUnitBuilder().WithName("TLV Barbershop").WithCities("Tel Aviv").WithLabels("barbershop").WithAdminPhone("+972501111111").Build(),
+		NewBusinessUnitBuilder().WithName("TLV Cafe").WithCities("Tel Aviv").WithLabels("cafe").WithAdminPhone("+972502222222").Build(),
+		NewBusinessUnitBuilder().WithName("JLM Barbershop").WithCities("Jerusalem").WithLabels("barbershop").WithAdminPhone("+972503333333").Build(),
 	}
 
 	for _, bu := range businessUnits {
 		resp := client.POST(t, "/api/v1/business-units", bu)
-		testutil.AssertStatusCode(t, resp, http.StatusCreated)
+		common.AssertStatusCode(t, resp, http.StatusCreated)
 	}
 
 	searchURL := "/api/v1/business-units/search?cities=Tel%20Aviv&labels=barbershop"
 	resp := client.GET(t, searchURL)
 
-	testutil.AssertStatusCode(t, resp, http.StatusOK)
+	common.AssertStatusCode(t, resp, http.StatusOK)
 
 	var results []model.BusinessUnit
 	if err := resp.DecodeJSON(&results); err != nil {
@@ -44,25 +44,25 @@ func TestSearch_ValidCitiesAndLabels(t *testing.T) {
 }
 
 func TestSearch_MultipleCitiesAndLabels(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
 	businessUnits := []model.BusinessUnit{
-		testutil.NewBusinessUnitBuilder().WithName("TLV Multi").WithCities("Tel Aviv", "Haifa").WithLabels("barbershop", "salon").WithAdminPhone("+972501111111").Build(),
-		testutil.NewBusinessUnitBuilder().WithName("JLM Single").WithCities("Jerusalem").WithLabels("barbershop").WithAdminPhone("+972502222222").Build(),
-		testutil.NewBusinessUnitBuilder().WithName("Haifa Cafe").WithCities("Haifa").WithLabels("cafe").WithAdminPhone("+972503333333").Build(),
+		NewBusinessUnitBuilder().WithName("TLV Multi").WithCities("Tel Aviv", "Haifa").WithLabels("barbershop", "salon").WithAdminPhone("+972501111111").Build(),
+		NewBusinessUnitBuilder().WithName("JLM Single").WithCities("Jerusalem").WithLabels("barbershop").WithAdminPhone("+972502222222").Build(),
+		NewBusinessUnitBuilder().WithName("Haifa Cafe").WithCities("Haifa").WithLabels("cafe").WithAdminPhone("+972503333333").Build(),
 	}
 
 	for _, bu := range businessUnits {
 		resp := client.POST(t, "/api/v1/business-units", bu)
-		testutil.AssertStatusCode(t, resp, http.StatusCreated)
+		common.AssertStatusCode(t, resp, http.StatusCreated)
 	}
 
 	searchURL := "/api/v1/business-units/search?cities=Tel%20Aviv,Haifa&labels=barbershop,salon"
 	resp := client.GET(t, searchURL)
 
-	testutil.AssertStatusCode(t, resp, http.StatusOK)
+	common.AssertStatusCode(t, resp, http.StatusOK)
 
 	var results []model.BusinessUnit
 	if err := resp.DecodeJSON(&results); err != nil {
@@ -75,21 +75,21 @@ func TestSearch_MultipleCitiesAndLabels(t *testing.T) {
 }
 
 func TestSearch_NoResults(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	bu := testutil.NewBusinessUnitBuilder().
+	bu := NewBusinessUnitBuilder().
 		WithCities("Tel Aviv").
 		WithLabels("barbershop").
 		Build()
 	resp := client.POST(t, "/api/v1/business-units", bu)
-	testutil.AssertStatusCode(t, resp, http.StatusCreated)
+	common.AssertStatusCode(t, resp, http.StatusCreated)
 
 	searchURL := "/api/v1/business-units/search?cities=Eilat&labels=restaurant"
 	resp = client.GET(t, searchURL)
 
-	testutil.AssertStatusCode(t, resp, http.StatusOK)
+	common.AssertStatusCode(t, resp, http.StatusOK)
 
 	var results []model.BusinessUnit
 	if err := resp.DecodeJSON(&results); err != nil {
@@ -102,31 +102,31 @@ func TestSearch_NoResults(t *testing.T) {
 }
 
 func TestSearch_MissingCities(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	_, client := env.Setup(t)
 	defer env.Cleanup(t, nil)
 
 	searchURL := "/api/v1/business-units/search?labels=barbershop"
 	resp := client.GET(t, searchURL)
 
-	testutil.AssertStatusCode(t, resp, http.StatusBadRequest)
-	testutil.AssertContains(t, resp, "cities")
+	common.AssertStatusCode(t, resp, http.StatusBadRequest)
+	common.AssertContains(t, resp, "cities")
 }
 
 func TestSearch_MissingLabels(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	_, client := env.Setup(t)
 	defer env.Cleanup(t, nil)
 
 	searchURL := "/api/v1/business-units/search?cities=Tel%20Aviv"
 	resp := client.GET(t, searchURL)
 
-	testutil.AssertStatusCode(t, resp, http.StatusBadRequest)
-	testutil.AssertContains(t, resp, "labels")
+	common.AssertStatusCode(t, resp, http.StatusBadRequest)
+	common.AssertContains(t, resp, "labels")
 }
 
 func TestSearch_EmptyParameters(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	_, client := env.Setup(t)
 	defer env.Cleanup(t, nil)
 
@@ -158,25 +158,25 @@ func TestSearch_EmptyParameters(t *testing.T) {
 }
 
 func TestSearch_SortedByPriority(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
 	businessUnits := []model.BusinessUnit{
-		testutil.NewBusinessUnitBuilder().WithName("Low Priority").WithPriority(10).WithCities("Tel Aviv").WithLabels("cafe").WithAdminPhone("+972501111111").Build(),
-		testutil.NewBusinessUnitBuilder().WithName("High Priority").WithPriority(100).WithCities("Tel Aviv").WithLabels("cafe").WithAdminPhone("+972502222222").Build(),
-		testutil.NewBusinessUnitBuilder().WithName("Medium Priority").WithPriority(50).WithCities("Tel Aviv").WithLabels("cafe").WithAdminPhone("+972503333333").Build(),
+		NewBusinessUnitBuilder().WithName("Low Priority").WithPriority(10).WithCities("Tel Aviv").WithLabels("cafe").WithAdminPhone("+972501111111").Build(),
+		NewBusinessUnitBuilder().WithName("High Priority").WithPriority(100).WithCities("Tel Aviv").WithLabels("cafe").WithAdminPhone("+972502222222").Build(),
+		NewBusinessUnitBuilder().WithName("Medium Priority").WithPriority(50).WithCities("Tel Aviv").WithLabels("cafe").WithAdminPhone("+972503333333").Build(),
 	}
 
 	for _, bu := range businessUnits {
 		resp := client.POST(t, "/api/v1/business-units", bu)
-		testutil.AssertStatusCode(t, resp, http.StatusCreated)
+		common.AssertStatusCode(t, resp, http.StatusCreated)
 	}
 
 	searchURL := "/api/v1/business-units/search?cities=Tel%20Aviv&labels=cafe"
 	resp := client.GET(t, searchURL)
 
-	testutil.AssertStatusCode(t, resp, http.StatusOK)
+	common.AssertStatusCode(t, resp, http.StatusOK)
 
 	var results []model.BusinessUnit
 	if err := resp.DecodeJSON(&results); err != nil {
@@ -199,16 +199,16 @@ func TestSearch_SortedByPriority(t *testing.T) {
 }
 
 func TestSearch_CaseInsensitive(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	bu := testutil.NewBusinessUnitBuilder().
+	bu := NewBusinessUnitBuilder().
 		WithCities("Tel Aviv").
 		WithLabels("Barbershop").
 		Build()
 	resp := client.POST(t, "/api/v1/business-units", bu)
-	testutil.AssertStatusCode(t, resp, http.StatusCreated)
+	common.AssertStatusCode(t, resp, http.StatusCreated)
 
 	testCases := []struct {
 		name   string
@@ -225,7 +225,7 @@ func TestSearch_CaseInsensitive(t *testing.T) {
 			searchURL := "/api/v1/business-units/search?cities=" + url.QueryEscape(tc.cities) + "&labels=" + url.QueryEscape(tc.labels)
 			resp := client.GET(t, searchURL)
 
-			testutil.AssertStatusCode(t, resp, http.StatusOK)
+			common.AssertStatusCode(t, resp, http.StatusOK)
 
 			var results []model.BusinessUnit
 			if err := resp.DecodeJSON(&results); err != nil {
@@ -240,25 +240,25 @@ func TestSearch_CaseInsensitive(t *testing.T) {
 }
 
 func TestSearch_CommaDelimitedValues(t *testing.T) {
-	env := testutil.NewTestEnv()
+	env := common.NewTestEnv()
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
 	businessUnits := []model.BusinessUnit{
-		testutil.NewBusinessUnitBuilder().WithName("TLV Barber").WithCities("Tel Aviv").WithLabels("barbershop").WithAdminPhone("+972501111111").Build(),
-		testutil.NewBusinessUnitBuilder().WithName("JLM Barber").WithCities("Jerusalem").WithLabels("barbershop").WithAdminPhone("+972502222222").Build(),
-		testutil.NewBusinessUnitBuilder().WithName("TLV Cafe").WithCities("Tel Aviv").WithLabels("cafe").WithAdminPhone("+972503333333").Build(),
+		NewBusinessUnitBuilder().WithName("TLV Barber").WithCities("Tel Aviv").WithLabels("barbershop").WithAdminPhone("+972501111111").Build(),
+		NewBusinessUnitBuilder().WithName("JLM Barber").WithCities("Jerusalem").WithLabels("barbershop").WithAdminPhone("+972502222222").Build(),
+		NewBusinessUnitBuilder().WithName("TLV Cafe").WithCities("Tel Aviv").WithLabels("cafe").WithAdminPhone("+972503333333").Build(),
 	}
 
 	for _, bu := range businessUnits {
 		resp := client.POST(t, "/api/v1/business-units", bu)
-		testutil.AssertStatusCode(t, resp, http.StatusCreated)
+		common.AssertStatusCode(t, resp, http.StatusCreated)
 	}
 
 	searchURL := "/api/v1/business-units/search?cities=Tel%20Aviv,Jerusalem&labels=barbershop"
 	resp := client.GET(t, searchURL)
 
-	testutil.AssertStatusCode(t, resp, http.StatusOK)
+	common.AssertStatusCode(t, resp, http.StatusOK)
 
 	var results []model.BusinessUnit
 	if err := resp.DecodeJSON(&results); err != nil {
