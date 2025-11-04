@@ -3,13 +3,14 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"skeji/internal/businessunits/service"
-	httputil "skeji/pkg/http"
-	"skeji/pkg/model"
 	"strconv"
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
+
+	"skeji/internal/businessunits/service"
+	httputil "skeji/pkg/http"
+	"skeji/pkg/model"
 )
 
 type BusinessUnitHandler struct {
@@ -21,6 +22,8 @@ func NewBusinessUnitHandler(service service.BusinessUnitService) *BusinessUnitHa
 		service: service,
 	}
 }
+
+// HTTP handler methods
 
 func (h *BusinessUnitHandler) Create(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var bu model.BusinessUnit
@@ -126,6 +129,8 @@ func (h *BusinessUnitHandler) Search(w http.ResponseWriter, r *http.Request, _ h
 	httputil.WriteSuccess(w, units)
 }
 
+// Helper functions
+
 func splitAndTrim(param string) []string {
 	parts := make([]string, 0)
 	for _, part := range strings.Split(param, ",") {
@@ -136,6 +141,8 @@ func splitAndTrim(param string) []string {
 	}
 	return parts
 }
+
+// Route registration
 
 func (h *BusinessUnitHandler) RegisterRoutes(router *httprouter.Router) {
 	router.POST("/api/v1/business-units", h.Create)
