@@ -12,7 +12,7 @@ import (
 	"skeji/internal/migrations/mongo/validators"
 )
 
-const DB_NAME = "skeji"
+const DatabaseName = "skeji"
 
 var (
 	BusinessUnitsIndexes = []mongo.IndexModel{
@@ -48,8 +48,8 @@ var (
 )
 
 func RunMigration(ctx context.Context, client *mongo.Client) error {
-	db := client.Database(DB_NAME)
-	fmt.Printf("🚀 Running Skeji Mongo migrations on database: %s\n", DB_NAME)
+	db := client.Database(DatabaseName)
+	fmt.Printf("🚀 Running Skeji Mongo migrations on database: %s\n", DatabaseName)
 
 	collections := map[string]struct {
 		Indexes   []mongo.IndexModel
