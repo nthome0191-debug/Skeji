@@ -85,8 +85,11 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, log *logge
 	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService)
 	businessUnitHandler.RegisterRoutes(router)
 
+	idempotencyStore := middleware.NewInMemoryIdempotencyStore(24 * time.Hour)
+
 	var handler http.Handler = router
 	handler = middleware.MaxRequestSize(1024 * 1024)(handler)
+	handler = middleware.Idempotency(idempotencyStore, "Idempotency-Key")(handler)
 	handler = middleware.RequestTimeout(30 * time.Second)(handler)
 	handler = middleware.RequestLogging(log)(handler)
 	handler = middleware.Recovery(log)(handler)
