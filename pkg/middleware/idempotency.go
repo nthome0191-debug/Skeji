@@ -98,40 +98,69 @@ func Idempotency(store IdempotencyStore, headerName string) func(http.Handler) h
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			idempotencyKey := r.Header.Get(headerName)
+			idempotencyKey := extractIdempotencyKey(r, headerName)
 
 			if idempotencyKey == "" {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			if cached, found := store.Get(idempotencyKey); found {
-				for key, values := range cached.Headers {
-					for _, value := range values {
-						w.Header().Add(key, value)
-					}
-				}
-				w.WriteHeader(cached.StatusCode)
-				w.Write(cached.Body)
+			if handleCachedResponse(w, store, idempotencyKey) {
 				return
 			}
 
-			capture := &responseCapture{
-				ResponseWriter: w,
-				statusCode:     200,
-				body:           &bytes.Buffer{},
-			}
-
+			capture := captureResponse(w)
 			next.ServeHTTP(capture, r)
-
-			if capture.statusCode >= 200 && capture.statusCode < 300 {
-				cached := &CachedResponse{
-					StatusCode: capture.statusCode,
-					Headers:    w.Header().Clone(),
-					Body:       capture.body.Bytes(),
-				}
-				store.Set(idempotencyKey, cached)
-			}
+			cacheSuccessfulResponse(store, idempotencyKey, capture, w)
 		})
 	}
+}
+
+func extractIdempotencyKey(r *http.Request, headerName string) string {
+	return r.Header.Get(headerName)
+}
+
+func handleCachedResponse(w http.ResponseWriter, store IdempotencyStore, key string) bool {
+	cached, found := store.Get(key)
+	if !found {
+		return false
+	}
+
+	replayCachedResponse(w, cached)
+	return true
+}
+
+func replayCachedResponse(w http.ResponseWriter, cached *CachedResponse) {
+	for key, values := range cached.Headers {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+	w.WriteHeader(cached.StatusCode)
+	w.Write(cached.Body)
+}
+
+func captureResponse(w http.ResponseWriter) *responseCapture {
+	return &responseCapture{
+		ResponseWriter: w,
+		statusCode:     200,
+		body:           &bytes.Buffer{},
+	}
+}
+
+func cacheSuccessfulResponse(store IdempotencyStore, key string, capture *responseCapture, w http.ResponseWriter) {
+	if !shouldCacheResponse(capture.statusCode) {
+		return
+	}
+
+	cached := &CachedResponse{
+		StatusCode: capture.statusCode,
+		Headers:    w.Header().Clone(),
+		Body:       capture.body.Bytes(),
+	}
+	store.Set(key, cached)
+}
+
+func shouldCacheResponse(statusCode int) bool {
+	return statusCode >= 200 && statusCode < 300
 }
