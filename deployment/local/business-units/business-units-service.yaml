@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: business-units
+  namespace: apps
+  labels:
+    app: business-units
+spec:
+  type: ClusterIP
+  selector:
+    app: business-units
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
