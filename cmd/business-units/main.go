@@ -81,37 +81,51 @@ func initServices(mongoClient *mongo.Client, log *logger.Logger) service.Busines
 }
 
 func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClient *mongo.Client, log *logger.Logger) *http.Server {
-	router := httprouter.New()
-
+	// Health router - minimal middleware for Kubernetes probes
+	healthRouter := httprouter.New()
 	healthHandler := handler.NewHealthHandler(mongoClient)
-	healthHandler.RegisterRoutes(router)
+	healthHandler.RegisterRoutes(healthRouter)
 
+	var healthHTTPHandler http.Handler = healthRouter
+	healthHTTPHandler = middleware.RequestLogging(log)(healthHTTPHandler)
+	healthHTTPHandler = middleware.Recovery(log)(healthHTTPHandler)
+	log.Info("Health endpoints configured with minimal middleware (Recovery + Logging only)")
+
+	// Business router - full security middleware stack
+	businessRouter := httprouter.New()
 	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService)
-	businessUnitHandler.RegisterRoutes(router)
+	businessUnitHandler.RegisterRoutes(businessRouter)
 
 	idempotencyStore := middleware.NewInMemoryIdempotencyStore(24 * time.Hour)
 	phoneRateLimiter := middleware.NewPhoneRateLimiter(
-		10,                        // 10 requests
-		1*time.Minute,             // per minute
+		10,
+		1*time.Minute,
 		middleware.DefaultPhoneExtractor,
 		log,
 	)
 
-	var handler http.Handler = router
-	handler = middleware.MaxRequestSize(1024 * 1024)(handler)
-	handler = middleware.Idempotency(idempotencyStore, "Idempotency-Key")(handler)
-	handler = middleware.RequestTimeout(30 * time.Second)(handler)
-	handler = middleware.RequestLogging(log)(handler)
-	handler = middleware.PhoneRateLimit(phoneRateLimiter)(handler)
-	handler = middleware.ContentTypeValidation(log)(handler)
+	var businessHTTPHandler http.Handler = businessRouter
+	businessHTTPHandler = middleware.MaxRequestSize(1024 * 1024)(businessHTTPHandler)
+	businessHTTPHandler = middleware.Idempotency(idempotencyStore, "Idempotency-Key")(businessHTTPHandler)
+	businessHTTPHandler = middleware.RequestTimeout(30 * time.Second)(businessHTTPHandler)
+	businessHTTPHandler = middleware.RequestLogging(log)(businessHTTPHandler)
+	businessHTTPHandler = middleware.PhoneRateLimit(phoneRateLimiter)(businessHTTPHandler)
+	businessHTTPHandler = middleware.ContentTypeValidation(log)(businessHTTPHandler)
 
 	whatsappSecret := os.Getenv("WHATSAPP_APP_SECRET")
 	if whatsappSecret != "" {
-		handler = middleware.WhatsAppSignatureVerification(whatsappSecret, log)(handler)
+		businessHTTPHandler = middleware.WhatsAppSignatureVerification(whatsappSecret, log)(businessHTTPHandler)
 		log.Info("WhatsApp signature verification enabled")
 	}
 
-	handler = middleware.Recovery(log)(handler)
+	businessHTTPHandler = middleware.Recovery(log)(businessHTTPHandler)
+	log.Info("Business endpoints configured with full security middleware stack")
+
+	// Combine both routers using http.ServeMux
+	mux := http.NewServeMux()
+	mux.Handle("/health", healthHTTPHandler)
+	mux.Handle("/ready", healthHTTPHandler)
+	mux.Handle("/", businessHTTPHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -120,7 +134,7 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClien
 
 	server := &http.Server{
 		Addr:         ":" + port,
-		Handler:      handler,
+		Handler:      mux,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
