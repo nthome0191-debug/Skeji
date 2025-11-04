@@ -3,8 +3,9 @@ package config
 import "time"
 
 const (
-	DefaultMongoURI         = "mongodb://localhost:27017"
-	DefaultMongoConnTimeout = 10 * time.Second
+	DefaultMongoURI          = "mongodb://localhost:27017"
+	DefaultMongoDatabaseName = "skeji"
+	DefaultMongoConnTimeout  = 10 * time.Second
 
 	DefaultPort = "8080"
 

@@ -29,7 +29,7 @@ func main() {
 	mongoClient := connectMongoDB(cfg, log)
 	defer mongoClient.Disconnect(context.Background())
 
-	businessUnitService := initServices(mongoClient, log)
+	businessUnitService := initServices(cfg, mongoClient, log)
 
 	server := setupHTTPServer(cfg, businessUnitService, mongoClient, log)
 
@@ -65,16 +65,16 @@ func connectMongoDB(cfg *config.Config, log *logger.Logger) *mongo.Client {
 	return client
 }
 
-func initServices(mongoClient *mongo.Client, log *logger.Logger) service.BusinessUnitService {
+func initServices(cfg *config.Config, mongoClient *mongo.Client, log *logger.Logger) service.BusinessUnitService {
 	businessUnitValidator := validator.NewBusinessUnitValidator(log)
-	businessUnitRepo := repository.NewMongoBusinessUnitRepository(mongoClient)
+	businessUnitRepo := repository.NewMongoBusinessUnitRepository(mongoClient, cfg.MongoDatabaseName)
 	businessUnitService := service.NewBusinessUnitService(
 		businessUnitRepo,
 		businessUnitValidator,
 		log,
 	)
 
-	log.Info("Business unit service initialized")
+	log.Info("Business unit service initialized", "database", cfg.MongoDatabaseName)
 	return businessUnitService
 }
 

@@ -1,8 +1,9 @@
 package config
 
 const (
-	EnvMongoURI         = "MONGO_URI"
-	EnvMongoConnTimeout = "MONGO_CONN_TIMEOUT"
+	EnvMongoURI          = "MONGO_URI"
+	EnvMongoDatabaseName = "MONGO_DATABASE_NAME"
+	EnvMongoConnTimeout  = "MONGO_CONN_TIMEOUT"
 
 	EnvPort = "PORT"
 

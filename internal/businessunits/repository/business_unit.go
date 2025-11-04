@@ -15,8 +15,11 @@ import (
 )
 
 const (
-	DBName         = "skeji"
+	// CollectionName is the name of the MongoDB collection for business units
 	CollectionName = "Business_units"
+
+	// operationTimeout is the maximum duration for individual MongoDB operations
+	operationTimeout = 5 * time.Second
 )
 
 type mongoBusinessUnitRepository struct {
@@ -37,8 +40,8 @@ type BusinessUnitRepository interface {
 	Count(ctx context.Context) (int64, error)
 }
 
-func NewMongoBusinessUnitRepository(client *mongo.Client) BusinessUnitRepository {
-	db := client.Database(DBName)
+func NewMongoBusinessUnitRepository(client *mongo.Client, databaseName string) BusinessUnitRepository {
+	db := client.Database(databaseName)
 	return &mongoBusinessUnitRepository{
 		db:         db,
 		collection: db.Collection(CollectionName),
@@ -46,6 +49,9 @@ func NewMongoBusinessUnitRepository(client *mongo.Client) BusinessUnitRepository
 }
 
 func (r *mongoBusinessUnitRepository) Create(ctx context.Context, bu *model.BusinessUnit) error {
+	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	defer cancel()
+
 	bu.CreatedAt = time.Now()
 	result, err := r.collection.InsertOne(ctx, bu)
 	if err != nil {
@@ -60,6 +66,9 @@ func (r *mongoBusinessUnitRepository) Create(ctx context.Context, bu *model.Busi
 }
 
 func (r *mongoBusinessUnitRepository) FindByID(ctx context.Context, id string) (*model.BusinessUnit, error) {
+	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	defer cancel()
+
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s", businessunitserrors.ErrInvalidID, id)
@@ -78,6 +87,9 @@ func (r *mongoBusinessUnitRepository) FindByID(ctx context.Context, id string) (
 }
 
 func (r *mongoBusinessUnitRepository) FindAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, error) {
+	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	defer cancel()
+
 	if limit == 0 {
 		limit = 10
 	}
@@ -97,6 +109,9 @@ func (r *mongoBusinessUnitRepository) FindAll(ctx context.Context, limit int, of
 }
 
 func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu *model.BusinessUnit) error {
+	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	defer cancel()
+
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return fmt.Errorf("%w: %s", businessunitserrors.ErrInvalidID, id)
@@ -129,6 +144,9 @@ func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu 
 }
 
 func (r *mongoBusinessUnitRepository) Delete(ctx context.Context, id string) error {
+	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	defer cancel()
+
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
 		return fmt.Errorf("%w: %s", businessunitserrors.ErrInvalidID, id)
@@ -147,6 +165,9 @@ func (r *mongoBusinessUnitRepository) Delete(ctx context.Context, id string) err
 }
 
 func (r *mongoBusinessUnitRepository) Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error) {
+	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	defer cancel()
+
 	filter := bson.M{}
 	if len(cities) > 0 {
 		filter["cities"] = bson.M{"$in": cities}
@@ -172,6 +193,9 @@ func (r *mongoBusinessUnitRepository) Search(ctx context.Context, cities []strin
 }
 
 func (r *mongoBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {
+	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	defer cancel()
+
 	filter := bson.M{"admin_phone": phone}
 
 	cursor, err := r.collection.Find(ctx, filter, options.Find())
@@ -188,6 +212,9 @@ func (r *mongoBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phon
 }
 
 func (r *mongoBusinessUnitRepository) Count(ctx context.Context) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	defer cancel()
+
 	count, err := r.collection.CountDocuments(ctx, bson.M{})
 	if err != nil {
 		return 0, fmt.Errorf("failed to count business units: %w", err)

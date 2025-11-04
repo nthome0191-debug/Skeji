@@ -104,7 +104,7 @@ func Validation(message string, details map[string]any) *AppError {
 	return &AppError{
 		Code:       CodeValidation,
 		Message:    message,
-		HTTPStatus: http.StatusBadRequest,
+		HTTPStatus: http.StatusUnprocessableEntity,
 		Details:    details,
 	}
 }
