@@ -86,6 +86,7 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, log *logge
 	businessUnitHandler.RegisterRoutes(router)
 
 	var handler http.Handler = router
+	handler = middleware.MaxRequestSize(1024 * 1024)(handler)
 	handler = middleware.RequestLogging(log)(handler)
 	handler = middleware.Recovery(log)(handler)
 
