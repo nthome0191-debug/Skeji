@@ -87,6 +87,7 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, log *logge
 
 	var handler http.Handler = router
 	handler = middleware.RequestLogging(log)(handler)
+	handler = middleware.Recovery(log)(handler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
