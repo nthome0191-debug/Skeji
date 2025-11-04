@@ -82,7 +82,7 @@ func initServices(mongoClient *mongo.Client, log *logger.Logger) service.Busines
 
 func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClient *mongo.Client, log *logger.Logger) *http.Server {
 	healthRouter := httprouter.New()
-	healthHandler := handler.NewHealthHandler(mongoClient)
+	healthHandler := handler.NewHealthHandler(mongoClient, log)
 	healthHandler.RegisterRoutes(healthRouter)
 
 	var healthHTTPHandler http.Handler = healthRouter
