@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"skeji/internal/businessunits/repository"
 	"skeji/internal/businessunits/validator"
 	apperrors "skeji/pkg/errors"
@@ -9,7 +10,6 @@ import (
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"skeji/pkg/sanitizer"
-	"strings"
 )
 
 const (
@@ -87,8 +87,11 @@ func (s *businessUnitService) GetByID(ctx context.Context, id string) (*model.Bu
 
 	bu, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repository.ErrNotFound) {
 			return nil, apperrors.NotFoundWithID("Business unit", id)
+		}
+		if errors.Is(err, repository.ErrInvalidID) {
+			return nil, apperrors.InvalidInput("Invalid business unit ID format")
 		}
 		s.logger.Error("Failed to get business unit by ID",
 			"id", id,
@@ -138,8 +141,11 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repository.ErrNotFound) {
 			return apperrors.NotFoundWithID("Business unit", id)
+		}
+		if errors.Is(err, repository.ErrInvalidID) {
+			return apperrors.InvalidInput("Invalid business unit ID format")
 		}
 		return apperrors.Internal("Failed to check business unit existence", err)
 	}
@@ -186,8 +192,11 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 	// (e.g., active bookings) before allowing deletion
 
 	if err := s.repo.Delete(ctx, id); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, repository.ErrNotFound) {
 			return apperrors.NotFoundWithID("Business unit", id)
+		}
+		if errors.Is(err, repository.ErrInvalidID) {
+			return apperrors.InvalidInput("Invalid business unit ID format")
 		}
 		s.logger.Error("Failed to delete business unit",
 			"id", id,
