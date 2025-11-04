@@ -10,20 +10,18 @@ import (
 )
 
 const (
-	DefaultMongoURI      = "mongodb://localhost:27017"
-	DefaultDatabaseName  = "skeji"
-	ConnectionTimeout    = 10 * time.Second
+	DefaultMongoURI         = "mongodb://localhost:27017"
+	DefaultDatabaseName     = "skeji"
+	ConnectionTimeout       = 10 * time.Second
 	BusinessUnitsCollection = "Business_units"
 )
 
-// MongoHelper provides MongoDB test utilities
 type MongoHelper struct {
 	Client   *mongo.Client
 	Database *mongo.Database
 	DBName   string
 }
 
-// NewMongoHelper creates a new MongoDB test helper
 func NewMongoHelper(t *testing.T, mongoURI, dbName string) *MongoHelper {
 	t.Helper()
 
@@ -55,7 +53,6 @@ func NewMongoHelper(t *testing.T, mongoURI, dbName string) *MongoHelper {
 	}
 }
 
-// Close closes MongoDB connection
 func (m *MongoHelper) Close(t *testing.T) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -66,7 +63,6 @@ func (m *MongoHelper) Close(t *testing.T) {
 	}
 }
 
-// CleanDatabase drops all collections to ensure clean state
 func (m *MongoHelper) CleanDatabase(t *testing.T) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -78,7 +74,6 @@ func (m *MongoHelper) CleanDatabase(t *testing.T) {
 	}
 
 	for _, collName := range collections {
-		// Skip system collections and migrations
 		if collName == "_migrations" || collName == "system.indexes" {
 			continue
 		}
@@ -90,7 +85,6 @@ func (m *MongoHelper) CleanDatabase(t *testing.T) {
 	}
 }
 
-// CleanCollection removes all documents from a specific collection
 func (m *MongoHelper) CleanCollection(t *testing.T, collectionName string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -103,7 +97,6 @@ func (m *MongoHelper) CleanCollection(t *testing.T, collectionName string) {
 	t.Logf("Cleaned %d documents from collection: %s", result.DeletedCount, collectionName)
 }
 
-// CountDocuments returns the number of documents in a collection
 func (m *MongoHelper) CountDocuments(t *testing.T, collectionName string) int64 {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -116,7 +109,6 @@ func (m *MongoHelper) CountDocuments(t *testing.T, collectionName string) int64 
 	return count
 }
 
-// GetCollection returns a collection for direct access
 func (m *MongoHelper) GetCollection(collectionName string) *mongo.Collection {
 	return m.Database.Collection(collectionName)
 }

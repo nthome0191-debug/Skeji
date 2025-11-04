@@ -11,13 +11,11 @@ import (
 	"time"
 )
 
-// Client wraps http.Client with test-friendly methods
 type Client struct {
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-// NewClient creates a new test HTTP client
 func NewClient(baseURL string) *Client {
 	return &Client{
 		BaseURL: baseURL,
@@ -27,42 +25,35 @@ func NewClient(baseURL string) *Client {
 	}
 }
 
-// Response wraps HTTP response with helper methods
 type Response struct {
 	*http.Response
 	Body []byte
 }
 
-// UnmarshalJSON decodes response body into target
 func (r *Response) UnmarshalJSON(target interface{}) error {
 	return json.Unmarshal(r.Body, target)
 }
 
-// GET performs GET request
 func (c *Client) GET(t *testing.T, path string) *Response {
 	t.Helper()
 	return c.request(t, http.MethodGet, path, nil, nil)
 }
 
-// POST performs POST request with JSON body
 func (c *Client) POST(t *testing.T, path string, body interface{}) *Response {
 	t.Helper()
 	return c.request(t, http.MethodPost, path, body, nil)
 }
 
-// PATCH performs PATCH request with JSON body
 func (c *Client) PATCH(t *testing.T, path string, body interface{}) *Response {
 	t.Helper()
 	return c.request(t, http.MethodPatch, path, body, nil)
 }
 
-// DELETE performs DELETE request
 func (c *Client) DELETE(t *testing.T, path string) *Response {
 	t.Helper()
 	return c.request(t, http.MethodDelete, path, nil, nil)
 }
 
-// POSTWithHeaders performs POST request with custom headers
 func (c *Client) POSTWithHeaders(t *testing.T, path string, body interface{}, headers map[string]string) *Response {
 	t.Helper()
 	return c.request(t, http.MethodPost, path, body, headers)
@@ -111,7 +102,6 @@ func (c *Client) request(t *testing.T, method, path string, body interface{}, he
 	}
 }
 
-// WaitForHealthy polls the health endpoint until service is ready
 func (c *Client) WaitForHealthy(t *testing.T, maxWait time.Duration) {
 	t.Helper()
 
@@ -135,7 +125,6 @@ func (c *Client) WaitForHealthy(t *testing.T, maxWait time.Duration) {
 	t.Fatalf("service did not become healthy within %v", maxWait)
 }
 
-// AssertStatusCode fails the test if status code doesn't match
 func AssertStatusCode(t *testing.T, resp *Response, expected int) {
 	t.Helper()
 	if resp.StatusCode != expected {
@@ -143,7 +132,6 @@ func AssertStatusCode(t *testing.T, resp *Response, expected int) {
 	}
 }
 
-// AssertContains fails if response body doesn't contain substring
 func AssertContains(t *testing.T, resp *Response, substr string) {
 	t.Helper()
 	body := string(resp.Body)
@@ -166,7 +154,6 @@ func containsSubstring(s, substr string) bool {
 	return false
 }
 
-// PrintResponse prints response for debugging
 func PrintResponse(t *testing.T, resp *Response) {
 	t.Helper()
 	t.Logf("Status: %d", resp.StatusCode)
@@ -174,7 +161,6 @@ func PrintResponse(t *testing.T, resp *Response) {
 	t.Logf("Headers: %v", resp.Header)
 }
 
-// GetErrorMessage extracts error message from error response
 func GetErrorMessage(t *testing.T, resp *Response) string {
 	t.Helper()
 	var errResp struct {

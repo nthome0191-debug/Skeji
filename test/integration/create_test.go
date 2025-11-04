@@ -13,13 +13,10 @@ func TestCreate_ValidBusinessUnit(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Arrange
 	bu := testutil.ValidBusinessUnit()
 
-	// Act
 	resp := client.POST(t, "/api/v1/business-units", bu)
 
-	// Assert
 	testutil.AssertStatusCode(t, resp, http.StatusCreated)
 
 	var created model.BusinessUnit
@@ -27,7 +24,6 @@ func TestCreate_ValidBusinessUnit(t *testing.T) {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
 
-	// Verify response contains all fields
 	if created.ID == "" {
 		t.Error("expected ID to be set")
 	}
@@ -41,7 +37,6 @@ func TestCreate_ValidBusinessUnit(t *testing.T) {
 		t.Errorf("expected admin_phone %q, got %q", bu.AdminPhone, created.AdminPhone)
 	}
 
-	// Verify it's actually in the database
 	count := mongo.CountDocuments(t, testutil.BusinessUnitsCollection)
 	if count != 1 {
 		t.Errorf("expected 1 document in DB, got %d", count)
@@ -53,13 +48,10 @@ func TestCreate_MinimalBusinessUnit(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Arrange
 	bu := testutil.MinimalBusinessUnit()
 
-	// Act
 	resp := client.POST(t, "/api/v1/business-units", bu)
 
-	// Assert
 	testutil.AssertStatusCode(t, resp, http.StatusCreated)
 
 	var created model.BusinessUnit
@@ -67,7 +59,6 @@ func TestCreate_MinimalBusinessUnit(t *testing.T) {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
 
-	// Verify defaults are applied
 	if created.Priority == 0 {
 		t.Error("expected default priority to be set")
 	}
@@ -81,17 +72,13 @@ func TestCreate_EmptyBusinessUnit(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Arrange
 	bu := testutil.EmptyBusinessUnit()
 
-	// Act
 	resp := client.POST(t, "/api/v1/business-units", bu)
 
-	// Assert
 	testutil.AssertStatusCode(t, resp, http.StatusUnprocessableEntity)
 	testutil.AssertContains(t, resp, "validation")
 
-	// Verify nothing was created
 	count := mongo.CountDocuments(t, testutil.BusinessUnitsCollection)
 	if count != 0 {
 		t.Errorf("expected 0 documents in DB, got %d", count)
@@ -106,7 +93,7 @@ func TestCreate_MissingRequiredFields(t *testing.T) {
 	testCases := []struct {
 		name string
 		bu   model.BusinessUnit
-		want string // expected error substring
+		want string
 	}{
 		{
 			name: "missing name",
@@ -148,17 +135,13 @@ func TestCreate_MissingRequiredFields(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Clean before each subtest
 			mongo.CleanCollection(t, testutil.BusinessUnitsCollection)
 
-			// Act
 			resp := client.POST(t, "/api/v1/business-units", tc.bu)
 
-			// Assert
 			testutil.AssertStatusCode(t, resp, http.StatusUnprocessableEntity)
 			testutil.AssertContains(t, resp, tc.want)
 
-			// Verify nothing was created
 			count := mongo.CountDocuments(t, testutil.BusinessUnitsCollection)
 			if count != 0 {
 				t.Errorf("expected 0 documents in DB, got %d", count)
@@ -198,16 +181,12 @@ func TestCreate_EmptyCitiesOrLabels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Clean before each subtest
 			mongo.CleanCollection(t, testutil.BusinessUnitsCollection)
 
-			// Act
 			resp := client.POST(t, "/api/v1/business-units", tc.bu)
 
-			// Assert
 			testutil.AssertStatusCode(t, resp, http.StatusUnprocessableEntity)
 
-			// Verify nothing was created
 			count := mongo.CountDocuments(t, testutil.BusinessUnitsCollection)
 			if count != 0 {
 				t.Errorf("expected 0 documents in DB, got %d", count)
@@ -235,22 +214,17 @@ func TestCreate_InvalidPhoneFormat(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Clean before each subtest
 			mongo.CleanCollection(t, testutil.BusinessUnitsCollection)
 
-			// Arrange
 			bu := testutil.NewBusinessUnitBuilder().
 				WithAdminPhone(tc.phone).
 				Build()
 
-			// Act
 			resp := client.POST(t, "/api/v1/business-units", bu)
 
-			// Assert
 			testutil.AssertStatusCode(t, resp, http.StatusUnprocessableEntity)
 			testutil.AssertContains(t, resp, "phone")
 
-			// Verify nothing was created
 			count := mongo.CountDocuments(t, testutil.BusinessUnitsCollection)
 			if count != 0 {
 				t.Errorf("expected 0 documents in DB, got %d", count)
@@ -276,22 +250,17 @@ func TestCreate_UnsupportedCountry(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Clean before each subtest
 			mongo.CleanCollection(t, testutil.BusinessUnitsCollection)
 
-			// Arrange
 			bu := testutil.NewBusinessUnitBuilder().
 				WithAdminPhone(tc.phone).
 				Build()
 
-			// Act
 			resp := client.POST(t, "/api/v1/business-units", bu)
 
-			// Assert
 			testutil.AssertStatusCode(t, resp, http.StatusUnprocessableEntity)
 			testutil.AssertContains(t, resp, "supported country")
 
-			// Verify nothing was created
 			count := mongo.CountDocuments(t, testutil.BusinessUnitsCollection)
 			if count != 0 {
 				t.Errorf("expected 0 documents in DB, got %d", count)
@@ -305,20 +274,17 @@ func TestCreate_MultipleBusinessUnits(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Arrange - Create multiple business units
 	businessUnits := []model.BusinessUnit{
 		testutil.NewBusinessUnitBuilder().WithName("Business 1").WithAdminPhone("+972501111111").Build(),
 		testutil.NewBusinessUnitBuilder().WithName("Business 2").WithAdminPhone("+972502222222").Build(),
 		testutil.NewBusinessUnitBuilder().WithName("Business 3").WithAdminPhone("+972503333333").Build(),
 	}
 
-	// Act - Create each business unit
 	for _, bu := range businessUnits {
 		resp := client.POST(t, "/api/v1/business-units", bu)
 		testutil.AssertStatusCode(t, resp, http.StatusCreated)
 	}
 
-	// Assert - Verify all were created
 	count := mongo.CountDocuments(t, testutil.BusinessUnitsCollection)
 	if count != int64(len(businessUnits)) {
 		t.Errorf("expected %d documents in DB, got %d", len(businessUnits), count)
@@ -330,7 +296,6 @@ func TestCreate_SameAdminPhoneMultipleBusinesses(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Arrange - Same admin manages multiple businesses
 	adminPhone := "+972501234567"
 	bu1 := testutil.NewBusinessUnitBuilder().
 		WithName("Business 1").
@@ -344,15 +309,12 @@ func TestCreate_SameAdminPhoneMultipleBusinesses(t *testing.T) {
 		WithCities("Jerusalem").
 		Build()
 
-	// Act
 	resp1 := client.POST(t, "/api/v1/business-units", bu1)
 	resp2 := client.POST(t, "/api/v1/business-units", bu2)
 
-	// Assert - Both should succeed
 	testutil.AssertStatusCode(t, resp1, http.StatusCreated)
 	testutil.AssertStatusCode(t, resp2, http.StatusCreated)
 
-	// Verify both were created
 	count := mongo.CountDocuments(t, testutil.BusinessUnitsCollection)
 	if count != 2 {
 		t.Errorf("expected 2 documents in DB, got %d", count)

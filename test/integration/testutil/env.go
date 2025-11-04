@@ -6,7 +6,6 @@ import (
 	"testing"
 )
 
-// TestEnv holds configuration for integration test environment
 type TestEnv struct {
 	MongoURI     string
 	DatabaseName string
@@ -14,7 +13,6 @@ type TestEnv struct {
 	ServerPort   string
 }
 
-// NewTestEnv creates a test environment from environment variables
 func NewTestEnv() *TestEnv {
 	mongoURI := getEnv("TEST_MONGO_URI", DefaultMongoURI)
 	dbName := getEnv("TEST_DB_NAME", DefaultDatabaseName)
@@ -29,22 +27,18 @@ func NewTestEnv() *TestEnv {
 	}
 }
 
-// Setup prepares the test environment
 func (e *TestEnv) Setup(t *testing.T) (*MongoHelper, *Client) {
 	t.Helper()
 
-	// Set up MongoDB
 	mongo := NewMongoHelper(t, e.MongoURI, e.DatabaseName)
 	mongo.CleanDatabase(t)
 
-	// Set up HTTP client
 	client := NewClient(e.ServerURL)
 	client.WaitForHealthy(t, DefaultHealthCheckTimeout)
 
 	return mongo, client
 }
 
-// Cleanup performs test environment cleanup
 func (e *TestEnv) Cleanup(t *testing.T, mongo *MongoHelper) {
 	t.Helper()
 
