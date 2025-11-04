@@ -20,7 +20,7 @@ func TestCreate_ValidBusinessUnit(t *testing.T) {
 	testutil.AssertStatusCode(t, resp, http.StatusCreated)
 
 	var created model.BusinessUnit
-	if err := resp.UnmarshalJSON(&created); err != nil {
+	if err := resp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
 
@@ -55,7 +55,7 @@ func TestCreate_MinimalBusinessUnit(t *testing.T) {
 	testutil.AssertStatusCode(t, resp, http.StatusCreated)
 
 	var created model.BusinessUnit
-	if err := resp.UnmarshalJSON(&created); err != nil {
+	if err := resp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
 

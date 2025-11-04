@@ -14,24 +14,21 @@ func TestGetByID_ExistingBusinessUnit(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Arrange - Create a business unit first
 	bu := testutil.ValidBusinessUnit()
 	createResp := client.POST(t, "/api/v1/business-units", bu)
 	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
-	if err := createResp.UnmarshalJSON(&created); err != nil {
+	if err := createResp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal create response: %v", err)
 	}
 
-	// Act
 	getResp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
-	// Assert
 	testutil.AssertStatusCode(t, getResp, http.StatusOK)
 
 	var fetched model.BusinessUnit
-	if err := getResp.UnmarshalJSON(&fetched); err != nil {
+	if err := getResp.DecodeJSON(&fetched); err != nil {
 		t.Fatalf("failed to unmarshal get response: %v", err)
 	}
 
@@ -55,7 +52,6 @@ func TestGetByID_NonExistentID(t *testing.T) {
 	nonExistentID := "507f1f77bcf86cd799439011" // Valid MongoDB ObjectID format
 	resp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", nonExistentID))
 
-	// Assert
 	testutil.AssertStatusCode(t, resp, http.StatusNotFound)
 	testutil.AssertContains(t, resp, "not found")
 }
@@ -94,10 +90,8 @@ func TestGetAll_EmptyDatabase(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Act
 	resp := client.GET(t, "/api/v1/business-units")
 
-	// Assert
 	testutil.AssertStatusCode(t, resp, http.StatusOK)
 
 	var response struct {
@@ -106,7 +100,7 @@ func TestGetAll_EmptyDatabase(t *testing.T) {
 		Limit      int                  `json:"limit"`
 		Offset     int                  `json:"offset"`
 	}
-	if err := resp.UnmarshalJSON(&response); err != nil {
+	if err := resp.DecodeJSON(&response); err != nil {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
 
@@ -123,7 +117,6 @@ func TestGetAll_MultipleBusinessUnits(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Arrange - Create multiple business units with different priorities
 	businessUnits := []model.BusinessUnit{
 		testutil.NewBusinessUnitBuilder().WithName("Low Priority").WithPriority(5).WithAdminPhone("+972501111111").Build(),
 		testutil.NewBusinessUnitBuilder().WithName("High Priority").WithPriority(100).WithAdminPhone("+972502222222").Build(),
@@ -135,17 +128,15 @@ func TestGetAll_MultipleBusinessUnits(t *testing.T) {
 		testutil.AssertStatusCode(t, resp, http.StatusCreated)
 	}
 
-	// Act
 	resp := client.GET(t, "/api/v1/business-units")
 
-	// Assert
 	testutil.AssertStatusCode(t, resp, http.StatusOK)
 
 	var response struct {
 		Data       []model.BusinessUnit `json:"data"`
 		TotalCount int64                `json:"total_count"`
 	}
-	if err := resp.UnmarshalJSON(&response); err != nil {
+	if err := resp.DecodeJSON(&response); err != nil {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
 
@@ -156,7 +147,6 @@ func TestGetAll_MultipleBusinessUnits(t *testing.T) {
 		t.Errorf("expected 3 business units, got %d", len(response.Data))
 	}
 
-	// Verify sorting by priority (descending)
 	if response.Data[0].Priority < response.Data[1].Priority {
 		t.Error("expected results to be sorted by priority descending")
 	}
@@ -167,7 +157,6 @@ func TestGetAll_Pagination(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Arrange - Create 5 business units
 	for i := 1; i <= 5; i++ {
 		bu := testutil.NewBusinessUnitBuilder().
 			WithName(fmt.Sprintf("Business %d", i)).
@@ -178,11 +167,11 @@ func TestGetAll_Pagination(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name           string
-		limit          int
-		offset         int
-		expectedCount  int
-		expectedTotal  int64
+		name          string
+		limit         int
+		offset        int
+		expectedCount int
+		expectedTotal int64
 	}{
 		{name: "first page", limit: 2, offset: 0, expectedCount: 2, expectedTotal: 5},
 		{name: "second page", limit: 2, offset: 2, expectedCount: 2, expectedTotal: 5},
@@ -193,11 +182,9 @@ func TestGetAll_Pagination(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Act
 			url := fmt.Sprintf("/api/v1/business-units?limit=%d&offset=%d", tc.limit, tc.offset)
 			resp := client.GET(t, url)
 
-			// Assert
 			testutil.AssertStatusCode(t, resp, http.StatusOK)
 
 			var response struct {
@@ -206,7 +193,7 @@ func TestGetAll_Pagination(t *testing.T) {
 				Limit      int                  `json:"limit"`
 				Offset     int                  `json:"offset"`
 			}
-			if err := resp.UnmarshalJSON(&response); err != nil {
+			if err := resp.DecodeJSON(&response); err != nil {
 				t.Fatalf("failed to unmarshal response: %v", err)
 			}
 
@@ -231,7 +218,6 @@ func TestGetAll_DefaultPagination(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Arrange - Create 15 business units
 	for i := 1; i <= 15; i++ {
 		bu := testutil.NewBusinessUnitBuilder().
 			WithName(fmt.Sprintf("Business %d", i)).
@@ -241,10 +227,8 @@ func TestGetAll_DefaultPagination(t *testing.T) {
 		testutil.AssertStatusCode(t, resp, http.StatusCreated)
 	}
 
-	// Act - Request without limit/offset
 	resp := client.GET(t, "/api/v1/business-units")
 
-	// Assert
 	testutil.AssertStatusCode(t, resp, http.StatusOK)
 
 	var response struct {
@@ -252,14 +236,14 @@ func TestGetAll_DefaultPagination(t *testing.T) {
 		TotalCount int64                `json:"total_count"`
 		Limit      int                  `json:"limit"`
 	}
-	if err := resp.UnmarshalJSON(&response); err != nil {
+	if err := resp.DecodeJSON(&response); err != nil {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
 
 	if response.TotalCount != 15 {
 		t.Errorf("expected total_count 15, got %d", response.TotalCount)
 	}
-	// Default limit should be 10
+
 	if len(response.Data) != 10 {
 		t.Errorf("expected 10 items (default limit), got %d", len(response.Data))
 	}
@@ -270,20 +254,17 @@ func TestGetAll_MaxLimit(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Act - Request with limit > 100 (should be capped at 100)
 	resp := client.GET(t, "/api/v1/business-units?limit=200")
 
-	// Assert
 	testutil.AssertStatusCode(t, resp, http.StatusOK)
 
 	var response struct {
 		Limit int `json:"limit"`
 	}
-	if err := resp.UnmarshalJSON(&response); err != nil {
+	if err := resp.DecodeJSON(&response); err != nil {
 		t.Fatalf("failed to unmarshal response: %v", err)
 	}
 
-	// Limit should be capped at 100
 	if response.Limit != 100 {
 		t.Errorf("expected limit to be capped at 100, got %d", response.Limit)
 	}

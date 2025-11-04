@@ -30,7 +30,7 @@ type Response struct {
 	Body []byte
 }
 
-func (r *Response) UnmarshalJSON(target interface{}) error {
+func (r *Response) DecodeJSON(target interface{}) error {
 	return json.Unmarshal(r.Body, target)
 }
 
@@ -168,7 +168,7 @@ func GetErrorMessage(t *testing.T, resp *Response) string {
 		Message string `json:"message"`
 		Code    string `json:"code"`
 	}
-	if err := resp.UnmarshalJSON(&errResp); err != nil {
+	if err := resp.DecodeJSON(&errResp); err != nil {
 		return fmt.Sprintf("failed to unmarshal error: %v", err)
 	}
 	if errResp.Message != "" {

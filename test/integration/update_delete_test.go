@@ -19,7 +19,7 @@ func TestUpdate_ValidUpdate(t *testing.T) {
 	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
-	if err := createResp.UnmarshalJSON(&created); err != nil {
+	if err := createResp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal create response: %v", err)
 	}
 
@@ -33,7 +33,7 @@ func TestUpdate_ValidUpdate(t *testing.T) {
 	testutil.AssertStatusCode(t, getResp, http.StatusOK)
 
 	var updated model.BusinessUnit
-	if err := getResp.UnmarshalJSON(&updated); err != nil {
+	if err := getResp.DecodeJSON(&updated); err != nil {
 		t.Fatalf("failed to unmarshal get response: %v", err)
 	}
 
@@ -55,7 +55,7 @@ func TestUpdate_PartialUpdate(t *testing.T) {
 	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
-	if err := createResp.UnmarshalJSON(&created); err != nil {
+	if err := createResp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal create response: %v", err)
 	}
 
@@ -69,7 +69,7 @@ func TestUpdate_PartialUpdate(t *testing.T) {
 	testutil.AssertStatusCode(t, getResp, http.StatusOK)
 
 	var updated model.BusinessUnit
-	if err := getResp.UnmarshalJSON(&updated); err != nil {
+	if err := getResp.DecodeJSON(&updated); err != nil {
 		t.Fatalf("failed to unmarshal get response: %v", err)
 	}
 
@@ -92,7 +92,7 @@ func TestUpdate_EmptyUpdate(t *testing.T) {
 	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
-	if err := createResp.UnmarshalJSON(&created); err != nil {
+	if err := createResp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal create response: %v", err)
 	}
 
@@ -106,7 +106,7 @@ func TestUpdate_EmptyUpdate(t *testing.T) {
 	testutil.AssertStatusCode(t, getResp, http.StatusOK)
 
 	var updated model.BusinessUnit
-	if err := getResp.UnmarshalJSON(&updated); err != nil {
+	if err := getResp.DecodeJSON(&updated); err != nil {
 		t.Fatalf("failed to unmarshal get response: %v", err)
 	}
 
@@ -166,7 +166,7 @@ func TestUpdate_InvalidPhoneFormat(t *testing.T) {
 	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
-	if err := createResp.UnmarshalJSON(&created); err != nil {
+	if err := createResp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal create response: %v", err)
 	}
 
@@ -199,35 +199,29 @@ func TestDelete_ExistingBusinessUnit(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Arrange - Create a business unit
 	bu := testutil.ValidBusinessUnit()
 	createResp := client.POST(t, "/api/v1/business-units", bu)
 	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
-	if err := createResp.UnmarshalJSON(&created); err != nil {
+	if err := createResp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal create response: %v", err)
 	}
 
-	// Verify it exists
 	initialCount := mongo.CountDocuments(t, testutil.BusinessUnitsCollection)
 	if initialCount != 1 {
 		t.Fatalf("expected 1 document before delete, got %d", initialCount)
 	}
 
-	// Act
 	deleteResp := client.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
-	// Assert
 	testutil.AssertStatusCode(t, deleteResp, http.StatusNoContent)
 
-	// Verify it's deleted
 	count := mongo.CountDocuments(t, testutil.BusinessUnitsCollection)
 	if count != 0 {
 		t.Errorf("expected 0 documents after delete, got %d", count)
 	}
 
-	// Verify GET returns 404
 	getResp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	testutil.AssertStatusCode(t, getResp, http.StatusNotFound)
 }
@@ -237,11 +231,9 @@ func TestDelete_NonExistentID(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Act
 	nonExistentID := "507f1f77bcf86cd799439011"
 	resp := client.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", nonExistentID))
 
-	// Assert
 	testutil.AssertStatusCode(t, resp, http.StatusNotFound)
 	testutil.AssertContains(t, resp, "not found")
 }
@@ -262,10 +254,8 @@ func TestDelete_InvalidID(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Act
 			resp := client.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", tc.id))
 
-			// Assert - Expecting either 400 or 404
 			if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusNotFound {
 				t.Errorf("expected status 400 or 404, got %d", resp.StatusCode)
 			}
@@ -278,23 +268,20 @@ func TestDelete_DeletedIDCannotBeRetrieved(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Arrange - Create and delete a business unit
 	bu := testutil.ValidBusinessUnit()
 	createResp := client.POST(t, "/api/v1/business-units", bu)
 	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
-	if err := createResp.UnmarshalJSON(&created); err != nil {
+	if err := createResp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal create response: %v", err)
 	}
 
 	deleteResp := client.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	testutil.AssertStatusCode(t, deleteResp, http.StatusNoContent)
 
-	// Act - Try to get the deleted business unit
 	getResp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
-	// Assert
 	testutil.AssertStatusCode(t, getResp, http.StatusNotFound)
 }
 
@@ -303,23 +290,19 @@ func TestDelete_DoubleDelete(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Arrange - Create a business unit
 	bu := testutil.ValidBusinessUnit()
 	createResp := client.POST(t, "/api/v1/business-units", bu)
 	testutil.AssertStatusCode(t, createResp, http.StatusCreated)
 
 	var created model.BusinessUnit
-	if err := createResp.UnmarshalJSON(&created); err != nil {
+	if err := createResp.DecodeJSON(&created); err != nil {
 		t.Fatalf("failed to unmarshal create response: %v", err)
 	}
 
-	// Act - Delete once
 	deleteResp1 := client.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	testutil.AssertStatusCode(t, deleteResp1, http.StatusNoContent)
 
-	// Try to delete again
 	deleteResp2 := client.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
-	// Assert - Second delete should return 404
 	testutil.AssertStatusCode(t, deleteResp2, http.StatusNotFound)
 }
