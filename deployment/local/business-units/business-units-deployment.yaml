@@ -28,11 +28,11 @@ spec:
             # Production deployments must use Kubernetes Secrets for credentials
             - name: MONGO_URI
               value: mongodb://root:rootpassword@mongo.mongo.svc.cluster.local:27017/skeji?authSource=admin
-            - name: WHATSAPP_APP_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: whatsapp-secret
-                  key: app-secret
+            # - name: WHATSAPP_APP_SECRET
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: whatsapp-secret
+            #       key: app-secret
           resources:
             requests:
               cpu: "100m"
@@ -45,7 +45,7 @@ spec:
               path: /ready
               port: 8080
             initialDelaySeconds: 10
-            periodSeconds: 120
+            periodSeconds: 60
             timeoutSeconds: 5
             failureThreshold: 2
             successThreshold: 1

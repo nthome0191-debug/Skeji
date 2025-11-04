@@ -11,11 +11,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
-	"skeji/internal/businessunits/config"
 	"skeji/internal/businessunits/handler"
 	"skeji/internal/businessunits/repository"
 	"skeji/internal/businessunits/service"
 	"skeji/internal/businessunits/validator"
+	"skeji/internal/config"
 	"skeji/pkg/logger"
 	"skeji/pkg/middleware"
 )

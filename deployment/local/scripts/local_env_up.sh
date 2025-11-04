@@ -11,5 +11,6 @@ echo "=== Spinning up local environment ==="
 bash deployment/local/kind/setup.sh
 bash deployment/local/mongo/setup.sh
 bash deployment/local/migrate/setup.sh
+bash deployment/local/business-units/setup.sh
 
 echo "✅ Local environment ready!"

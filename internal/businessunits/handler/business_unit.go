@@ -148,7 +148,7 @@ func (h *BusinessUnitHandler) RegisterRoutes(router *httprouter.Router) {
 	router.POST("/api/v1/business-units", h.Create)
 	router.GET("/api/v1/business-units", h.GetAll)
 	router.GET("/api/v1/business-units/search", h.Search)
-	router.GET("/api/v1/business-units/:id", h.GetByID)
-	router.PATCH("/api/v1/business-units/:id", h.Update)
-	router.DELETE("/api/v1/business-units/:id", h.Delete)
+	router.GET("/api/v1/business-units/id/:id", h.GetByID)
+	router.PATCH("/api/v1/business-units/id/:id", h.Update)
+	router.DELETE("/api/v1/business-units/id/:id", h.Delete)
 }
