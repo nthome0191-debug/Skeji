@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	businessunitserrors "skeji/internal/businessunits/errors"
 	"skeji/pkg/model"
 	"time"
 
@@ -61,7 +62,7 @@ func (r *mongoBusinessUnitRepository) Create(ctx context.Context, bu *model.Busi
 func (r *mongoBusinessUnitRepository) FindByID(ctx context.Context, id string) (*model.BusinessUnit, error) {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %s", ErrInvalidID, id)
+		return nil, fmt.Errorf("%w: %s", businessunitserrors.ErrInvalidID, id)
 	}
 	filter := bson.M{"_id": objectID}
 
@@ -69,7 +70,7 @@ func (r *mongoBusinessUnitRepository) FindByID(ctx context.Context, id string) (
 	err = r.collection.FindOne(ctx, filter).Decode(&bu)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, fmt.Errorf("%w: %s", ErrNotFound, id)
+			return nil, fmt.Errorf("%w: %s", businessunitserrors.ErrNotFound, id)
 		}
 		return nil, fmt.Errorf("failed to find business unit: %w", err)
 	}
@@ -98,7 +99,7 @@ func (r *mongoBusinessUnitRepository) FindAll(ctx context.Context, limit int, of
 func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu *model.BusinessUnit) error {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return fmt.Errorf("%w: %s", ErrInvalidID, id)
+		return fmt.Errorf("%w: %s", businessunitserrors.ErrInvalidID, id)
 	}
 
 	filter := bson.M{"_id": objectID}
@@ -121,7 +122,7 @@ func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu 
 	}
 
 	if result.MatchedCount == 0 {
-		return fmt.Errorf("%w: %s", ErrNotFound, id)
+		return fmt.Errorf("%w: %s", businessunitserrors.ErrNotFound, id)
 	}
 
 	return nil
@@ -130,7 +131,7 @@ func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu 
 func (r *mongoBusinessUnitRepository) Delete(ctx context.Context, id string) error {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return fmt.Errorf("%w: %s", ErrInvalidID, id)
+		return fmt.Errorf("%w: %s", businessunitserrors.ErrInvalidID, id)
 	}
 
 	filter := bson.M{"_id": objectID}
@@ -139,7 +140,7 @@ func (r *mongoBusinessUnitRepository) Delete(ctx context.Context, id string) err
 		return fmt.Errorf("failed to delete business unit: %w", err)
 	}
 	if result.DeletedCount == 0 {
-		return fmt.Errorf("%w: %s", ErrNotFound, id)
+		return fmt.Errorf("%w: %s", businessunitserrors.ErrNotFound, id)
 	}
 
 	return nil
