@@ -137,7 +137,7 @@ func replayCachedResponse(w http.ResponseWriter, cached *CachedResponse) {
 		}
 	}
 	w.WriteHeader(cached.StatusCode)
-	w.Write(cached.Body)
+	_, _ = w.Write(cached.Body)
 }
 
 func captureResponse(w http.ResponseWriter) *responseCapture {
