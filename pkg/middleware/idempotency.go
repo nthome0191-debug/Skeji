@@ -1,0 +1,137 @@
+package middleware
+
+import (
+	"bytes"
+	"net/http"
+	"sync"
+	"time"
+)
+
+type IdempotencyStore interface {
+	Get(key string) (*CachedResponse, bool)
+	Set(key string, response *CachedResponse)
+}
+
+type CachedResponse struct {
+	StatusCode int
+	Headers    http.Header
+	Body       []byte
+	CreatedAt  time.Time
+}
+
+type InMemoryIdempotencyStore struct {
+	mu    sync.RWMutex
+	store map[string]*CachedResponse
+	ttl   time.Duration
+}
+
+func NewInMemoryIdempotencyStore(ttl time.Duration) *InMemoryIdempotencyStore {
+	store := &InMemoryIdempotencyStore{
+		store: make(map[string]*CachedResponse),
+		ttl:   ttl,
+	}
+
+	go store.cleanup()
+
+	return store
+}
+
+func (s *InMemoryIdempotencyStore) Get(key string) (*CachedResponse, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	response, exists := s.store[key]
+	if !exists {
+		return nil, false
+	}
+
+	if time.Since(response.CreatedAt) > s.ttl {
+		return nil, false
+	}
+
+	return response, true
+}
+
+func (s *InMemoryIdempotencyStore) Set(key string, response *CachedResponse) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	response.CreatedAt = time.Now()
+	s.store[key] = response
+}
+
+func (s *InMemoryIdempotencyStore) cleanup() {
+	ticker := time.NewTicker(1 * time.Hour)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		s.mu.Lock()
+		for key, response := range s.store {
+			if time.Since(response.CreatedAt) > s.ttl {
+				delete(s.store, key)
+			}
+		}
+		s.mu.Unlock()
+	}
+}
+
+type responseCapture struct {
+	http.ResponseWriter
+	statusCode int
+	body       *bytes.Buffer
+}
+
+func (rc *responseCapture) WriteHeader(statusCode int) {
+	rc.statusCode = statusCode
+	rc.ResponseWriter.WriteHeader(statusCode)
+}
+
+func (rc *responseCapture) Write(b []byte) (int, error) {
+	rc.body.Write(b)
+	return rc.ResponseWriter.Write(b)
+}
+
+func Idempotency(store IdempotencyStore, headerName string) func(http.Handler) http.Handler {
+	if headerName == "" {
+		headerName = "Idempotency-Key"
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			idempotencyKey := r.Header.Get(headerName)
+
+			if idempotencyKey == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			if cached, found := store.Get(idempotencyKey); found {
+				for key, values := range cached.Headers {
+					for _, value := range values {
+						w.Header().Add(key, value)
+					}
+				}
+				w.WriteHeader(cached.StatusCode)
+				w.Write(cached.Body)
+				return
+			}
+
+			capture := &responseCapture{
+				ResponseWriter: w,
+				statusCode:     200,
+				body:           &bytes.Buffer{},
+			}
+
+			next.ServeHTTP(capture, r)
+
+			if capture.statusCode >= 200 && capture.statusCode < 300 {
+				cached := &CachedResponse{
+					StatusCode: capture.statusCode,
+					Headers:    w.Header().Clone(),
+					Body:       capture.body.Bytes(),
+				}
+				store.Set(idempotencyKey, cached)
+			}
+		})
+	}
+}
