@@ -5,52 +5,35 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"syscall"
+
+	"github.com/julienschmidt/httprouter"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"skeji/internal/businessunits/config"
 	"skeji/internal/businessunits/handler"
 	"skeji/internal/businessunits/repository"
 	"skeji/internal/businessunits/service"
 	"skeji/internal/businessunits/validator"
 	"skeji/pkg/logger"
 	"skeji/pkg/middleware"
-	"syscall"
-	"time"
-
-	"github.com/julienschmidt/httprouter"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-)
-
-const (
-	// MongoDB configuration
-	DefaultMongoConnTimeout = 10 * time.Second
-
-	// Rate limiting configuration
-	DefaultRateLimitRequests = 10
-	DefaultRateLimitWindow   = 1 * time.Minute
-
-	// Middleware configuration
-	DefaultRequestTimeout  = 30 * time.Second
-	DefaultIdempotencyTTL  = 24 * time.Hour
-	DefaultMaxRequestSize  = 1 * 1024 * 1024 // 1MB
-
-	// HTTP server configuration
-	DefaultReadTimeout     = 15 * time.Second
-	DefaultWriteTimeout    = 15 * time.Second
-	DefaultIdleTimeout     = 60 * time.Second
-	DefaultShutdownTimeout = 30 * time.Second
 )
 
 func main() {
+	cfg := config.Load()
+
 	log := initLogger()
 	log.Info("Starting Business Units service")
 
-	mongoClient := connectMongoDB(log)
+	mongoClient := connectMongoDB(cfg, log)
 	defer mongoClient.Disconnect(context.Background())
 
 	businessUnitService := initServices(mongoClient, log)
 
-	server := setupHTTPServer(businessUnitService, mongoClient, log)
+	server := setupHTTPServer(cfg, businessUnitService, mongoClient, log)
 
-	run(server, log)
+	run(cfg, server, log)
 }
 
 func initLogger() *logger.Logger {
@@ -62,20 +45,15 @@ func initLogger() *logger.Logger {
 	})
 }
 
-func connectMongoDB(log *logger.Logger) *mongo.Client {
-	mongoURI := os.Getenv("MONGO_URI")
-	if mongoURI == "" {
-		mongoURI = "mongodb://localhost:27017"
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultMongoConnTimeout)
+func connectMongoDB(cfg *config.Config, log *logger.Logger) *mongo.Client {
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.MongoConnTimeout)
 	defer cancel()
 
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(cfg.MongoURI))
 	if err != nil {
 		log.Fatal("Failed to connect to MongoDB",
 			"error", err,
-			"uri", mongoURI,
+			"uri", cfg.MongoURI,
 		)
 	}
 
@@ -100,7 +78,7 @@ func initServices(mongoClient *mongo.Client, log *logger.Logger) service.Busines
 	return businessUnitService
 }
 
-func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClient *mongo.Client, log *logger.Logger) *http.Server {
+func setupHTTPServer(cfg *config.Config, businessUnitService service.BusinessUnitService, mongoClient *mongo.Client, log *logger.Logger) *http.Server {
 	healthRouter := httprouter.New()
 	healthHandler := handler.NewHealthHandler(mongoClient, log)
 	healthHandler.RegisterRoutes(healthRouter)
@@ -114,57 +92,49 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClien
 	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService)
 	businessUnitHandler.RegisterRoutes(businessRouter)
 
-	idempotencyStore := middleware.NewInMemoryIdempotencyStore(DefaultIdempotencyTTL)
+	idempotencyStore := middleware.NewInMemoryIdempotencyStore(cfg.IdempotencyTTL)
 	phoneRateLimiter := middleware.NewPhoneRateLimiter(
-		DefaultRateLimitRequests,
-		DefaultRateLimitWindow,
+		cfg.RateLimitRequests,
+		cfg.RateLimitWindow,
 		middleware.DefaultPhoneExtractor,
 		log,
 	)
 
-	// Apply middleware in order from innermost to outermost
-	// Execution order will be: Recovery → Logging → MaxSize → ContentType → Signature → RateLimit → Timeout → Idempotency → Router
+	// Middleware order: Recovery → Logging → MaxSize → ContentType → Signature → RateLimit → Timeout → Idempotency → Router
 	var businessHTTPHandler http.Handler = businessRouter
 	businessHTTPHandler = middleware.Idempotency(idempotencyStore, "Idempotency-Key")(businessHTTPHandler)
-	businessHTTPHandler = middleware.RequestTimeout(DefaultRequestTimeout)(businessHTTPHandler)
+	businessHTTPHandler = middleware.RequestTimeout(cfg.RequestTimeout)(businessHTTPHandler)
 	businessHTTPHandler = middleware.PhoneRateLimit(phoneRateLimiter)(businessHTTPHandler)
 
-	whatsappSecret := os.Getenv("WHATSAPP_APP_SECRET")
-	if whatsappSecret != "" {
-		businessHTTPHandler = middleware.WhatsAppSignatureVerification(whatsappSecret, log)(businessHTTPHandler)
+	if cfg.WhatsAppAppSecret != "" {
+		businessHTTPHandler = middleware.WhatsAppSignatureVerification(cfg.WhatsAppAppSecret, log)(businessHTTPHandler)
 		log.Info("WhatsApp signature verification enabled")
 	}
 
 	businessHTTPHandler = middleware.ContentTypeValidation(log)(businessHTTPHandler)
-	businessHTTPHandler = middleware.MaxRequestSize(DefaultMaxRequestSize)(businessHTTPHandler)
+	businessHTTPHandler = middleware.MaxRequestSize(int64(cfg.MaxRequestSize))(businessHTTPHandler)
 	businessHTTPHandler = middleware.RequestLogging(log)(businessHTTPHandler)
 	businessHTTPHandler = middleware.Recovery(log)(businessHTTPHandler)
 	log.Info("Business endpoints configured with full security middleware stack")
 
-	// Combine both routers using http.ServeMux
 	mux := http.NewServeMux()
 	mux.Handle("/health", healthHTTPHandler)
 	mux.Handle("/ready", healthHTTPHandler)
 	mux.Handle("/", businessHTTPHandler)
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
 	server := &http.Server{
-		Addr:         ":" + port,
+		Addr:         ":" + cfg.Port,
 		Handler:      mux,
-		ReadTimeout:  DefaultReadTimeout,
-		WriteTimeout: DefaultWriteTimeout,
-		IdleTimeout:  DefaultIdleTimeout,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		IdleTimeout:  cfg.IdleTimeout,
 	}
 
-	log.Info("HTTP server configured", "port", port)
+	log.Info("HTTP server configured", "port", cfg.Port)
 	return server
 }
 
-func run(server *http.Server, log *logger.Logger) {
+func run(cfg *config.Config, server *http.Server, log *logger.Logger) {
 	serverErrors := make(chan error, 1)
 
 	go func() {
@@ -181,12 +151,12 @@ func run(server *http.Server, log *logger.Logger) {
 
 	case sig := <-shutdown:
 		log.Info("Shutdown signal received", "signal", sig)
-		gracefulShutdown(server, log)
+		gracefulShutdown(cfg, server, log)
 	}
 }
 
-func gracefulShutdown(server *http.Server, log *logger.Logger) {
-	ctx, cancel := context.WithTimeout(context.Background(), DefaultShutdownTimeout)
+func gracefulShutdown(cfg *config.Config, server *http.Server, log *logger.Logger) {
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
