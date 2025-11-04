@@ -15,7 +15,7 @@ import (
 	"skeji/internal/businessunits/repository"
 	"skeji/internal/businessunits/service"
 	"skeji/internal/businessunits/validator"
-	"skeji/internal/config"
+	"skeji/pkg/config"
 	"skeji/pkg/logger"
 	"skeji/pkg/middleware"
 )
