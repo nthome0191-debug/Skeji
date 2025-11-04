@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	DBName         = "skeji"
+	// CollectionName is the name of the MongoDB collection for business units
 	CollectionName = "Business_units"
 
 	// operationTimeout is the maximum duration for individual MongoDB operations
@@ -40,8 +40,8 @@ type BusinessUnitRepository interface {
 	Count(ctx context.Context) (int64, error)
 }
 
-func NewMongoBusinessUnitRepository(client *mongo.Client) BusinessUnitRepository {
-	db := client.Database(DBName)
+func NewMongoBusinessUnitRepository(client *mongo.Client, databaseName string) BusinessUnitRepository {
+	db := client.Database(databaseName)
 	return &mongoBusinessUnitRepository{
 		db:         db,
 		collection: db.Collection(CollectionName),

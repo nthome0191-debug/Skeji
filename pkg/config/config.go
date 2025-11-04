@@ -8,6 +8,7 @@ import (
 
 type Config struct {
 	MongoURI         string
+	MongoDatabaseName string
 	MongoConnTimeout time.Duration
 
 	Port string
@@ -29,8 +30,9 @@ type Config struct {
 
 func Load() *Config {
 	return &Config{
-		MongoURI:         getEnvStr(EnvMongoURI, DefaultMongoURI),
-		MongoConnTimeout: getEnvDuration(EnvMongoConnTimeout, DefaultMongoConnTimeout),
+		MongoURI:          getEnvStr(EnvMongoURI, DefaultMongoURI),
+		MongoDatabaseName: getEnvStr(EnvMongoDatabaseName, DefaultMongoDatabaseName),
+		MongoConnTimeout:  getEnvDuration(EnvMongoConnTimeout, DefaultMongoConnTimeout),
 
 		Port: getEnvStr(EnvPort, DefaultPort),
 
