@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	businessunitserrors "skeji/internal/businessunits/errors"
 	"skeji/internal/businessunits/repository"
 	"skeji/internal/businessunits/validator"
 	apperrors "skeji/pkg/errors"
@@ -9,7 +11,6 @@ import (
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"skeji/pkg/sanitizer"
-	"strings"
 )
 
 const (
@@ -87,8 +88,11 @@ func (s *businessUnitService) GetByID(ctx context.Context, id string) (*model.Bu
 
 	bu, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, businessunitserrors.ErrNotFound) {
 			return nil, apperrors.NotFoundWithID("Business unit", id)
+		}
+		if errors.Is(err, businessunitserrors.ErrInvalidID) {
+			return nil, apperrors.InvalidInput("Invalid business unit ID format")
 		}
 		s.logger.Error("Failed to get business unit by ID",
 			"id", id,
@@ -111,7 +115,7 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 		offset = 0
 	}
 
-	// Get total count and items in parallel would be ideal, but for now sequential
+	// TODO: Get total count and items in parallel for better performance
 	count, err := s.repo.Count(ctx)
 	if err != nil {
 		s.logger.Error("Failed to count business units", "error", err)
@@ -138,8 +142,11 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, businessunitserrors.ErrNotFound) {
 			return apperrors.NotFoundWithID("Business unit", id)
+		}
+		if errors.Is(err, businessunitserrors.ErrInvalidID) {
+			return apperrors.InvalidInput("Invalid business unit ID format")
 		}
 		return apperrors.Internal("Failed to check business unit existence", err)
 	}
@@ -182,12 +189,14 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 		return apperrors.InvalidInput("Business unit ID cannot be empty")
 	}
 
-	// Note: In production, you might want to check for dependent entities
-	// (e.g., active bookings) before allowing deletion
+	// NOTE: In production, check for dependent entities (e.g., active bookings) before deletion
 
 	if err := s.repo.Delete(ctx, id); err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		if errors.Is(err, businessunitserrors.ErrNotFound) {
 			return apperrors.NotFoundWithID("Business unit", id)
+		}
+		if errors.Is(err, businessunitserrors.ErrInvalidID) {
+			return apperrors.InvalidInput("Invalid business unit ID format")
 		}
 		s.logger.Error("Failed to delete business unit",
 			"id", id,

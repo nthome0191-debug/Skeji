@@ -81,9 +81,8 @@ func initServices(mongoClient *mongo.Client, log *logger.Logger) service.Busines
 }
 
 func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClient *mongo.Client, log *logger.Logger) *http.Server {
-	// Health router - minimal middleware for Kubernetes probes
 	healthRouter := httprouter.New()
-	healthHandler := handler.NewHealthHandler(mongoClient)
+	healthHandler := handler.NewHealthHandler(mongoClient, log)
 	healthHandler.RegisterRoutes(healthRouter)
 
 	var healthHTTPHandler http.Handler = healthRouter
@@ -91,7 +90,6 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClien
 	healthHTTPHandler = middleware.Recovery(log)(healthHTTPHandler)
 	log.Info("Health endpoints configured with minimal middleware (Recovery + Logging only)")
 
-	// Business router - full security middleware stack
 	businessRouter := httprouter.New()
 	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService)
 	businessUnitHandler.RegisterRoutes(businessRouter)
@@ -104,13 +102,12 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClien
 		log,
 	)
 
+	// Apply middleware in order from innermost to outermost
+	// Execution order will be: Recovery → Logging → MaxSize → ContentType → Signature → RateLimit → Timeout → Idempotency → Router
 	var businessHTTPHandler http.Handler = businessRouter
-	businessHTTPHandler = middleware.MaxRequestSize(1024 * 1024)(businessHTTPHandler)
 	businessHTTPHandler = middleware.Idempotency(idempotencyStore, "Idempotency-Key")(businessHTTPHandler)
 	businessHTTPHandler = middleware.RequestTimeout(30 * time.Second)(businessHTTPHandler)
-	businessHTTPHandler = middleware.RequestLogging(log)(businessHTTPHandler)
 	businessHTTPHandler = middleware.PhoneRateLimit(phoneRateLimiter)(businessHTTPHandler)
-	businessHTTPHandler = middleware.ContentTypeValidation(log)(businessHTTPHandler)
 
 	whatsappSecret := os.Getenv("WHATSAPP_APP_SECRET")
 	if whatsappSecret != "" {
@@ -118,6 +115,9 @@ func setupHTTPServer(businessUnitService service.BusinessUnitService, mongoClien
 		log.Info("WhatsApp signature verification enabled")
 	}
 
+	businessHTTPHandler = middleware.ContentTypeValidation(log)(businessHTTPHandler)
+	businessHTTPHandler = middleware.MaxRequestSize(1024 * 1024)(businessHTTPHandler)
+	businessHTTPHandler = middleware.RequestLogging(log)(businessHTTPHandler)
 	businessHTTPHandler = middleware.Recovery(log)(businessHTTPHandler)
 	log.Info("Business endpoints configured with full security middleware stack")
 

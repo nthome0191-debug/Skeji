@@ -2,8 +2,9 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
+	httputil "skeji/pkg/http"
+	"skeji/pkg/logger"
 	"time"
 
 	"github.com/julienschmidt/httprouter"
@@ -12,11 +13,13 @@ import (
 
 type HealthHandler struct {
 	mongoClient *mongo.Client
+	log         *logger.Logger
 }
 
-func NewHealthHandler(mongoClient *mongo.Client) *HealthHandler {
+func NewHealthHandler(mongoClient *mongo.Client, log *logger.Logger) *HealthHandler {
 	return &HealthHandler{
 		mongoClient: mongoClient,
+		log:         log,
 	}
 }
 
@@ -36,19 +39,18 @@ func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request, _ httprout
 	defer cancel()
 
 	if err := h.mongoClient.Ping(ctx, nil); err != nil {
-		respondError(w, http.StatusServiceUnavailable, "database unavailable")
+		h.log.Error("Database health check failed",
+			"error", err,
+			"path", r.URL.Path,
+		)
+		httputil.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"status": "unavailable",
+			"error":  "database unavailable",
+		})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`{"status":"ready","database":"ok"}`))
-}
-
-func respondError(w http.ResponseWriter, statusCode int, message string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-
-	response := map[string]string{"status": "unavailable", "error": message}
-	_ = json.NewEncoder(w).Encode(response)
 }
