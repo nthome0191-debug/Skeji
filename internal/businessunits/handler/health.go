@@ -30,9 +30,11 @@ func NewHealthHandler(mongoClient *mongo.Client, log *logger.Logger) *HealthHand
 }
 
 func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	httputil.WriteJSON(w, http.StatusOK, HealthResponse{
+	if err := httputil.WriteJSON(w, http.StatusOK, HealthResponse{
 		Status: "ok",
-	})
+	}); err != nil {
+		h.log.Error("failed to write JSON response", "handler", "Health", "operation", "WriteJSON", "error", err)
+	}
 }
 
 func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -44,17 +46,21 @@ func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request, _ httprout
 			"error", err,
 			"path", r.URL.Path,
 		)
-		httputil.WriteJSON(w, http.StatusServiceUnavailable, HealthResponse{
+		if writeErr := httputil.WriteJSON(w, http.StatusServiceUnavailable, HealthResponse{
 			Status:   "unavailable",
 			Database: "error",
-		})
+		}); writeErr != nil {
+			h.log.Error("failed to write JSON response", "handler", "Ready", "operation", "WriteJSON", "error", writeErr)
+		}
 		return
 	}
 
-	httputil.WriteJSON(w, http.StatusOK, HealthResponse{
+	if err := httputil.WriteJSON(w, http.StatusOK, HealthResponse{
 		Status:   "ready",
 		Database: "ok",
-	})
+	}); err != nil {
+		h.log.Error("failed to write JSON response", "handler", "Ready", "operation", "WriteJSON", "error", err)
+	}
 }
 
 func (h *HealthHandler) RegisterRoutes(router *httprouter.Router) {

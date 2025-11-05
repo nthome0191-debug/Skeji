@@ -2,8 +2,6 @@
 
 This directory contains comprehensive integration tests for all Skeji microservices.
 
-NOTE: INTEGRATION TESTS NOT READY< NOT VALIDATED
-
 ## Directory Structure
 
 ```

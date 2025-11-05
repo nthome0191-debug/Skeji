@@ -29,26 +29,23 @@ func NewBusinessUnitHandler(service service.BusinessUnitService, log *logger.Log
 func (h *BusinessUnitHandler) Create(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var bu model.BusinessUnit
 	if err := json.NewDecoder(r.Body).Decode(&bu); err != nil {
-		err = httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+		if writeErr := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
 			Error: "Invalid request body",
-		})
-		if err != nil {
-			h.log.Warn("todo") // todo: log in a way that allows me to understand what method failed to write the json
+		}); writeErr != nil {
+			h.log.Error("failed to write JSON response", "handler", "Create", "operation", "WriteJSON", "error", writeErr)
 		}
 		return
 	}
 
 	if err := h.service.Create(r.Context(), &bu); err != nil {
-		err = httputil.WriteError(w, err)
-		if err != nil {
-			// todo
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "Create", "operation", "WriteError", "error", writeErr)
 		}
 		return
 	}
 
-	err := httputil.WriteCreated(w, bu)
-	if err != nil {
-		//todo
+	if err := httputil.WriteCreated(w, bu); err != nil {
+		h.log.Error("failed to write created response", "handler", "Create", "operation", "WriteCreated", "error", err)
 	}
 }
 
@@ -57,11 +54,15 @@ func (h *BusinessUnitHandler) GetByID(w http.ResponseWriter, r *http.Request, ps
 
 	bu, err := h.service.GetByID(r.Context(), id)
 	if err != nil {
-		httputil.WriteError(w, err)
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "GetByID", "operation", "WriteError", "error", writeErr)
+		}
 		return
 	}
 
-	httputil.WriteSuccess(w, bu)
+	if err := httputil.WriteSuccess(w, bu); err != nil {
+		h.log.Error("failed to write success response", "handler", "GetByID", "operation", "WriteSuccess", "error", err)
+	}
 }
 
 func (h *BusinessUnitHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
@@ -71,11 +72,15 @@ func (h *BusinessUnitHandler) GetAll(w http.ResponseWriter, r *http.Request, _ h
 
 	units, totalCount, err := h.service.GetAll(r.Context(), limit, offset)
 	if err != nil {
-		httputil.WriteError(w, err)
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "GetAll", "operation", "WriteError", "error", writeErr)
+		}
 		return
 	}
 
-	err = httputil.WritePaginated(w, units, totalCount, limit, offset)
+	if err := httputil.WritePaginated(w, units, totalCount, limit, offset); err != nil {
+		h.log.Error("failed to write paginated response", "handler", "GetAll", "operation", "WritePaginated", "error", err)
+	}
 }
 
 func (h *BusinessUnitHandler) Update(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -83,14 +88,18 @@ func (h *BusinessUnitHandler) Update(w http.ResponseWriter, r *http.Request, ps 
 
 	var updates model.BusinessUnitUpdate
 	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
-		httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+		if writeErr := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
 			Error: "Invalid request body",
-		})
+		}); writeErr != nil {
+			h.log.Error("failed to write JSON response", "handler", "Update", "operation", "WriteJSON", "error", writeErr)
+		}
 		return
 	}
 
 	if err := h.service.Update(r.Context(), id, &updates); err != nil {
-		httputil.WriteError(w, err)
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "Update", "operation", "WriteError", "error", writeErr)
+		}
 		return
 	}
 
@@ -101,7 +110,9 @@ func (h *BusinessUnitHandler) Delete(w http.ResponseWriter, r *http.Request, ps 
 	id := ps.ByName("id")
 
 	if err := h.service.Delete(r.Context(), id); err != nil {
-		httputil.WriteError(w, err)
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "Delete", "operation", "WriteError", "error", writeErr)
+		}
 		return
 	}
 
@@ -114,9 +125,11 @@ func (h *BusinessUnitHandler) Search(w http.ResponseWriter, r *http.Request, _ h
 	labelsParam := query.Get("labels")
 
 	if citiesParam == "" || labelsParam == "" {
-		httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+		if writeErr := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
 			Error: "Both 'cities' and 'labels' query parameters are required",
-		})
+		}); writeErr != nil {
+			h.log.Error("failed to write JSON response", "handler", "Search", "operation", "WriteJSON", "error", writeErr)
+		}
 		return
 	}
 
@@ -124,19 +137,25 @@ func (h *BusinessUnitHandler) Search(w http.ResponseWriter, r *http.Request, _ h
 	labels := splitAndTrim(labelsParam)
 
 	if len(cities) == 0 || len(labels) == 0 {
-		httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+		if writeErr := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
 			Error: "Cities and labels must contain at least one non-empty value",
-		})
+		}); writeErr != nil {
+			h.log.Error("failed to write JSON response", "handler", "Search", "operation", "WriteJSON", "error", writeErr)
+		}
 		return
 	}
 
 	units, err := h.service.Search(r.Context(), cities, labels)
 	if err != nil {
-		httputil.WriteError(w, err)
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "Search", "operation", "WriteError", "error", writeErr)
+		}
 		return
 	}
 
-	httputil.WriteSuccess(w, units)
+	if err := httputil.WriteSuccess(w, units); err != nil {
+		h.log.Error("failed to write success response", "handler", "Search", "operation", "WriteSuccess", "error", err)
+	}
 }
 
 // Helper functions
