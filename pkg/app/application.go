@@ -63,12 +63,12 @@ func (a *Application) setAppHandler(appHandler contracts.Handler) {
 	appHttpHandler = middleware.Idempotency(a.idempotencyStore, "Idempotency-Key")(appHttpHandler)
 	appHttpHandler = middleware.RequestTimeout(a.cfg.RequestTimeout)(appHttpHandler)
 	appHttpHandler = middleware.PhoneRateLimit(a.rateLimiter)(appHttpHandler)
-	if a.cfg.WhatsAppAppSecret != "" {
-		appHttpHandler = middleware.WhatsAppSignatureVerification(a.cfg.WhatsAppAppSecret, a.cfg.Log)(appHttpHandler)
-		a.cfg.Log.Info("WhatsApp signature verification enabled")
-	} else {
-		a.cfg.Log.Fatal("WHATSAPP_APP_SECRET environment variable is required")
-	}
+	// if a.cfg.WhatsAppAppSecret != "" {
+	// 	appHttpHandler = middleware.WhatsAppSignatureVerification(a.cfg.WhatsAppAppSecret, a.cfg.Log)(appHttpHandler)
+	// 	a.cfg.Log.Info("WhatsApp signature verification enabled")
+	// } else {
+	// 	a.cfg.Log.Fatal("WHATSAPP_APP_SECRET environment variable is required")
+	// }
 	appHttpHandler = middleware.ContentTypeValidation(a.cfg.Log)(appHttpHandler)
 	appHttpHandler = middleware.MaxRequestSize(int64(a.cfg.MaxRequestSize))(appHttpHandler)
 	appHttpHandler = middleware.RequestLogging(a.cfg.Log)(appHttpHandler)

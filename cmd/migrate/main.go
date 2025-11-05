@@ -4,39 +4,26 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	mongoMigration "skeji/internal/migrations/mongo"
-
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
+	"skeji/pkg/config"
 )
+
+const JobName = "mongo-migration"
 
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-
-	migrateMongo(ctx)
-
+	cfg := config.Load(JobName)
+	cfg.Log.Info("Starting Mongo migration job")
+	defer cfg.GracefulShutdown()
+	migrateMongo(ctx, cfg)
 	fmt.Println("Migration completed successfully.")
 }
 
-func migrateMongo(ctx context.Context) {
-	mongoURI := os.Getenv("MONGO_URI")
-	if mongoURI == "" {
-		log.Fatal("MONGO_URI environment variable is required")
-	}
-
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
-	if err != nil {
-		log.Fatalf("Failed to connect to MongoDB: %v", err)
-	}
-	defer client.Disconnect(ctx)
-
-	fmt.Printf("Connected to MongoDB: %s\n", mongoURI)
-
-	if err := mongoMigration.RunMigration(ctx, client); err != nil {
+func migrateMongo(ctx context.Context, cfg *config.Config) {
+	if err := mongoMigration.RunMigration(ctx, cfg.Client.Mongo); err != nil {
 		log.Fatalf("Migration failed: %v", err)
 	}
 }

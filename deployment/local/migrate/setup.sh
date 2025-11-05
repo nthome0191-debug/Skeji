@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
-MIGRATION_NAMESPACE="migration"
+MIGRATION_NAMESPACE="jobs"
 IMAGE_NAME="skeji-migrate:latest"
 DOCKERFILE="build/docker/migrate.Dockerfile"
 JOB_FILE="deployment/local/migrate/migrate-job.yaml"
 JOB_NAME="skeji-migrate"
 
-echo "🔹 Ensuring migration namespace exists..."
+echo "🔹 Ensuring $MIGRATION_NAMESPACE namespace exists..."
 kubectl get ns $MIGRATION_NAMESPACE >/dev/null 2>&1 || kubectl create namespace $MIGRATION_NAMESPACE
 
 kubectl delete job $JOB_NAME -n $MIGRATION_NAMESPACE --ignore-not-found=true
