@@ -27,7 +27,7 @@ func initServices(cfg *config.Config) service.BusinessUnitService {
 	businessUnitService := service.NewBusinessUnitService(
 		businessUnitRepo,
 		businessUnitValidator,
-		cfg.Log,
+		cfg,
 	)
 
 	cfg.Log.Info("Business unit service initialized", "database", cfg.MongoDatabaseName)

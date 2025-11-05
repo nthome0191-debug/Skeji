@@ -6,9 +6,9 @@ import (
 	businessunitserrors "skeji/internal/businessunits/errors"
 	"skeji/internal/businessunits/repository"
 	"skeji/internal/businessunits/validator"
+	"skeji/pkg/config"
 	apperrors "skeji/pkg/errors"
 	"skeji/pkg/locale"
-	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"skeji/pkg/sanitizer"
 	"sync"
@@ -32,18 +32,18 @@ type BusinessUnitService interface {
 type businessUnitService struct {
 	repo      repository.BusinessUnitRepository
 	validator *validator.BusinessUnitValidator
-	logger    *logger.Logger
+	cfg       *config.Config
 }
 
 func NewBusinessUnitService(
 	repo repository.BusinessUnitRepository,
 	validator *validator.BusinessUnitValidator,
-	logger *logger.Logger,
+	cfg *config.Config,
 ) BusinessUnitService {
 	return &businessUnitService{
 		repo:      repo,
 		validator: validator,
-		logger:    logger,
+		cfg:       cfg,
 	}
 }
 
@@ -52,7 +52,7 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 	s.applyDefaultsForNewCreatedBusiness(bu)
 
 	if err := s.validator.Validate(bu); err != nil {
-		s.logger.Warn("Business unit validation failed",
+		s.cfg.Log.Warn("Business unit validation failed",
 			"name", bu.Name,
 			"admin_phone", bu.AdminPhone,
 			"error", err,
@@ -63,7 +63,7 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 	}
 
 	if err := s.repo.Create(ctx, bu); err != nil {
-		s.logger.Error("Failed to create business unit",
+		s.cfg.Log.Error("Failed to create business unit",
 			"name", bu.Name,
 			"admin_phone", bu.AdminPhone,
 			"error", err,
@@ -71,7 +71,7 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 		return apperrors.Internal("Failed to create business unit", err)
 	}
 
-	s.logger.Info("Business unit created successfully",
+	s.cfg.Log.Info("Business unit created successfully",
 		"id", bu.ID,
 		"name", bu.Name,
 		"admin_phone", bu.AdminPhone,
@@ -94,7 +94,7 @@ func (s *businessUnitService) GetByID(ctx context.Context, id string) (*model.Bu
 		if errors.Is(err, businessunitserrors.ErrInvalidID) {
 			return nil, apperrors.InvalidInput("Invalid business unit ID format")
 		}
-		s.logger.Error("Failed to get business unit by ID",
+		s.cfg.Log.Error("Failed to get business unit by ID",
 			"id", id,
 			"error", err,
 		)
@@ -123,9 +123,11 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 	go func() {
 		defer wg.Done()
 		var err error
+		ctx, cancel := context.WithTimeout(ctx, s.cfg.ReadTimeout)
+		defer cancel()
 		count, err = s.repo.Count(ctx)
 		if err != nil {
-			s.logger.Error("Failed to count business units", "error", err)
+			s.cfg.Log.Error("Failed to count business units", "error", err)
 			errCount = apperrors.Internal("Failed to count business units", err)
 		}
 	}()
@@ -133,9 +135,11 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 	go func() {
 		defer wg.Done()
 		var err error
+		ctx, cancel := context.WithTimeout(ctx, s.cfg.ReadTimeout)
+		defer cancel()
 		units, err = s.repo.FindAll(ctx, limit, offset)
 		if err != nil {
-			s.logger.Error("Failed to get all business units",
+			s.cfg.Log.Error("Failed to get all business units",
 				"limit", limit,
 				"offset", offset,
 				"error", err,
@@ -175,7 +179,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 	merged := s.mergeBusinessUnitUpdates(existing, updates)
 
 	if err := s.validator.Validate(merged); err != nil {
-		s.logger.Warn("Business unit update validation failed",
+		s.cfg.Log.Warn("Business unit update validation failed",
 			"id", id,
 			"error", err,
 		)
@@ -185,14 +189,14 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 	}
 
 	if err := s.repo.Update(ctx, id, merged); err != nil {
-		s.logger.Error("Failed to update business unit",
+		s.cfg.Log.Error("Failed to update business unit",
 			"id", id,
 			"error", err,
 		)
 		return apperrors.Internal("Failed to update business unit", err)
 	}
 
-	s.logger.Info("Business unit updated successfully",
+	s.cfg.Log.Info("Business unit updated successfully",
 		"id", id,
 		"name", merged.Name,
 	)
@@ -212,14 +216,14 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 		if errors.Is(err, businessunitserrors.ErrInvalidID) {
 			return apperrors.InvalidInput("Invalid business unit ID format")
 		}
-		s.logger.Error("Failed to delete business unit",
+		s.cfg.Log.Error("Failed to delete business unit",
 			"id", id,
 			"error", err,
 		)
 		return apperrors.Internal("Failed to delete business unit", err)
 	}
 
-	s.logger.Info("Business unit deleted successfully", "id", id)
+	s.cfg.Log.Info("Business unit deleted successfully", "id", id)
 
 	return nil
 }
@@ -233,7 +237,7 @@ func (s *businessUnitService) GetByAdminPhone(ctx context.Context, phone string)
 
 	units, err := s.repo.FindByAdminPhone(ctx, phone)
 	if err != nil {
-		s.logger.Error("Failed to get business units by admin phone",
+		s.cfg.Log.Error("Failed to get business units by admin phone",
 			"phone", phone,
 			"error", err,
 		)
@@ -255,7 +259,7 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 	labels = sanitizer.NormalizeLabels(labels)
 
 	if len(cities) == 0 || len(labels) == 0 {
-		s.logger.Warn("Search criteria normalized to empty",
+		s.cfg.Log.Warn("Search criteria normalized to empty",
 			"original_cities", originalCities,
 			"original_labels", originalLabels,
 			"normalized_cities", cities,
@@ -266,7 +270,7 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 
 	units, err := s.repo.Search(ctx, cities, labels)
 	if err != nil {
-		s.logger.Error("Failed to search business units",
+		s.cfg.Log.Error("Failed to search business units",
 			"cities", cities,
 			"labels", labels,
 			"error", err,
@@ -274,7 +278,7 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 		return nil, apperrors.Internal("Failed to search business units", err)
 	}
 
-	s.logger.Debug("Business units search completed",
+	s.cfg.Log.Debug("Business units search completed",
 		"cities", cities,
 		"labels", labels,
 		"results_count", len(units),
@@ -327,7 +331,9 @@ func (s *businessUnitService) applyDefaultsForNewCreatedBusiness(bu *model.Busin
 	if bu.TimeZone == "" {
 		bu.TimeZone = locale.InferTimezoneFromPhone(bu.AdminPhone)
 	}
-	bu.Priority = DefaultPriority
+	if bu.Priority == 0 {
+		bu.Priority = DefaultPriority
+	}
 }
 
 func (s *businessUnitService) mergeBusinessUnitUpdates(existing *model.BusinessUnit, updates *model.BusinessUnitUpdate) *model.BusinessUnit {
