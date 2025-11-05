@@ -6,7 +6,7 @@ const (
 	MaxPriority = 100000
 )
 
-func NormalizePriority(priority int) int {
+func NormalizePriority(priority int64) int64 {
 	if priority < MinPriority {
 		return MinPriority
 	}
