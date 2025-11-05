@@ -15,9 +15,8 @@ func main() {
 	cfg := config.Load(ServiceName)
 	cfg.Log.Info("Starting Business Units service")
 	businessUnitService := initServices(cfg)
-	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService, cfg.Log)
-	serverApp := app.NewApplication()
-	serverApp.SetApp(cfg, businessUnitHandler)
+	serverApp := app.NewApplication(cfg)
+	serverApp.SetApp(handler.NewBusinessUnitHandler(businessUnitService, cfg.Log))
 	serverApp.Run()
 }
 

@@ -23,56 +23,58 @@ type Application struct {
 	appHttpHandler   *http.Handler
 }
 
-func NewApplication() *Application {
-	return &Application{}
+func NewApplication(cfg *config.Config) *Application {
+	return &Application{
+		cfg: cfg,
+	}
 }
 
-func (a *Application) SetApp(cfg *config.Config, appHandler contracts.Handler) {
-	a.setHealthHandler(cfg)
-	a.setAppHandler(cfg, appHandler)
+func (a *Application) SetApp(appHandler contracts.Handler) {
+	a.setHealthHandler()
+	a.setAppHandler(appHandler)
 	a.setAppServer()
 }
 
-func (a *Application) setHealthHandler(cfg *config.Config) {
+func (a *Application) setHealthHandler() {
 	healthRouter := httprouter.New()
-	healthHandler := handler.NewHealthHandler(cfg.Client.Mongo, cfg.Log)
+	healthHandler := handler.NewHealthHandler(a.cfg.Client.Mongo, a.cfg.Log)
 	healthHandler.RegisterRoutes(healthRouter)
 
 	var healthHTTPHandler http.Handler = healthRouter
-	healthHTTPHandler = middleware.RequestLogging(cfg.Log)(healthHTTPHandler)
-	healthHTTPHandler = middleware.Recovery(cfg.Log)(healthHTTPHandler)
+	healthHTTPHandler = middleware.RequestLogging(a.cfg.Log)(healthHTTPHandler)
+	healthHTTPHandler = middleware.Recovery(a.cfg.Log)(healthHTTPHandler)
 	a.healthHandler = &healthHTTPHandler
-	cfg.Log.Info("Health endpoints configured with minimal middleware (Recovery + Logging only)")
+	a.cfg.Log.Info("Health endpoints configured with minimal middleware (Recovery + Logging only)")
 }
 
-func (a *Application) setAppHandler(cfg *config.Config, appHandler contracts.Handler) {
+func (a *Application) setAppHandler(appHandler contracts.Handler) {
 	appRouter := httprouter.New()
 	appHandler.RegisterRoutes(appRouter)
 
-	a.idempotencyStore = middleware.NewInMemoryIdempotencyStore(cfg.IdempotencyTTL)
+	a.idempotencyStore = middleware.NewInMemoryIdempotencyStore(a.cfg.IdempotencyTTL)
 	a.rateLimiter = middleware.NewPhoneRateLimiter(
-		cfg.RateLimitRequests,
-		cfg.RateLimitWindow,
+		a.cfg.RateLimitRequests,
+		a.cfg.RateLimitWindow,
 		middleware.DefaultPhoneExtractor,
-		cfg.Log,
+		a.cfg.Log,
 	)
 
 	var appHttpHandler http.Handler = appRouter
 	appHttpHandler = middleware.Idempotency(a.idempotencyStore, "Idempotency-Key")(appHttpHandler)
-	appHttpHandler = middleware.RequestTimeout(cfg.RequestTimeout)(appHttpHandler)
+	appHttpHandler = middleware.RequestTimeout(a.cfg.RequestTimeout)(appHttpHandler)
 	appHttpHandler = middleware.PhoneRateLimit(a.rateLimiter)(appHttpHandler)
-	if cfg.WhatsAppAppSecret != "" {
-		appHttpHandler = middleware.WhatsAppSignatureVerification(cfg.WhatsAppAppSecret, cfg.Log)(appHttpHandler)
-		cfg.Log.Info("WhatsApp signature verification enabled")
+	if a.cfg.WhatsAppAppSecret != "" {
+		appHttpHandler = middleware.WhatsAppSignatureVerification(a.cfg.WhatsAppAppSecret, a.cfg.Log)(appHttpHandler)
+		a.cfg.Log.Info("WhatsApp signature verification enabled")
 	} else {
-		cfg.Log.Fatal("WHATSAPP_APP_SECRET environment variable is required")
+		a.cfg.Log.Fatal("WHATSAPP_APP_SECRET environment variable is required")
 	}
-	appHttpHandler = middleware.ContentTypeValidation(cfg.Log)(appHttpHandler)
-	appHttpHandler = middleware.MaxRequestSize(int64(cfg.MaxRequestSize))(appHttpHandler)
-	appHttpHandler = middleware.RequestLogging(cfg.Log)(appHttpHandler)
-	appHttpHandler = middleware.Recovery(cfg.Log)(appHttpHandler)
+	appHttpHandler = middleware.ContentTypeValidation(a.cfg.Log)(appHttpHandler)
+	appHttpHandler = middleware.MaxRequestSize(int64(a.cfg.MaxRequestSize))(appHttpHandler)
+	appHttpHandler = middleware.RequestLogging(a.cfg.Log)(appHttpHandler)
+	appHttpHandler = middleware.Recovery(a.cfg.Log)(appHttpHandler)
 	a.appHttpHandler = &appHttpHandler
-	cfg.Log.Info("Application endpoints configured with full security middleware stack")
+	a.cfg.Log.Info("Application endpoints configured with full security middleware stack")
 }
 
 func (a *Application) setAppServer() {
