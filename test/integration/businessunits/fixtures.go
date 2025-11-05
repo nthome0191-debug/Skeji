@@ -50,7 +50,7 @@ func (b *BusinessUnitBuilder) WithMaintainers(maintainers ...string) *BusinessUn
 	return b
 }
 
-func (b *BusinessUnitBuilder) WithPriority(priority int) *BusinessUnitBuilder {
+func (b *BusinessUnitBuilder) WithPriority(priority int64) *BusinessUnitBuilder {
 	b.bu.Priority = priority
 	return b
 }
@@ -119,7 +119,7 @@ func HighPriorityBusinessUnit() model.BusinessUnit {
 }
 
 func ValidBusinessUnitUpdate() model.BusinessUnitUpdate {
-	priority := 20
+	var priority int64 = 20
 	websiteURL := "https://updated.com"
 	maintainers := []string{"+972501111111"}
 

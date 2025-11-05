@@ -64,6 +64,8 @@ func (a *Application) setAppHandler(cfg *config.Config, appHandler contracts.Han
 	if cfg.WhatsAppAppSecret != "" {
 		appHttpHandler = middleware.WhatsAppSignatureVerification(cfg.WhatsAppAppSecret, cfg.Log)(appHttpHandler)
 		cfg.Log.Info("WhatsApp signature verification enabled")
+	} else {
+		cfg.Log.Fatal("WHATSAPP_APP_SECRET environment variable is required")
 	}
 	appHttpHandler = middleware.ContentTypeValidation(cfg.Log)(appHttpHandler)
 	appHttpHandler = middleware.MaxRequestSize(int64(cfg.MaxRequestSize))(appHttpHandler)
@@ -128,6 +130,6 @@ func (a *Application) gracefulShutdown() {
 			a.cfg.Log.Fatal("Could not stop server gracefully", "error", err)
 		}
 	}
-
+	a.cfg.GracefulShutdown()
 	a.cfg.Log.Info("Server stopped gracefully")
 }

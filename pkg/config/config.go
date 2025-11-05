@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"os"
 	"skeji/pkg/client"
 	"skeji/pkg/logger"
@@ -90,4 +91,11 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 		}
 	}
 	return fallback
+}
+
+func (cfg *Config) GracefulShutdown() {
+	err := cfg.Client.Mongo.Disconnect(context.Background())
+	if err != nil {
+		cfg.Log.Warn("error occured during attempt to disconnect mongo client: %s", err)
+	}
 }

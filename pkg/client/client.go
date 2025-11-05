@@ -34,6 +34,5 @@ func (c *Client) SetMongo(log *logger.Logger, mongoURI string, mongoConnTimeout 
 	}
 
 	log.Info("Successfully connected to MongoDB")
-	defer client.Disconnect(context.Background())
 	c.Mongo = client
 }
