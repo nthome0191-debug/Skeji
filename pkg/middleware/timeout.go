@@ -57,8 +57,6 @@ func RequestTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), timeout)
 			defer cancel()
 
-			r = r.WithContext(ctx)
-
 			tw := &timeoutWriter{
 				ResponseWriter: w,
 				timedOut:       false,
@@ -66,15 +64,8 @@ func RequestTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 			}
 
 			done := make(chan struct{})
-			go func() {
-				next.ServeHTTP(tw, r)
-				close(done)
-			}()
 
-			select {
-			case <-done:
-				return
-			case <-ctx.Done():
+			stop := context.AfterFunc(ctx, func() {
 				tw.timeout()
 				tw.mu.Lock()
 				if !tw.written {
@@ -84,7 +75,21 @@ func RequestTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 					tw.written = true
 				}
 				tw.mu.Unlock()
-			}
+			})
+			defer stop()
+
+			go func() {
+				defer func() {
+					if p := recover(); p != nil {
+						close(done)
+						panic(p)
+					}
+				}()
+				defer close(done)
+				next.ServeHTTP(tw, r.WithContext(ctx))
+			}()
+
+			<-done
 		})
 	}
 }
