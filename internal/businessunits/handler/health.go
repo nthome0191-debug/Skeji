@@ -12,7 +12,6 @@ import (
 	"skeji/pkg/logger"
 )
 
-// HealthResponse represents the health check response structure
 type HealthResponse struct {
 	Status   string `json:"status"`
 	Database string `json:"database,omitempty"`
@@ -29,8 +28,6 @@ func NewHealthHandler(mongoClient *mongo.Client, log *logger.Logger) *HealthHand
 		log:         log,
 	}
 }
-
-// Handler methods
 
 func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	httputil.WriteJSON(w, http.StatusOK, HealthResponse{
@@ -59,8 +56,6 @@ func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request, _ httprout
 		Database: "ok",
 	})
 }
-
-// Route registration
 
 func (h *HealthHandler) RegisterRoutes(router *httprouter.Router) {
 	router.GET("/health", h.Health)

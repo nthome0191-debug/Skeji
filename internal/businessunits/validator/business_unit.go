@@ -75,11 +75,6 @@ func (v *BusinessUnitValidator) Validate(bu *model.BusinessUnit) error {
 		}
 		return err
 	}
-
-	if err := v.validateBusinessRules(bu); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -115,10 +110,4 @@ func (v *BusinessUnitValidator) translateValidationErrors(errs validator.Validat
 	}
 
 	return validationErrors
-}
-
-func (v *BusinessUnitValidator) validateBusinessRules(bu *model.BusinessUnit) error {
-	// TODO: Implement custom business rules here
-	// - Business-specific rules
-	return nil
 }

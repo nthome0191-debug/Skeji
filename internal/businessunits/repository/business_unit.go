@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	businessunitserrors "skeji/internal/businessunits/errors"
+	"skeji/pkg/config"
 	"skeji/pkg/model"
 	"time"
 
@@ -15,16 +16,13 @@ import (
 )
 
 const (
-	// CollectionName is the name of the MongoDB collection for business units
 	CollectionName = "Business_units"
-
-	// operationTimeout is the maximum duration for individual MongoDB operations
-	operationTimeout = 5 * time.Second
 )
 
 type mongoBusinessUnitRepository struct {
 	db         *mongo.Database
 	collection *mongo.Collection
+	cfg        *config.Config
 }
 
 type BusinessUnitRepository interface {
@@ -40,8 +38,8 @@ type BusinessUnitRepository interface {
 	Count(ctx context.Context) (int64, error)
 }
 
-func NewMongoBusinessUnitRepository(client *mongo.Client, databaseName string) BusinessUnitRepository {
-	db := client.Database(databaseName)
+func NewMongoBusinessUnitRepository(cfg *config.Config) BusinessUnitRepository {
+	db := cfg.Client.Mongo.Database(cfg.MongoDatabaseName)
 	return &mongoBusinessUnitRepository{
 		db:         db,
 		collection: db.Collection(CollectionName),
@@ -49,7 +47,7 @@ func NewMongoBusinessUnitRepository(client *mongo.Client, databaseName string) B
 }
 
 func (r *mongoBusinessUnitRepository) Create(ctx context.Context, bu *model.BusinessUnit) error {
-	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, r.cfg.WriteTimeout)
 	defer cancel()
 
 	bu.CreatedAt = time.Now()
@@ -66,7 +64,7 @@ func (r *mongoBusinessUnitRepository) Create(ctx context.Context, bu *model.Busi
 }
 
 func (r *mongoBusinessUnitRepository) FindByID(ctx context.Context, id string) (*model.BusinessUnit, error) {
-	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
 	objectID, err := primitive.ObjectIDFromHex(id)
@@ -87,7 +85,7 @@ func (r *mongoBusinessUnitRepository) FindByID(ctx context.Context, id string) (
 }
 
 func (r *mongoBusinessUnitRepository) FindAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, error) {
-	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
 	if limit == 0 {
@@ -109,7 +107,7 @@ func (r *mongoBusinessUnitRepository) FindAll(ctx context.Context, limit int, of
 }
 
 func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu *model.BusinessUnit) error {
-	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, r.cfg.WriteTimeout)
 	defer cancel()
 
 	objectID, err := primitive.ObjectIDFromHex(id)
@@ -144,7 +142,7 @@ func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu 
 }
 
 func (r *mongoBusinessUnitRepository) Delete(ctx context.Context, id string) error {
-	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, r.cfg.WriteTimeout)
 	defer cancel()
 
 	objectID, err := primitive.ObjectIDFromHex(id)
@@ -165,7 +163,7 @@ func (r *mongoBusinessUnitRepository) Delete(ctx context.Context, id string) err
 }
 
 func (r *mongoBusinessUnitRepository) Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error) {
-	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
 	filter := bson.M{}
@@ -193,7 +191,7 @@ func (r *mongoBusinessUnitRepository) Search(ctx context.Context, cities []strin
 }
 
 func (r *mongoBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {
-	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
 	filter := bson.M{"admin_phone": phone}
@@ -212,7 +210,7 @@ func (r *mongoBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phon
 }
 
 func (r *mongoBusinessUnitRepository) Count(ctx context.Context) (int64, error) {
-	ctx, cancel := context.WithTimeout(ctx, operationTimeout)
+	ctx, cancel := context.WithTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
 	count, err := r.collection.CountDocuments(ctx, bson.M{})

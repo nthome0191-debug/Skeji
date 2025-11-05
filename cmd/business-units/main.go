@@ -15,7 +15,7 @@ func main() {
 	cfg := config.Load(ServiceName)
 	cfg.Log.Info("Starting Business Units service")
 	businessUnitService := initServices(cfg)
-	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService)
+	businessUnitHandler := handler.NewBusinessUnitHandler(businessUnitService, cfg.Log)
 	serverApp := app.NewApplication()
 	serverApp.SetApp(cfg, businessUnitHandler)
 	serverApp.Run()
@@ -23,7 +23,7 @@ func main() {
 
 func initServices(cfg *config.Config) service.BusinessUnitService {
 	businessUnitValidator := validator.NewBusinessUnitValidator(cfg.Log)
-	businessUnitRepo := repository.NewMongoBusinessUnitRepository(cfg.Client.Mongo, cfg.MongoDatabaseName)
+	businessUnitRepo := repository.NewMongoBusinessUnitRepository(cfg)
 	businessUnitService := service.NewBusinessUnitService(
 		businessUnitRepo,
 		businessUnitValidator,

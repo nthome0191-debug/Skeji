@@ -10,36 +10,46 @@ import (
 
 	"skeji/internal/businessunits/service"
 	httputil "skeji/pkg/http"
+	"skeji/pkg/logger"
 	"skeji/pkg/model"
 )
 
 type BusinessUnitHandler struct {
 	service service.BusinessUnitService
+	log     *logger.Logger
 }
 
-func NewBusinessUnitHandler(service service.BusinessUnitService) *BusinessUnitHandler {
+func NewBusinessUnitHandler(service service.BusinessUnitService, log *logger.Logger) *BusinessUnitHandler {
 	return &BusinessUnitHandler{
 		service: service,
+		log:     log,
 	}
 }
-
-// HTTP handler methods
 
 func (h *BusinessUnitHandler) Create(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var bu model.BusinessUnit
 	if err := json.NewDecoder(r.Body).Decode(&bu); err != nil {
-		httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+		err = httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
 			Error: "Invalid request body",
 		})
+		if err != nil {
+			h.log.Warn("todo") // todo: log in a way that allows me to understand what method failed to write the json
+		}
 		return
 	}
 
 	if err := h.service.Create(r.Context(), &bu); err != nil {
-		httputil.WriteError(w, err)
+		err = httputil.WriteError(w, err)
+		if err != nil {
+			// todo
+		}
 		return
 	}
 
-	httputil.WriteCreated(w, bu)
+	err := httputil.WriteCreated(w, bu)
+	if err != nil {
+		//todo
+	}
 }
 
 func (h *BusinessUnitHandler) GetByID(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -65,7 +75,7 @@ func (h *BusinessUnitHandler) GetAll(w http.ResponseWriter, r *http.Request, _ h
 		return
 	}
 
-	httputil.WritePaginated(w, units, totalCount, limit, offset)
+	err = httputil.WritePaginated(w, units, totalCount, limit, offset)
 }
 
 func (h *BusinessUnitHandler) Update(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

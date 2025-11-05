@@ -11,6 +11,7 @@ import (
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"skeji/pkg/sanitizer"
+	"sync"
 )
 
 const (
@@ -74,7 +75,6 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 		"id", bu.ID,
 		"name", bu.Name,
 		"admin_phone", bu.AdminPhone,
-		"priority", bu.Priority,
 		"timezone", bu.TimeZone,
 	)
 
@@ -115,21 +115,41 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 		offset = 0
 	}
 
-	// TODO: Get total count and items in parallel for better performance
-	count, err := s.repo.Count(ctx)
-	if err != nil {
-		s.logger.Error("Failed to count business units", "error", err)
-		return nil, 0, apperrors.Internal("Failed to count business units", err)
-	}
+	var count int64
+	var units []*model.BusinessUnit
+	var errCount, errFind error
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		var err error
+		count, err = s.repo.Count(ctx)
+		if err != nil {
+			s.logger.Error("Failed to count business units", "error", err)
+			errCount = apperrors.Internal("Failed to count business units", err)
+		}
+	}()
 
-	units, err := s.repo.FindAll(ctx, limit, offset)
-	if err != nil {
-		s.logger.Error("Failed to get all business units",
-			"limit", limit,
-			"offset", offset,
-			"error", err,
-		)
-		return nil, 0, apperrors.Internal("Failed to retrieve business units", err)
+	go func() {
+		defer wg.Done()
+		var err error
+		units, err = s.repo.FindAll(ctx, limit, offset)
+		if err != nil {
+			s.logger.Error("Failed to get all business units",
+				"limit", limit,
+				"offset", offset,
+				"error", err,
+			)
+			errFind = apperrors.Internal("Failed to retrieve business units", err)
+		}
+	}()
+	wg.Wait()
+
+	if errCount != nil {
+		return nil, 0, errCount
+	}
+	if errFind != nil {
+		return nil, 0, errFind
 	}
 
 	return units, count, nil
@@ -152,11 +172,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 	}
 
 	s.sanitizeUpdate(updates)
-
 	merged := s.mergeBusinessUnitUpdates(existing, updates)
-
-	merged.ID = existing.ID
-	merged.CreatedAt = existing.CreatedAt
 
 	if err := s.validator.Validate(merged); err != nil {
 		s.logger.Warn("Business unit update validation failed",
@@ -188,8 +204,6 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return apperrors.InvalidInput("Business unit ID cannot be empty")
 	}
-
-	// NOTE: In production, check for dependent entities (e.g., active bookings) before deletion
 
 	if err := s.repo.Delete(ctx, id); err != nil {
 		if errors.Is(err, businessunitserrors.ErrNotFound) {
@@ -313,10 +327,7 @@ func (s *businessUnitService) applyDefaultsForNewCreatedBusiness(bu *model.Busin
 	if bu.TimeZone == "" {
 		bu.TimeZone = locale.InferTimezoneFromPhone(bu.AdminPhone)
 	}
-
-	if bu.Priority == 0 {
-		bu.Priority = DefaultPriority
-	}
+	bu.Priority = DefaultPriority
 }
 
 func (s *businessUnitService) mergeBusinessUnitUpdates(existing *model.BusinessUnit, updates *model.BusinessUnitUpdate) *model.BusinessUnit {
@@ -353,6 +364,9 @@ func (s *businessUnitService) mergeBusinessUnitUpdates(existing *model.BusinessU
 	if updates.WebsiteURL != nil {
 		merged.WebsiteURL = *updates.WebsiteURL
 	}
+
+	merged.ID = existing.ID
+	merged.CreatedAt = existing.CreatedAt
 
 	return &merged
 }

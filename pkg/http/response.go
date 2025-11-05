@@ -22,13 +22,13 @@ type PaginatedResponse struct {
 	Offset     int   `json:"offset"`
 }
 
-func WriteJSON(w http.ResponseWriter, statusCode int, data any) {
+func WriteJSON(w http.ResponseWriter, statusCode int, data any) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	_ = json.NewEncoder(w).Encode(data)
+	return json.NewEncoder(w).Encode(data)
 }
 
-func WriteError(w http.ResponseWriter, err error) {
+func WriteError(w http.ResponseWriter, err error) error {
 	var statusCode int
 	var errResp ErrorResponse
 
@@ -57,23 +57,23 @@ func WriteError(w http.ResponseWriter, err error) {
 		}
 	}
 
-	WriteJSON(w, statusCode, errResp)
+	return WriteJSON(w, statusCode, errResp)
 }
 
-func WriteSuccess(w http.ResponseWriter, data any) {
-	WriteJSON(w, http.StatusOK, SuccessResponse{Data: data})
+func WriteSuccess(w http.ResponseWriter, data any) error {
+	return WriteJSON(w, http.StatusOK, SuccessResponse{Data: data})
 }
 
-func WriteCreated(w http.ResponseWriter, data any) {
-	WriteJSON(w, http.StatusCreated, SuccessResponse{Data: data})
+func WriteCreated(w http.ResponseWriter, data any) error {
+	return WriteJSON(w, http.StatusCreated, SuccessResponse{Data: data})
 }
 
 func WriteNoContent(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func WritePaginated(w http.ResponseWriter, data any, totalCount int64, limit int, offset int) {
-	WriteJSON(w, http.StatusOK, PaginatedResponse{
+func WritePaginated(w http.ResponseWriter, data any, totalCount int64, limit int, offset int) error {
+	return WriteJSON(w, http.StatusOK, PaginatedResponse{
 		Data:       data,
 		TotalCount: totalCount,
 		Limit:      limit,
