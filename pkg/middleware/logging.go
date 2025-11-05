@@ -75,7 +75,6 @@ func RequestLogging(log *logger.Logger) func(http.Handler) http.Handler {
 func generateRequestID() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback to timestamp-based ID if random generation fails
 		return fmt.Sprintf("fallback-%d", time.Now().UnixNano())
 	}
 	return hex.EncodeToString(b)

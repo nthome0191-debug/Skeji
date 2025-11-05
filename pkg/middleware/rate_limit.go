@@ -54,7 +54,6 @@ func (rl *PhoneRateLimiter) cleanup() {
 	}
 }
 
-// Stop gracefully shuts down the cleanup goroutine
 func (rl *PhoneRateLimiter) Stop() {
 	close(rl.stopCh)
 }

@@ -7,13 +7,12 @@ import (
 	"time"
 )
 
-// timeoutWriter wraps http.ResponseWriter to prevent writes after timeout
 type timeoutWriter struct {
 	http.ResponseWriter
-	mu          sync.Mutex
-	timedOut    bool
-	written     bool
-	statusCode  int
+	mu         sync.Mutex
+	timedOut   bool
+	written    bool
+	statusCode int
 }
 
 func (tw *timeoutWriter) WriteHeader(code int) {

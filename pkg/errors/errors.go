@@ -24,7 +24,7 @@ type AppError struct {
 	Message    string         `json:"message"`
 	HTTPStatus int            `json:"-"`
 	Details    map[string]any `json:"details,omitempty"`
-	Err        error          `json:"-"` // Original error for logging
+	Err        error          `json:"-"`
 }
 
 func (e *AppError) Error() string {

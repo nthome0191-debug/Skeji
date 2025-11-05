@@ -85,7 +85,6 @@ func (s *InMemoryIdempotencyStore) cleanup() {
 	}
 }
 
-// Stop gracefully shuts down the cleanup goroutine
 func (s *InMemoryIdempotencyStore) Stop() {
 	close(s.stopCh)
 }

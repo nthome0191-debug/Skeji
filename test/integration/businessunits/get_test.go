@@ -48,8 +48,7 @@ func TestGetByID_NonExistentID(t *testing.T) {
 	mongo, client := env.Setup(t)
 	defer env.Cleanup(t, mongo)
 
-	// Act - Try to get a business unit with a valid ObjectID format but doesn't exist
-	nonExistentID := "507f1f77bcf86cd799439011" // Valid MongoDB ObjectID format
+	nonExistentID := "507f1f77bcf86cd799439011"
 	resp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", nonExistentID))
 
 	common.AssertStatusCode(t, resp, http.StatusNotFound)
@@ -74,10 +73,8 @@ func TestGetByID_InvalidIDFormat(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Act
 			resp := client.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", tc.id))
 
-			// Assert - Expecting either 400 or 404 depending on validation
 			if resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusNotFound {
 				t.Errorf("expected status 400 or 404, got %d", resp.StatusCode)
 			}
