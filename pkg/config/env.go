@@ -5,7 +5,8 @@ const (
 	EnvMongoDatabaseName = "MONGO_DATABASE_NAME"
 	EnvMongoConnTimeout  = "MONGO_CONN_TIMEOUT"
 
-	EnvPort = "PORT"
+	EnvPort     = "PORT"
+	EnvLogLevel = "LOG_LEVEL"
 
 	EnvWhatsAppAppSecret = "WHATSAPP_APP_SECRET"
 

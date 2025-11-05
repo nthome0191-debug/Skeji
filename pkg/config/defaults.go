@@ -7,7 +7,8 @@ const (
 	DefaultMongoDatabaseName = "skeji"
 	DefaultMongoConnTimeout  = 10 * time.Second
 
-	DefaultPort = "8080"
+	DefaultPort     = "8080"
+	DefaultLogLevel = "info"
 
 	DefaultRateLimitRequests = 10
 	DefaultRateLimitWindow   = 1 * time.Minute

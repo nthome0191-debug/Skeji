@@ -2,14 +2,16 @@ package config
 
 import (
 	"os"
+	"skeji/pkg/client"
+	"skeji/pkg/logger"
 	"strconv"
 	"time"
 )
 
 type Config struct {
-	MongoURI         string
+	MongoURI          string
 	MongoDatabaseName string
-	MongoConnTimeout time.Duration
+	MongoConnTimeout  time.Duration
 
 	Port string
 
@@ -26,10 +28,13 @@ type Config struct {
 	WriteTimeout    time.Duration
 	IdleTimeout     time.Duration
 	ShutdownTimeout time.Duration
+
+	Log    *logger.Logger
+	Client *client.Client
 }
 
-func Load() *Config {
-	return &Config{
+func Load(serviceName string) *Config {
+	cfg := &Config{
 		MongoURI:          getEnvStr(EnvMongoURI, DefaultMongoURI),
 		MongoDatabaseName: getEnvStr(EnvMongoDatabaseName, DefaultMongoDatabaseName),
 		MongoConnTimeout:  getEnvDuration(EnvMongoConnTimeout, DefaultMongoConnTimeout),
@@ -49,7 +54,17 @@ func Load() *Config {
 		WriteTimeout:    getEnvDuration(EnvWriteTimeout, DefaultWriteTimeout),
 		IdleTimeout:     getEnvDuration(EnvIdleTimeout, DefaultIdleTimeout),
 		ShutdownTimeout: getEnvDuration(EnvShutdownTimeout, DefaultShutdownTimeout),
+
+		Log: logger.New(logger.Config{
+			Level:     getEnvStr(EnvLogLevel, DefaultLogLevel),
+			Format:    logger.JSON,
+			AddSource: true,
+			Service:   serviceName,
+		}),
+		Client: client.NewClient(),
 	}
+	cfg.Client.SetMongo(cfg.Log, cfg.MongoURI, cfg.MongoConnTimeout)
+	return cfg
 }
 
 func getEnvStr(key, fallback string) string {
