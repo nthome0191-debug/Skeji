@@ -40,14 +40,17 @@ func NewInMemoryIdempotencyStore(ttl time.Duration) *InMemoryIdempotencyStore {
 
 func (s *InMemoryIdempotencyStore) Get(key string) (*CachedResponse, bool) {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	response, exists := s.store[key]
+	s.mu.RUnlock()
+
 	if !exists {
 		return nil, false
 	}
 
 	if time.Since(response.CreatedAt) > s.ttl {
+		s.mu.Lock()
+		delete(s.store, key)
+		s.mu.Unlock()
 		return nil, false
 	}
 
