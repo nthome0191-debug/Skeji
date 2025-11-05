@@ -64,11 +64,11 @@ func (rl *PhoneRateLimiter) Allow(phone string) bool {
 		return true
 	}
 
-	rl.mu.Lock()
-	defer rl.mu.Unlock()
-
 	now := time.Now()
+
+	rl.mu.RLock()
 	timestamps := rl.requests[phone]
+	rl.mu.RUnlock()
 
 	validTimestamps := make([]time.Time, 0)
 	for _, ts := range timestamps {
@@ -82,7 +82,10 @@ func (rl *PhoneRateLimiter) Allow(phone string) bool {
 	}
 
 	validTimestamps = append(validTimestamps, now)
+
+	rl.mu.Lock()
 	rl.requests[phone] = validTimestamps
+	rl.mu.Unlock()
 
 	return true
 }
