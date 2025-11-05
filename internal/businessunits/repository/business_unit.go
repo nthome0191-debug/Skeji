@@ -20,9 +20,9 @@ const (
 )
 
 type mongoBusinessUnitRepository struct {
+	cfg        *config.Config
 	db         *mongo.Database
 	collection *mongo.Collection
-	cfg        *config.Config
 }
 
 type BusinessUnitRepository interface {
@@ -41,6 +41,7 @@ type BusinessUnitRepository interface {
 func NewMongoBusinessUnitRepository(cfg *config.Config) BusinessUnitRepository {
 	db := cfg.Client.Mongo.Database(cfg.MongoDatabaseName)
 	return &mongoBusinessUnitRepository{
+		cfg:        cfg,
 		db:         db,
 		collection: db.Collection(CollectionName),
 	}
@@ -174,7 +175,10 @@ func (r *mongoBusinessUnitRepository) Search(ctx context.Context, cities []strin
 		filter["labels"] = bson.M{"$in": labels}
 	}
 
-	opts := options.Find().SetSort(bson.D{{Key: "priority", Value: -1}})
+	const maxSearchResults = 1000
+	opts := options.Find().
+		SetSort(bson.D{{Key: "priority", Value: -1}}).
+		SetLimit(maxSearchResults)
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
