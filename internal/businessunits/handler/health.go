@@ -38,7 +38,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request, _ httprou
 }
 
 func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 
 	if err := h.mongoClient.Ping(ctx, nil); err != nil {
