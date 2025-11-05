@@ -76,9 +76,14 @@ func RequestTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 				return
 			case <-ctx.Done():
 				tw.timeout()
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusServiceUnavailable)
-				_, _ = w.Write([]byte(`{"error":"Request timeout"}`))
+				tw.mu.Lock()
+				if !tw.written {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusServiceUnavailable)
+					_, _ = w.Write([]byte(`{"error":"Request timeout"}`))
+					tw.written = true
+				}
+				tw.mu.Unlock()
 			}
 		})
 	}
