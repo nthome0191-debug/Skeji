@@ -158,8 +158,6 @@ func (h *BusinessUnitHandler) Search(w http.ResponseWriter, r *http.Request, _ h
 	}
 }
 
-// Helper functions
-
 func splitAndTrim(param string) []string {
 	parts := make([]string, 0)
 	for _, part := range strings.Split(param, ",") {
@@ -170,8 +168,6 @@ func splitAndTrim(param string) []string {
 	}
 	return parts
 }
-
-// Route registration
 
 func (h *BusinessUnitHandler) RegisterRoutes(router *httprouter.Router) {
 	router.POST("/api/v1/business-units", h.Create)
