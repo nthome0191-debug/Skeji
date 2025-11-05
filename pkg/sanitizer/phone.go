@@ -2,7 +2,8 @@ package sanitizer
 
 import (
 	"strings"
-	"unicode"
+
+	"github.com/nyaruka/phonenumbers"
 )
 
 func NormalizePhone(phone string) string {
@@ -12,17 +13,17 @@ func NormalizePhone(phone string) string {
 		return ""
 	}
 
-	var digits strings.Builder
-	for _, r := range phone {
-		if unicode.IsDigit(r) {
-			digits.WriteRune(r)
+	supportedRegions := []string{"IL", "US"}
+
+	for _, region := range supportedRegions {
+		parsedNumber, err := phonenumbers.Parse(phone, region)
+		if err != nil {
+			continue
 		}
-	}
 
-	normalized := digits.String()
-
-	if normalized != "" {
-		return "+" + normalized
+		if phonenumbers.IsValidNumber(parsedNumber) {
+			return phonenumbers.Format(parsedNumber, phonenumbers.E164)
+		}
 	}
 
 	return ""
