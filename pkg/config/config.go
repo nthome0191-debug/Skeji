@@ -94,8 +94,13 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 }
 
 func (cfg *Config) GracefulShutdown() {
-	err := cfg.Client.Mongo.Disconnect(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := cfg.Client.Mongo.Disconnect(ctx)
 	if err != nil {
-		cfg.Log.Warn("error occured during attempt to disconnect mongo client: %s", err)
+		cfg.Log.Error("Failed to disconnect MongoDB client", "error", err)
+	} else {
+		cfg.Log.Info("MongoDB client disconnected successfully")
 	}
 }
