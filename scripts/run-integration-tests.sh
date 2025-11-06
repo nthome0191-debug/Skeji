@@ -1,56 +1,46 @@
 #!/bin/bash
 
-# Integration Test Orchestration Script
-# This script manages the full lifecycle of integration testing:
-# 1. Sets up Kind cluster and MongoDB
-# 2. Starts local business-units app with MongoDB connection
-# 3. Runs integration tests
-# 4. Cleans up all resources
+set -e
 
-set -e  # Exit on error
+set_colors() {
+    RED='\033[0;31m'
+    GREEN='\033[0;32m'
+    YELLOW='\033[1;33m'
+    BLUE='\033[0;34m'
+    NC='\033[0m'
+}
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+set_variables() {
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    TEST_SERVER_PORT=${TEST_SERVER_PORT:-8080}
+    TEST_MONGO_URI=${TEST_MONGO_URI:-"mongodb://localhost:27017/?directConnection=true"}
+    TEST_DB_NAME=${TEST_DB_NAME:-"skeji_test"}
+    APP_BINARY="$PROJECT_ROOT/bin/business-units"
+    APP_PID_FILE="/tmp/business-units-test.pid"
+    PORT_FORWARD_PID_FILE="/tmp/mongo-port-forward.pid"
+    CLUSTER_NAME="skeji-local"
+    CREATED_CLUSTER=false
+    STARTED_PORT_FORWARD=false
+    STARTED_APP=false
+}
 
-# Script directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+load_env_file() {
+    if [ -f "$PROJECT_ROOT/.env.test" ]; then
+        echo -e "${YELLOW}Loading environment variables from .env.test${NC}"
+        set -a
+        source "$PROJECT_ROOT/.env.test"
+        set +a
+        echo -e "${GREEN}Environment variables loaded${NC}"
+    else
+        echo -e "${YELLOW}No .env.test file found, using defaults${NC}"
+    fi
+}
 
-# Load environment variables from .env.test if it exists
-if [ -f "$PROJECT_ROOT/.env.test" ]; then
-    echo -e "${YELLOW}Loading environment variables from .env.test${NC}"
-    set -a  # Automatically export all variables
-    source "$PROJECT_ROOT/.env.test"
-    set +a
-    echo -e "${GREEN}Environment variables loaded${NC}"
-else
-    echo -e "${YELLOW}No .env.test file found, using defaults${NC}"
-fi
-
-# Configuration (with fallbacks if not set in .env.test)
-TEST_SERVER_PORT=${TEST_SERVER_PORT:-8080}
-TEST_MONGO_URI=${TEST_MONGO_URI:-"mongodb://localhost:27017/?directConnection=true"}
-TEST_DB_NAME=${TEST_DB_NAME:-"skeji_test"}
-APP_BINARY="$PROJECT_ROOT/bin/business-units"
-APP_PID_FILE="/tmp/business-units-test.pid"
-PORT_FORWARD_PID_FILE="/tmp/mongo-port-forward.pid"
-CLUSTER_NAME="skeji-local"
-
-# Track what needs cleanup
-CREATED_CLUSTER=false
-STARTED_PORT_FORWARD=false
-STARTED_APP=false
-
-# Cleanup function
 cleanup() {
     echo ""
     echo -e "${YELLOW}Cleaning up...${NC}"
 
-    # Stop the application if running
     if [ -f "$APP_PID_FILE" ]; then
         APP_PID=$(cat "$APP_PID_FILE")
         if ps -p "$APP_PID" > /dev/null 2>&1; then
@@ -61,7 +51,6 @@ cleanup() {
         rm -f "$APP_PID_FILE"
     fi
 
-    # Stop port forwarding if we started it
     if [ -f "$PORT_FORWARD_PID_FILE" ]; then
         PF_PID=$(cat "$PORT_FORWARD_PID_FILE")
         if ps -p "$PF_PID" > /dev/null 2>&1; then
@@ -74,10 +63,6 @@ cleanup() {
     echo -e "${GREEN}Cleanup complete${NC}"
 }
 
-# Register cleanup function
-trap cleanup EXIT INT TERM
-
-# Function to check if Kind cluster exists
 check_kind_cluster() {
     echo -e "${BLUE}=== Checking Kind cluster ===${NC}"
     if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
@@ -89,7 +74,6 @@ check_kind_cluster() {
     fi
 }
 
-# Function to setup Kind cluster
 setup_kind() {
     echo -e "${BLUE}=== Setting up Kind cluster ===${NC}"
     if ! check_kind_cluster; then
@@ -100,11 +84,9 @@ setup_kind() {
     fi
 }
 
-# Function to check if MongoDB is deployed
 check_mongodb() {
     echo -e "${BLUE}=== Checking MongoDB deployment ===${NC}"
     if kubectl get statefulset mongo -n mongo &> /dev/null; then
-        # Check if all pods are ready
         READY=$(kubectl get pods -n mongo -l app=mongo -o jsonpath='{.items[*].status.containerStatuses[0].ready}' 2>/dev/null || echo "")
         COUNT=$(echo "$READY" | tr -cd 't' | wc -c | xargs)
         if [ "$COUNT" -eq 3 ]; then
@@ -120,7 +102,6 @@ check_mongodb() {
     fi
 }
 
-# Function to setup MongoDB
 setup_mongodb() {
     echo -e "${BLUE}=== Setting up MongoDB ===${NC}"
     if ! check_mongodb; then
@@ -130,21 +111,17 @@ setup_mongodb() {
     fi
 }
 
-# Function to setup port forwarding
 setup_port_forward() {
     echo -e "${BLUE}=== Setting up MongoDB port forwarding ===${NC}"
 
-    # Kill any existing port forward on 27017
     lsof -ti:27017 | xargs kill -9 2>/dev/null || true
     sleep 1
 
-    # Start new port forward
     kubectl port-forward -n mongo svc/mongo 27017:27017 > /tmp/mongo-port-forward.log 2>&1 &
     PF_PID=$!
     echo $PF_PID > "$PORT_FORWARD_PID_FILE"
     STARTED_PORT_FORWARD=true
 
-    # Wait for port forward to be ready
     echo "Waiting for port forward to be ready..."
     MAX_WAIT=10
     for i in $(seq 1 $MAX_WAIT); do
@@ -160,7 +137,6 @@ setup_port_forward() {
     exit 1
 }
 
-# Function to run migrations
 run_migrations() {
     echo -e "${BLUE}=== Running migrations on test database ===${NC}"
     MONGO_URI="$TEST_MONGO_URI" \
@@ -169,14 +145,12 @@ run_migrations() {
     echo -e "${GREEN}Migrations complete${NC}"
 }
 
-# Function to build the application
 build_app() {
     echo -e "${BLUE}=== Building application ===${NC}"
     go build -o "$APP_BINARY" "$PROJECT_ROOT/cmd/business-units"
     echo -e "${GREEN}Build complete${NC}"
 }
 
-# Function to start the application
 start_app() {
     echo -e "${BLUE}=== Starting application on port $TEST_SERVER_PORT ===${NC}"
 
@@ -191,7 +165,6 @@ start_app() {
     STARTED_APP=true
     echo "Application started with PID: $APP_PID"
 
-    # Wait for the application to be ready
     echo -e "${YELLOW}Waiting for application to be ready...${NC}"
     MAX_WAIT=30
     WAIT_COUNT=0
@@ -211,7 +184,6 @@ start_app() {
     done
 }
 
-# Function to run tests
 run_tests() {
     echo -e "${BLUE}=== Running integration tests ===${NC}"
     TEST_SERVER_URL="http://localhost:$TEST_SERVER_PORT" \
@@ -221,31 +193,10 @@ run_tests() {
     go test -v "$PROJECT_ROOT/test/integration/..." -count=1
 }
 
-# Main execution flow
-main() {
-    echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║  Integration Test Orchestration                            ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
+show_results() {
+    local exit_code=$1
     echo ""
-
-    # Setup infrastructure
-    setup_kind
-    setup_mongodb
-    setup_port_forward
-
-    # Prepare and start application
-    run_migrations
-    build_app
-    start_app
-
-    # Run tests
-    echo ""
-    run_tests
-    TEST_EXIT_CODE=$?
-
-    # Show results
-    echo ""
-    if [ $TEST_EXIT_CODE -eq 0 ]; then
+    if [ $exit_code -eq 0 ]; then
         echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${GREEN}║  ✅ All tests passed!                                      ║${NC}"
         echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
@@ -257,9 +208,33 @@ main() {
         echo "Application logs (last 50 lines):"
         tail -n 50 /tmp/business-units-test.log
     fi
+}
 
+main() {
+    set_colors
+    set_variables
+    load_env_file
+
+    trap cleanup EXIT INT TERM
+
+    echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  Integration Test Orchestration                            ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+
+    setup_kind
+    setup_mongodb
+    setup_port_forward
+    run_migrations
+    build_app
+    start_app
+
+    echo ""
+    run_tests
+    TEST_EXIT_CODE=$?
+
+    show_results $TEST_EXIT_CODE
     exit $TEST_EXIT_CODE
 }
 
-# Run main function
 main "$@"
