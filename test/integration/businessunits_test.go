@@ -115,6 +115,9 @@ func testGet(t *testing.T) {
 	testGetInvalidSearchExistingRecords(t)
 	testGetValidPaginationExistingRecords(t)
 	testGetInvalidPaginationExistingRecords(t)
+	testGetVerifyCreatedAt(t)
+	testGetSearchPriorityOrdering(t)
+	testGetPaginationEdgeCases(t)
 	clearTestData(t)
 }
 
@@ -123,6 +126,11 @@ func testPost(t *testing.T) {
 	testPostInvalidRecord(t)
 	testPostWithExtraJsonKeys(t)
 	testPostWithMissingRelevantKeys(t)
+	testPostWithWebsiteURL(t)
+	testPostWithMaintainers(t)
+	testPostWithArrayMaxLengths(t)
+	testPostWithNameBoundaries(t)
+	testPostWithPriorityValues(t)
 	clearTestData(t)
 }
 
@@ -133,6 +141,8 @@ func testUpdate(t *testing.T) {
 	testUpdateWithBadFormatKeys(t)
 	testUpdateWithGoodFormatKeys(t)
 	testUpdateWithEmptyJson(t)
+	testUpdateWebsiteURL(t)
+	testUpdateMaintainers(t)
 	clearTestData(t)
 }
 
@@ -270,6 +280,91 @@ func testGetInvalidPaginationExistingRecords(t *testing.T) {
 	common.AssertStatusCode(t, resp, 200)
 }
 
+func testGetVerifyCreatedAt(t *testing.T) {
+	bu := createValidBusinessUnit("CreatedAt Test", "+972523353")
+	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeBusinessUnit(t, createResp)
+
+	if created.CreatedAt.IsZero() {
+		t.Error("expected created_at to be set")
+	}
+
+	originalCreatedAt := created.CreatedAt
+
+	updates := map[string]any{
+		"name": "Updated Name",
+	}
+	httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	common.AssertStatusCode(t, getResp, 200)
+	fetched := decodeBusinessUnit(t, getResp)
+
+	if fetched.CreatedAt != originalCreatedAt {
+		t.Errorf("created_at should not change on update: original=%v, after_update=%v", originalCreatedAt, fetched.CreatedAt)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testGetSearchPriorityOrdering(t *testing.T) {
+	bu1 := createValidBusinessUnit("Priority 1", "+972523354")
+	bu1["priority"] = 1
+	httpClient.POST(t, "/api/v1/business-units", bu1)
+
+	bu2 := createValidBusinessUnit("Priority 5", "+972523355")
+	bu2["priority"] = 5
+	httpClient.POST(t, "/api/v1/business-units", bu2)
+
+	bu3 := createValidBusinessUnit("Priority 3", "+972523356")
+	bu3["priority"] = 3
+	httpClient.POST(t, "/api/v1/business-units", bu3)
+
+	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=telaviv&labels=haircut")
+	common.AssertStatusCode(t, resp, 200)
+	results := decodeBusinessUnits(t, resp)
+
+	if len(results) < 3 {
+		t.Errorf("expected at least 3 results, got %d", len(results))
+	}
+
+	for i := 1; i < len(results); i++ {
+		if results[i-1].Priority < results[i].Priority {
+			t.Errorf("results not ordered by priority descending: %d < %d at positions %d and %d",
+				results[i-1].Priority, results[i].Priority, i-1, i)
+		}
+	}
+}
+
+func testGetPaginationEdgeCases(t *testing.T) {
+	for i := 0; i < 3; i++ {
+		bu := createValidBusinessUnit(fmt.Sprintf("Pagination Test %d", i), fmt.Sprintf("+97252335%d", 7+i))
+		httpClient.POST(t, "/api/v1/business-units", bu)
+	}
+
+	resp := httpClient.GET(t, "/api/v1/business-units?limit=0&offset=0")
+	common.AssertStatusCode(t, resp, 200)
+	data, _, _, _ := decodePaginated(t, resp)
+	if len(data) > 0 {
+		t.Errorf("limit=0 should return empty array, got %d results", len(data))
+	}
+
+	resp = httpClient.GET(t, "/api/v1/business-units?limit=1000&offset=0")
+	common.AssertStatusCode(t, resp, 200)
+	data, _, _, _ = decodePaginated(t, resp)
+	if len(data) > 100 {
+		t.Errorf("limit=1000 should be capped at reasonable max (e.g. 100), got %d results", len(data))
+	}
+
+	resp = httpClient.GET(t, "/api/v1/business-units?limit=10&offset=9999")
+	common.AssertStatusCode(t, resp, 200)
+	data, _, _, _ = decodePaginated(t, resp)
+	if len(data) != 0 {
+		t.Errorf("offset beyond total records should return empty array, got %d results", len(data))
+	}
+}
+
 func testPostValidRecord(t *testing.T) {
 	bu := createValidBusinessUnit("Valid Business", "+972512221")
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
@@ -373,6 +468,163 @@ func testPostWithMissingRelevantKeys(t *testing.T) {
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for missing admin_phone, got %d", resp.StatusCode)
 	}
+}
+
+func testPostWithWebsiteURL(t *testing.T) {
+	bu := createValidBusinessUnit("Website Test", "+972523336")
+	bu["website_url"] = "https://example.com"
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	if created.WebsiteURL != "https://example.com" {
+		t.Errorf("expected website_url 'https://example.com', got %s", created.WebsiteURL)
+	}
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+
+	bu2 := createValidBusinessUnit("Invalid URL Test", "+972523337")
+	bu2["website_url"] = "http://example.com"
+	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for non-https URL, got %d", resp.StatusCode)
+	}
+
+	bu3 := createValidBusinessUnit("Malformed URL Test", "+972523338")
+	bu3["website_url"] = "not-a-url"
+	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for malformed URL, got %d", resp.StatusCode)
+	}
+}
+
+func testPostWithMaintainers(t *testing.T) {
+	bu := createValidBusinessUnit("Maintainers Test", "+972523339")
+	bu["maintainers"] = []string{"+972541111111", "+972542222222"}
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	if len(created.Maintainers) != 2 {
+		t.Errorf("expected 2 maintainers, got %d", len(created.Maintainers))
+	}
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+
+	bu2 := createValidBusinessUnit("Invalid Maintainer Test", "+972523340")
+	bu2["maintainers"] = []string{"not-a-phone", "+972541111111"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
+	common.AssertStatusCode(t, resp, 201)
+	created = decodeBusinessUnit(t, resp)
+
+	if len(created.Maintainers) != 1 {
+		t.Errorf("expected 1 valid maintainer (invalid one filtered), got %d", len(created.Maintainers))
+	}
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testPostWithArrayMaxLengths(t *testing.T) {
+	bu := createValidBusinessUnit("Max Cities Test", "+972523341")
+	cities := make([]string, 51)
+	for i := 0; i < 51; i++ {
+		cities[i] = fmt.Sprintf("City%d", i)
+	}
+	bu["cities"] = cities
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for 51 cities (max 50), got %d", resp.StatusCode)
+	}
+
+	bu2 := createValidBusinessUnit("Max Labels Test", "+972523342")
+	labels := make([]string, 11)
+	for i := 0; i < 11; i++ {
+		labels[i] = fmt.Sprintf("Label%d", i)
+	}
+	bu2["labels"] = labels
+	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for 11 labels (max 10), got %d", resp.StatusCode)
+	}
+
+	bu3 := createValidBusinessUnit("Exactly Max Test", "+972523343")
+	cities50 := make([]string, 50)
+	for i := 0; i < 50; i++ {
+		cities50[i] = fmt.Sprintf("City%d", i)
+	}
+	bu3["cities"] = cities50
+	labels10 := make([]string, 10)
+	for i := 0; i < 10; i++ {
+		labels10[i] = fmt.Sprintf("Label%d", i)
+	}
+	bu3["labels"] = labels10
+	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testPostWithNameBoundaries(t *testing.T) {
+	bu := createValidBusinessUnit("AB", "+972523344")
+	bu["name"] = "AB"
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+
+	bu2 := createValidBusinessUnit("X", "+972523345")
+	bu2["name"] = "X"
+	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for 1-char name (min 2), got %d", resp.StatusCode)
+	}
+
+	name100 := string(make([]byte, 100))
+	for i := 0; i < 100; i++ {
+		name100 = name100[:i] + "a"
+	}
+	bu3 := createValidBusinessUnit(name100, "+972523346")
+	bu3["name"] = name100
+	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
+	common.AssertStatusCode(t, resp, 201)
+	created = decodeBusinessUnit(t, resp)
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+
+	name101 := name100 + "a"
+	bu4 := createValidBusinessUnit(name101, "+972523347")
+	bu4["name"] = name101
+	resp = httpClient.POST(t, "/api/v1/business-units", bu4)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for 101-char name (max 100), got %d", resp.StatusCode)
+	}
+}
+
+func testPostWithPriorityValues(t *testing.T) {
+	bu := createValidBusinessUnit("Priority Test", "+972523348")
+	bu["priority"] = 0
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	if created.Priority != 0 {
+		t.Errorf("expected priority 0, got %d", created.Priority)
+	}
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+
+	bu2 := createValidBusinessUnit("Negative Priority Test", "+972523349")
+	bu2["priority"] = -1
+	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for negative priority, got %d", resp.StatusCode)
+	}
+
+	bu3 := createValidBusinessUnit("High Priority Test", "+972523350")
+	bu3["priority"] = 9999
+	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
+	common.AssertStatusCode(t, resp, 201)
+	created = decodeBusinessUnit(t, resp)
+
+	if created.Priority != 9999 {
+		t.Errorf("expected priority 9999, got %d", created.Priority)
+	}
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }
 
 func testUpdateNonExistingRecord(t *testing.T) {
@@ -534,6 +786,60 @@ func testUpdateWithEmptyJson(t *testing.T) {
 	}
 	if len(fetched.Labels) != len(created.Labels) {
 		t.Errorf("expected %d labels, got %d", len(created.Labels), len(fetched.Labels))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testUpdateWebsiteURL(t *testing.T) {
+	bu := createValidBusinessUnit("URL Update Test", "+972523351")
+	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeBusinessUnit(t, createResp)
+
+	updates := map[string]any{
+		"website_url": "https://newexample.com",
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	common.AssertStatusCode(t, getResp, 200)
+	fetched := decodeBusinessUnit(t, getResp)
+
+	if fetched.WebsiteURL != "https://newexample.com" {
+		t.Errorf("expected website_url 'https://newexample.com', got %s", fetched.WebsiteURL)
+	}
+
+	updates = map[string]any{
+		"website_url": "http://invalid.com",
+	}
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for non-https URL, got %d", resp.StatusCode)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testUpdateMaintainers(t *testing.T) {
+	bu := createValidBusinessUnit("Maintainers Update Test", "+972523352")
+	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeBusinessUnit(t, createResp)
+
+	updates := map[string]any{
+		"maintainers": []string{"+972543333333", "+972544444444"},
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	common.AssertStatusCode(t, getResp, 200)
+	fetched := decodeBusinessUnit(t, getResp)
+
+	if len(fetched.Maintainers) != 2 {
+		t.Errorf("expected 2 maintainers, got %d", len(fetched.Maintainers))
 	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
