@@ -25,7 +25,11 @@ func (v ValidationErrors) Error() string {
 	if len(v) == 0 {
 		return ""
 	}
-	return fmt.Sprintf("validation failed: %d error(s)", len(v))
+	var messages []string
+	for _, err := range v {
+		messages = append(messages, err.Error())
+	}
+	return fmt.Sprintf("validation failed: %d error(s): [%s]", len(v), strings.Join(messages, "; "))
 }
 
 type BusinessUnitValidator struct {
@@ -68,6 +72,7 @@ func validateSupportedCountry(fl validator.FieldLevel) bool {
 }
 
 func (v *BusinessUnitValidator) Validate(bu *model.BusinessUnit) error {
+	fmt.Printf("natali print of business unit: %s", fmt.Sprint(bu))
 	if err := v.validate.Struct(bu); err != nil {
 		var validationErrs validator.ValidationErrors
 		if errors.As(err, &validationErrs) {
