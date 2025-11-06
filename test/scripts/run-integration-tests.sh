@@ -12,17 +12,13 @@ set_colors() {
 
 set_variables() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     TEST_SERVER_PORT=${TEST_SERVER_PORT:-8080}
     TEST_MONGO_URI=${TEST_MONGO_URI:-"mongodb://localhost:27017/?directConnection=true"}
     TEST_DB_NAME=${TEST_DB_NAME:-"skeji_test"}
     APP_BINARY="$PROJECT_ROOT/bin/business-units"
     APP_PID_FILE="/tmp/business-units-test.pid"
     PORT_FORWARD_PID_FILE="/tmp/mongo-port-forward.pid"
-    CLUSTER_NAME="skeji-local"
-    CREATED_CLUSTER=false
-    STARTED_PORT_FORWARD=false
-    STARTED_APP=false
 }
 
 load_env_file() {
@@ -63,52 +59,16 @@ cleanup() {
     echo -e "${GREEN}Cleanup complete${NC}"
 }
 
-check_kind_cluster() {
-    echo -e "${BLUE}=== Checking Kind cluster ===${NC}"
-    if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
-        echo -e "${GREEN}Kind cluster '$CLUSTER_NAME' already exists${NC}"
-        return 0
-    else
-        echo -e "${YELLOW}Kind cluster '$CLUSTER_NAME' not found${NC}"
-        return 1
-    fi
-}
-
 setup_kind() {
     echo -e "${BLUE}=== Setting up Kind cluster ===${NC}"
-    if ! check_kind_cluster; then
-        echo "Creating Kind cluster..."
-        bash "$PROJECT_ROOT/deployment/local/kind/setup.sh"
-        CREATED_CLUSTER=true
-        echo -e "${GREEN}Kind cluster created${NC}"
-    fi
-}
-
-check_mongodb() {
-    echo -e "${BLUE}=== Checking MongoDB deployment ===${NC}"
-    if kubectl get statefulset mongo -n mongo &> /dev/null; then
-        READY=$(kubectl get pods -n mongo -l app=mongo -o jsonpath='{.items[*].status.containerStatuses[0].ready}' 2>/dev/null || echo "")
-        COUNT=$(echo "$READY" | tr -cd 't' | wc -c | xargs)
-        if [ "$COUNT" -eq 3 ]; then
-            echo -e "${GREEN}MongoDB is deployed and all 3 pods are ready${NC}"
-            return 0
-        else
-            echo -e "${YELLOW}MongoDB pods not all ready ($COUNT/3)${NC}"
-            return 1
-        fi
-    else
-        echo -e "${YELLOW}MongoDB not deployed${NC}"
-        return 1
-    fi
+    cd "$PROJECT_ROOT"
+    make kind-up
 }
 
 setup_mongodb() {
     echo -e "${BLUE}=== Setting up MongoDB ===${NC}"
-    if ! check_mongodb; then
-        echo "Deploying MongoDB..."
-        bash "$PROJECT_ROOT/deployment/local/mongo/setup.sh"
-        echo -e "${GREEN}MongoDB deployed${NC}"
-    fi
+    cd "$PROJECT_ROOT"
+    make mongo-up
 }
 
 setup_port_forward() {
@@ -120,7 +80,6 @@ setup_port_forward() {
     kubectl port-forward -n mongo svc/mongo 27017:27017 > /tmp/mongo-port-forward.log 2>&1 &
     PF_PID=$!
     echo $PF_PID > "$PORT_FORWARD_PID_FILE"
-    STARTED_PORT_FORWARD=true
 
     echo "Waiting for port forward to be ready..."
     MAX_WAIT=10
@@ -139,15 +98,17 @@ setup_port_forward() {
 
 run_migrations() {
     echo -e "${BLUE}=== Running migrations on test database ===${NC}"
+    cd "$PROJECT_ROOT"
     MONGO_URI="$TEST_MONGO_URI" \
     MONGO_DATABASE_NAME="$TEST_DB_NAME" \
-    go run "$PROJECT_ROOT/cmd/migrate/main.go"
+    go run ./cmd/migrate/main.go
     echo -e "${GREEN}Migrations complete${NC}"
 }
 
 build_app() {
     echo -e "${BLUE}=== Building application ===${NC}"
-    go build -o "$APP_BINARY" "$PROJECT_ROOT/cmd/business-units"
+    cd "$PROJECT_ROOT"
+    go build -o "$APP_BINARY" ./cmd/business-units
     echo -e "${GREEN}Build complete${NC}"
 }
 
@@ -162,7 +123,6 @@ start_app() {
 
     APP_PID=$!
     echo $APP_PID > "$APP_PID_FILE"
-    STARTED_APP=true
     echo "Application started with PID: $APP_PID"
 
     echo -e "${YELLOW}Waiting for application to be ready...${NC}"
@@ -186,11 +146,12 @@ start_app() {
 
 run_tests() {
     echo -e "${BLUE}=== Running integration tests ===${NC}"
+    cd "$PROJECT_ROOT"
     TEST_SERVER_URL="http://localhost:$TEST_SERVER_PORT" \
     TEST_MONGO_URI="$TEST_MONGO_URI" \
     TEST_DB_NAME="$TEST_DB_NAME" \
     TEST_SERVER_PORT="$TEST_SERVER_PORT" \
-    go test -v "$PROJECT_ROOT/test/integration/..." -count=1
+    go test -v ./test/integration/... -count=1
 }
 
 show_results() {
