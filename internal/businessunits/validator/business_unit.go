@@ -72,7 +72,6 @@ func validateSupportedCountry(fl validator.FieldLevel) bool {
 }
 
 func (v *BusinessUnitValidator) Validate(bu *model.BusinessUnit) error {
-	fmt.Printf("natali print of business unit: %s", fmt.Sprint(bu))
 	if err := v.validate.Struct(bu); err != nil {
 		var validationErrs validator.ValidationErrors
 		if errors.As(err, &validationErrs) {

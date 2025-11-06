@@ -173,7 +173,7 @@ func testGetAllPaginatedEmptyTable(t *testing.T) {
 }
 
 func testGetValidIdExistingRecord(t *testing.T) {
-	bu := createValidBusinessUnit("Get Test Business", "+972501111111")
+	bu := createValidBusinessUnit("Get Test Business", "+972541234567")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
@@ -190,7 +190,7 @@ func testGetValidIdExistingRecord(t *testing.T) {
 }
 
 func testGetInvalidIdExistingRecord(t *testing.T) {
-	bu := createValidBusinessUnit("Invalid ID Test", "+972501111112")
+	bu := createValidBusinessUnit("Invalid ID Test", "+972541234567")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
@@ -205,15 +205,15 @@ func testGetInvalidIdExistingRecord(t *testing.T) {
 }
 
 func testGetValidSearchExistingRecords(t *testing.T) {
-	bu1 := createValidBusinessUnit("Tel Aviv Salon", "+972501111113")
+	bu1 := createValidBusinessUnit("Tel Aviv Salon", "+972541234567")
 	httpClient.POST(t, "/api/v1/business-units", bu1)
 
-	bu2 := createValidBusinessUnit("Jerusalem Spa", "+972501111114")
+	bu2 := createValidBusinessUnit("Jerusalem Spa", "+972541234567")
 	bu2["cities"] = []string{"Jerusalem"}
 	bu2["labels"] = []string{"Massage"}
 	httpClient.POST(t, "/api/v1/business-units", bu2)
 
-	bu3 := createValidBusinessUnit("Haifa Barber", "+972501111115")
+	bu3 := createValidBusinessUnit("Haifa Barber", "+972541234567")
 	httpClient.POST(t, "/api/v1/business-units", bu3)
 
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=Tel%20Aviv&labels=Haircut")
@@ -240,7 +240,7 @@ func testGetInvalidSearchExistingRecords(t *testing.T) {
 
 func testGetValidPaginationExistingRecords(t *testing.T) {
 	for i := 1; i <= 5; i++ {
-		bu := createValidBusinessUnit(fmt.Sprintf("Business %d", i), fmt.Sprintf("+97250111%04d", 1120+i))
+		bu := createValidBusinessUnit(fmt.Sprintf("Business %d", i), fmt.Sprintf("+97250%04d", 1120+i))
 		httpClient.POST(t, "/api/v1/business-units", bu)
 	}
 
@@ -271,7 +271,7 @@ func testGetInvalidPaginationExistingRecords(t *testing.T) {
 }
 
 func testPostValidRecord(t *testing.T) {
-	bu := createValidBusinessUnit("Valid Business", "+972502222221")
+	bu := createValidBusinessUnit("Valid Business", "+972512221")
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, resp, 201)
 
@@ -293,20 +293,20 @@ func testPostInvalidRecord(t *testing.T) {
 		t.Errorf("expected status 422 or 400 for invalid phone, got %d", resp.StatusCode)
 	}
 
-	bu2 := createValidBusinessUnit("Invalid Timezone", "+972502222222")
+	bu2 := createValidBusinessUnit("Invalid Timezone", "+972512222")
 	bu2["time_zone"] = "Invalid/Timezone"
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected status 422 or 400 for invalid timezone, got %d", resp.StatusCode)
 	}
 
-	bu3 := createValidBusinessUnit("A", "+972502222223")
+	bu3 := createValidBusinessUnit("A", "+972512223")
 	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected status 422 or 400 for short name, got %d", resp.StatusCode)
 	}
 
-	bu4 := createValidBusinessUnit("No Cities", "+972502222224")
+	bu4 := createValidBusinessUnit("No Cities", "+972512224")
 	bu4["cities"] = []string{}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu4)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
@@ -315,12 +315,12 @@ func testPostInvalidRecord(t *testing.T) {
 }
 
 func testPostDuplicRecord(t *testing.T) {
-	bu := createValidBusinessUnit("Duplicate Test", "+972502222225")
+	bu := createValidBusinessUnit("Duplicate Test", "+972512225")
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
-	bu2 := createValidBusinessUnit("Duplicate Test 2", "+972502222225")
+	bu2 := createValidBusinessUnit("Duplicate Test 2", "+972512225")
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
 	if resp.StatusCode != 409 && resp.StatusCode != 400 {
 		t.Logf("Note: duplicate detection returned %d (expected 409)", resp.StatusCode)
@@ -334,7 +334,7 @@ func testPostWithExtraJsonKeys(t *testing.T) {
 		"name":        "Extra Fields Test",
 		"cities":      []string{"Tel Aviv"},
 		"labels":      []string{"Haircut"},
-		"admin_phone": "+972502222226",
+		"admin_phone": "+972512226",
 		"priority":    1,
 		"extra_field": "should be ignored",
 		"another_key": 12345,
@@ -352,7 +352,7 @@ func testPostWithMissingRelevantKeys(t *testing.T) {
 	payload := map[string]any{
 		"cities":      []string{"Tel Aviv"},
 		"labels":      []string{"Haircut"},
-		"admin_phone": "+972502222227",
+		"admin_phone": "+972512227",
 	}
 	resp := httpClient.POST(t, "/api/v1/business-units", payload)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
@@ -362,7 +362,7 @@ func testPostWithMissingRelevantKeys(t *testing.T) {
 	payload2 := map[string]any{
 		"name":        "Test",
 		"labels":      []string{"Haircut"},
-		"admin_phone": "+972502222228",
+		"admin_phone": "+972512228",
 	}
 	resp = httpClient.POST(t, "/api/v1/business-units", payload2)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
@@ -372,7 +372,7 @@ func testPostWithMissingRelevantKeys(t *testing.T) {
 	payload3 := map[string]any{
 		"name":        "Test",
 		"cities":      []string{"Tel Aviv"},
-		"admin_phone": "+972502222229",
+		"admin_phone": "+972512229",
 	}
 	resp = httpClient.POST(t, "/api/v1/business-units", payload3)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
@@ -407,7 +407,7 @@ func testUpdateWithInvalidId(t *testing.T) {
 }
 
 func testUpdateDeletedRecord(t *testing.T) {
-	bu := createValidBusinessUnit("Update Deleted Test", "+972503333331")
+	bu := createValidBusinessUnit("Update Deleted Test", "+972523331")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
@@ -423,7 +423,7 @@ func testUpdateDeletedRecord(t *testing.T) {
 }
 
 func testUpdateWithBadFormatKeys(t *testing.T) {
-	bu := createValidBusinessUnit("Update Bad Format Test", "+972503333332")
+	bu := createValidBusinessUnit("Update Bad Format Test", "+972523332")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
@@ -456,7 +456,7 @@ func testUpdateWithBadFormatKeys(t *testing.T) {
 }
 
 func testUpdateWithEmptyJson(t *testing.T) {
-	bu := createValidBusinessUnit("Update Empty Test", "+972503333333")
+	bu := createValidBusinessUnit("Update Empty Test", "+972523333")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
@@ -479,7 +479,7 @@ func testDeleteWithInvalidId(t *testing.T) {
 }
 
 func testDeletedRecord(t *testing.T) {
-	bu := createValidBusinessUnit("Delete Twice Test", "+972503333334")
+	bu := createValidBusinessUnit("Delete Twice Test", "+972523334")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
