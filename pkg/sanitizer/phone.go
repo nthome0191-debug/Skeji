@@ -22,12 +22,9 @@ func NormalizePhone(phone string) string {
 
 	for _, region := range supportedRegions {
 		parsedNumber, err := phonenumbers.Parse(phone, region)
-		if err != nil {
-			continue
+		if err == nil {
+			return phonenumbers.Format(parsedNumber, phonenumbers.E164)
 		}
-
-		return phonenumbers.Format(parsedNumber, phonenumbers.E164)
 	}
-
 	return ""
 }

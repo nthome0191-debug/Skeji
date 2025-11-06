@@ -177,6 +177,17 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 
 	s.sanitizeUpdate(updates)
 	merged := s.mergeBusinessUnitUpdates(existing, updates)
+	err = s.validator.Validate(merged)
+	if err != nil {
+		s.cfg.Log.Warn("Business unit validation failed",
+			"name", merged.Name,
+			"admin_phone", merged.AdminPhone,
+			"error", err,
+		)
+		return apperrors.Validation("Business unit validation failed", map[string]any{
+			"error": err.Error(),
+		})
+	}
 
 	if err := s.validator.Validate(merged); err != nil {
 		s.cfg.Log.Warn("Business unit update validation failed",
@@ -309,6 +320,9 @@ func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) 
 	}
 	if updates.AdminPhone != "" {
 		updates.AdminPhone = sanitizer.NormalizePhone(updates.AdminPhone)
+		if updates.AdminPhone == "" {
+			updates.AdminPhone = "invalid_result"
+		}
 	}
 	if updates.Maintainers != nil {
 		normalized := sanitizer.NormalizeMaintainers(*updates.Maintainers)

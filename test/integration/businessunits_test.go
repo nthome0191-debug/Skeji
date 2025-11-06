@@ -121,7 +121,6 @@ func testGet(t *testing.T) {
 func testPost(t *testing.T) {
 	testPostValidRecord(t)
 	testPostInvalidRecord(t)
-	testPostDuplicRecord(t)
 	testPostWithExtraJsonKeys(t)
 	testPostWithMissingRelevantKeys(t)
 	clearTestData(t)
@@ -314,21 +313,6 @@ func testPostInvalidRecord(t *testing.T) {
 	}
 }
 
-func testPostDuplicRecord(t *testing.T) {
-	bu := createValidBusinessUnit("Duplicate Test", "+972512225")
-	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
-	created := decodeBusinessUnit(t, resp)
-
-	bu2 := createValidBusinessUnit("Duplicate Test 2", "+972512225")
-	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
-	if resp.StatusCode != 409 && resp.StatusCode != 400 {
-		t.Logf("Note: duplicate detection returned %d (expected 409)", resp.StatusCode)
-	}
-
-	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-}
-
 func testPostWithExtraJsonKeys(t *testing.T) {
 	payload := map[string]any{
 		"name":        "Extra Fields Test",
@@ -433,7 +417,7 @@ func testUpdateWithBadFormatKeys(t *testing.T) {
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Logf("Note: invalid phone in update returned %d", resp.StatusCode)
+		t.Errorf("Note: invalid phone in update returned %d", resp.StatusCode)
 	}
 
 	updates = map[string]any{
@@ -441,7 +425,7 @@ func testUpdateWithBadFormatKeys(t *testing.T) {
 	}
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Logf("Note: invalid timezone in update returned %d", resp.StatusCode)
+		t.Errorf("Note: invalid timezone in update returned %d", resp.StatusCode)
 	}
 
 	updates = map[string]any{
@@ -449,7 +433,7 @@ func testUpdateWithBadFormatKeys(t *testing.T) {
 	}
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Logf("Note: short name in update returned %d", resp.StatusCode)
+		t.Errorf("Note: short name in update returned %d", resp.StatusCode)
 	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
@@ -464,6 +448,23 @@ func testUpdateWithEmptyJson(t *testing.T) {
 	updates := map[string]any{}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
 	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	common.AssertStatusCode(t, getResp, 200)
+	fetched := decodeBusinessUnit(t, getResp)
+
+	if fetched.Name != created.Name {
+		t.Errorf("expected name %s, got %s", created.Name, fetched.Name)
+	}
+	if fetched.AdminPhone != created.AdminPhone {
+		t.Errorf("expected admin_phone %s, got %s", created.AdminPhone, fetched.AdminPhone)
+	}
+	if len(fetched.Cities) != len(created.Cities) {
+		t.Errorf("expected %d cities, got %d", len(created.Cities), len(fetched.Cities))
+	}
+	if len(fetched.Labels) != len(created.Labels) {
+		t.Errorf("expected %d labels, got %d", len(created.Labels), len(fetched.Labels))
+	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }

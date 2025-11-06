@@ -2,6 +2,20 @@
 
 set -e
 
+# Parse command line flags
+VERBOSE=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -v|--verbose)
+            VERBOSE=true
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
 set_colors() {
     RED='\033[0;31m'
     GREEN='\033[0;32m'
@@ -64,10 +78,10 @@ cleanup() {
         fi
         rm -f "$PORT_FORWARD_PID_FILE"
     fi
-    pkill -f business-units
+
+    pkill -f business-units || true
     echo -e "${GREEN}Cleanup complete${NC}"
 }
-
 
 check_existing_environment() {
     echo -e "${BLUE}=== Checking for existing environment ===${NC}"
@@ -135,19 +149,27 @@ build_app() {
 start_app() {
     echo -e "${BLUE}=== Starting application on port $TEST_SERVER_PORT ===${NC}"
 
-    # Run the app in a subshell, capture both stdout and stderr,
-    # and redirect to a log file while also showing it live.
-    (
-        PORT="$TEST_SERVER_PORT" \
-        MONGO_URI="$TEST_MONGO_URI" \
-        MONGO_DATABASE_NAME="$TEST_DB_NAME" \
-        LOG_LEVEL="info" \
-        exec "$APP_BINARY"
-    ) > >(tee /tmp/business-units-test.log) 2>&1 &
+    if $VERBOSE; then
+        (
+            PORT="$TEST_SERVER_PORT" \
+            MONGO_URI="$TEST_MONGO_URI" \
+            MONGO_DATABASE_NAME="$TEST_DB_NAME" \
+            LOG_LEVEL="info" \
+            exec "$APP_BINARY"
+        ) 2>&1 | tee /tmp/business-units-test.log &
+    else
+        (
+            PORT="$TEST_SERVER_PORT" \
+            MONGO_URI="$TEST_MONGO_URI" \
+            MONGO_DATABASE_NAME="$TEST_DB_NAME" \
+            LOG_LEVEL="info" \
+            exec "$APP_BINARY"
+        ) > /tmp/business-units-test.log 2>&1 &
+    fi
 
     APP_PID=$!
     echo $APP_PID > "$APP_PID_FILE"
-    echo "Application started with PGID: $APP_PID"
+    echo "Application started with PID: $APP_PID"
 
     echo -e "${YELLOW}Waiting for application to be ready...${NC}"
 
@@ -165,7 +187,6 @@ start_app() {
     tail -n 50 /tmp/business-units-test.log
     exit 1
 }
-
 
 run_tests() {
     echo -e "${BLUE}=== Running integration tests ===${NC}"
@@ -195,7 +216,6 @@ show_results() {
 }
 
 main() {
-
     set_colors
     set_variables
     load_env_file
