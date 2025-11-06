@@ -14,7 +14,7 @@ set_variables() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
     TEST_SERVER_PORT=${TEST_SERVER_PORT:-8080}
-    TEST_MONGO_URI=${TEST_MONGO_URI:-"mongodb://localhost:27017/?directConnection=true"}
+    TEST_MONGO_URI=${TEST_MONGO_URI:-"mongodb://root:rootpassword@localhost:27017/?directConnection=true&authSource=admin"}
     TEST_DB_NAME=${TEST_DB_NAME:-"skeji_test"}
     APP_BINARY="$PROJECT_ROOT/bin/business-units"
     APP_PID_FILE="/tmp/business-units-test.pid"
@@ -59,6 +59,21 @@ cleanup() {
     echo -e "${GREEN}Cleanup complete${NC}"
 }
 
+check_existing_environment() {
+    echo -e "${BLUE}=== Checking for existing environment ===${NC}"
+
+    if pgrep -f "kubectl port-forward.*mongo.*27017" > /dev/null 2>&1; then
+        if timeout 2 bash -c "cat < /dev/null > /dev/tcp/localhost/27017" 2>/dev/null; then
+            echo -e "${GREEN}✅ Port forward active and MongoDB accessible${NC}"
+            return 0
+        fi
+        pkill -f "kubectl port-forward.*mongo.*27017" 2>/dev/null || true
+        sleep 1
+    fi
+
+    return 1
+}
+
 setup_kind() {
     echo -e "${BLUE}=== Setting up Kind cluster ===${NC}"
     cd "$PROJECT_ROOT"
@@ -74,26 +89,21 @@ setup_mongodb() {
 setup_port_forward() {
     echo -e "${BLUE}=== Setting up MongoDB port forwarding ===${NC}"
 
-    lsof -ti:27017 | xargs kill -9 2>/dev/null || true
+    pkill -f "kubectl port-forward.*mongo.*27017" 2>/dev/null || true
     sleep 1
 
-    kubectl port-forward -n mongo svc/mongo 27017:27017 > /tmp/mongo-port-forward.log 2>&1 &
-    PF_PID=$!
-    echo $PF_PID > "$PORT_FORWARD_PID_FILE"
+    FIRST_POD=$(kubectl get pods -n mongo -l app=mongo -o name | head -1 | sed 's|pod/||')
+    PRIMARY_HOST=$(kubectl exec -n mongo "$FIRST_POD" -- mongosh --quiet --eval "
+      rs.status().members.filter(m => m.stateStr === 'PRIMARY')[0].name
+    " 2>/dev/null | tr -d '[:space:]')
+    PRIMARY_POD=$(echo "$PRIMARY_HOST" | cut -d'.' -f1)
 
-    echo "Waiting for port forward to be ready..."
-    MAX_WAIT=10
-    for i in $(seq 1 $MAX_WAIT); do
-        if lsof -i:27017 > /dev/null 2>&1; then
-            echo -e "${GREEN}Port forwarding established (PID: $PF_PID)${NC}"
-            return 0
-        fi
-        sleep 1
-    done
+    echo "Port-forwarding to primary pod: $PRIMARY_POD"
+    kubectl port-forward -n mongo "$PRIMARY_POD" 27017:27017 > /tmp/mongo-port-forward.log 2>&1 &
+    echo $! > "$PORT_FORWARD_PID_FILE"
 
-    echo -e "${RED}Port forwarding failed to start${NC}"
-    cat /tmp/mongo-port-forward.log
-    exit 1
+    sleep 3
+    echo -e "${GREEN}✅ Port forward established${NC}"
 }
 
 run_migrations() {
@@ -183,9 +193,15 @@ main() {
     echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo ""
 
-    setup_kind
-    setup_mongodb
-    setup_port_forward
+    if check_existing_environment; then
+        echo -e "${GREEN}Reusing existing environment${NC}"
+    else
+        echo -e "${YELLOW}Setting up new environment${NC}"
+        setup_kind
+        setup_mongodb
+        setup_port_forward
+    fi
+
     run_migrations
     build_app
     start_app
