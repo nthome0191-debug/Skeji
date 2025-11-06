@@ -131,6 +131,7 @@ func testUpdate(t *testing.T) {
 	testUpdateWithInvalidId(t)
 	testUpdateDeletedRecord(t)
 	testUpdateWithBadFormatKeys(t)
+	testUpdateWithGoodFormatKeys(t)
 	testUpdateWithEmptyJson(t)
 	clearTestData(t)
 }
@@ -434,6 +435,75 @@ func testUpdateWithBadFormatKeys(t *testing.T) {
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("Note: short name in update returned %d", resp.StatusCode)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testUpdateWithGoodFormatKeys(t *testing.T) {
+	bu := createValidBusinessUnit("Original Name", "+972523335")
+	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeBusinessUnit(t, createResp)
+
+	updates := map[string]any{
+		"name": "Updated Name",
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	common.AssertStatusCode(t, getResp, 200)
+	fetched := decodeBusinessUnit(t, getResp)
+
+	if fetched.Name != "Updated Name" {
+		t.Errorf("expected name 'Updated Name', got %s", fetched.Name)
+	}
+
+	updates = map[string]any{
+		"admin_phone": "+972546789012",
+	}
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp = httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	common.AssertStatusCode(t, getResp, 200)
+	fetched = decodeBusinessUnit(t, getResp)
+
+	if fetched.AdminPhone != "+972546789012" {
+		t.Errorf("expected admin_phone '+972546789012', got %s", fetched.AdminPhone)
+	}
+
+	updates = map[string]any{
+		"time_zone": "America/New_York",
+	}
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp = httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	common.AssertStatusCode(t, getResp, 200)
+	fetched = decodeBusinessUnit(t, getResp)
+
+	if fetched.TimeZone != "America/New_York" {
+		t.Errorf("expected time_zone 'America/New_York', got %s", fetched.TimeZone)
+	}
+
+	updates = map[string]any{
+		"cities": []string{"Haifa", "Eilat"},
+		"labels": []string{"Massage", "Spa"},
+	}
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp = httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	common.AssertStatusCode(t, getResp, 200)
+	fetched = decodeBusinessUnit(t, getResp)
+
+	if len(fetched.Cities) != 2 || fetched.Cities[0] != "haifa" || fetched.Cities[1] != "eilat" {
+		t.Errorf("expected cities [haifa, eilat], got %v", fetched.Cities)
+	}
+	if len(fetched.Labels) != 2 || fetched.Labels[0] != "massage" || fetched.Labels[1] != "spa" {
+		t.Errorf("expected labels [massage, spa], got %v", fetched.Labels)
 	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
