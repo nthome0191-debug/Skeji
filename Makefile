@@ -29,4 +29,5 @@ business-units-up:
 
 test-integration:
 	@echo "🧪 Running integration tests..."
+	@echo "💡 Tip: Customize test config in .env.test"
 	bash scripts/run-integration-tests.sh

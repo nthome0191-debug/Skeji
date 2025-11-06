@@ -142,7 +142,17 @@ go test -v ./test/integration/businessunits/... -count=1
 
 ## Environment Variables
 
-Configure tests using environment variables:
+### Using .env.test (Recommended)
+
+The test runner automatically loads environment variables from `.env.test`:
+
+```bash
+# The file is already created at project root
+# Edit it to customize test configuration
+vim .env.test
+```
+
+### Available Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
@@ -150,6 +160,8 @@ Configure tests using environment variables:
 | `TEST_MONGO_URI` | MongoDB connection string | `mongodb://localhost:27017` |
 | `TEST_DB_NAME` | Test database name | `skeji_test` |
 | `TEST_SERVER_PORT` | Port for test server | `8080` |
+
+**Note:** The test script sources `.env.test` automatically when you run `make test-integration`.
 
 ## Common Test Utilities
 

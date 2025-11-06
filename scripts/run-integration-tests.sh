@@ -11,7 +11,18 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Configuration
+# Load environment variables from .env.test if it exists
+if [ -f ".env.test" ]; then
+    echo -e "${YELLOW}Loading environment variables from .env.test${NC}"
+    set -a  # Automatically export all variables
+    source .env.test
+    set +a
+    echo -e "${GREEN}Environment variables loaded${NC}"
+else
+    echo -e "${YELLOW}No .env.test file found, using defaults${NC}"
+fi
+
+# Configuration (with fallbacks if not set in .env.test)
 TEST_SERVER_PORT=${TEST_SERVER_PORT:-8080}
 TEST_MONGO_URI=${TEST_MONGO_URI:-"mongodb://localhost:27017"}
 TEST_DB_NAME=${TEST_DB_NAME:-"skeji_test"}

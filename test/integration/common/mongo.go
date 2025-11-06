@@ -5,13 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"skeji/pkg/client"
+	"skeji/pkg/logger"
+
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
 	DefaultMongoURI         = "mongodb://localhost:27017"
-	DefaultDatabaseName     = "skeji"
+	DefaultDatabaseName     = "skeji_test"
 	ConnectionTimeout       = 10 * time.Second
 	BusinessUnitsCollection = "Business_units"
 )
@@ -32,23 +34,17 @@ func NewMongoHelper(t *testing.T, mongoURI, dbName string) *MongoHelper {
 		dbName = DefaultDatabaseName
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), ConnectionTimeout)
-	defer cancel()
+	testLogger := logger.New(logger.Config{
+		Service: "test",
+		Level:   "debug",
+	})
 
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI(mongoURI))
-	if err != nil {
-		t.Fatalf("failed to connect to MongoDB: %v", err)
-	}
-
-	if err := client.Ping(ctx, nil); err != nil {
-		t.Fatalf("failed to ping MongoDB: %v", err)
-	}
-
-	t.Log("Connected to MongoDB successfully")
+	prodClient := client.NewClient()
+	prodClient.SetMongo(testLogger, mongoURI, ConnectionTimeout)
 
 	return &MongoHelper{
-		Client:   client,
-		Database: client.Database(dbName),
+		Client:   prodClient.Mongo,
+		Database: prodClient.Mongo.Database(dbName),
 		DBName:   dbName,
 	}
 }
@@ -68,7 +64,7 @@ func (m *MongoHelper) CleanDatabase(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	collections, err := m.Database.ListCollectionNames(ctx, map[string]interface{}{})
+	collections, err := m.Database.ListCollectionNames(ctx, map[string]any{})
 	if err != nil {
 		t.Fatalf("failed to list collections: %v", err)
 	}
@@ -90,7 +86,7 @@ func (m *MongoHelper) CleanCollection(t *testing.T, collectionName string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	result, err := m.Database.Collection(collectionName).DeleteMany(ctx, map[string]interface{}{})
+	result, err := m.Database.Collection(collectionName).DeleteMany(ctx, map[string]any{})
 	if err != nil {
 		t.Fatalf("failed to clean collection %s: %v", collectionName, err)
 	}
@@ -102,7 +98,7 @@ func (m *MongoHelper) CountDocuments(t *testing.T, collectionName string) int64 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	count, err := m.Database.Collection(collectionName).CountDocuments(ctx, map[string]interface{}{})
+	count, err := m.Database.Collection(collectionName).CountDocuments(ctx, map[string]any{})
 	if err != nil {
 		t.Fatalf("failed to count documents in %s: %v", collectionName, err)
 	}
