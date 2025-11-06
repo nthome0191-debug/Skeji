@@ -30,7 +30,7 @@ type Response struct {
 	Body []byte
 }
 
-func (r *Response) DecodeJSON(target interface{}) error {
+func (r *Response) DecodeJSON(target any) error {
 	return json.Unmarshal(r.Body, target)
 }
 
@@ -39,12 +39,12 @@ func (c *Client) GET(t *testing.T, path string) *Response {
 	return c.request(t, http.MethodGet, path, nil, nil)
 }
 
-func (c *Client) POST(t *testing.T, path string, body interface{}) *Response {
+func (c *Client) POST(t *testing.T, path string, body any) *Response {
 	t.Helper()
 	return c.request(t, http.MethodPost, path, body, nil)
 }
 
-func (c *Client) PATCH(t *testing.T, path string, body interface{}) *Response {
+func (c *Client) PATCH(t *testing.T, path string, body any) *Response {
 	t.Helper()
 	return c.request(t, http.MethodPatch, path, body, nil)
 }
@@ -54,12 +54,12 @@ func (c *Client) DELETE(t *testing.T, path string) *Response {
 	return c.request(t, http.MethodDelete, path, nil, nil)
 }
 
-func (c *Client) POSTWithHeaders(t *testing.T, path string, body interface{}, headers map[string]string) *Response {
+func (c *Client) POSTWithHeaders(t *testing.T, path string, body any, headers map[string]string) *Response {
 	t.Helper()
 	return c.request(t, http.MethodPost, path, body, headers)
 }
 
-func (c *Client) request(t *testing.T, method, path string, body interface{}, headers map[string]string) *Response {
+func (c *Client) request(t *testing.T, method, path string, body any, headers map[string]string) *Response {
 	t.Helper()
 
 	var reqBody io.Reader

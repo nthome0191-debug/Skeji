@@ -20,7 +20,7 @@ func (r *mongoBusinessUnitRepository) ExecuteTransaction(ctx context.Context, fn
     }
     defer session.EndSession(ctx)
 
-    _, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+    _, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
         return nil, fn(sessCtx)
     })
 

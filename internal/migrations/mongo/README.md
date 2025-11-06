@@ -122,7 +122,7 @@ make migrate
 You can use a common helper for backfilling new fields:
 
 ```go
-func BackfillField(ctx context.Context, db *mongo.Database, collName, field string, defaultValue interface{}) error {
+func BackfillField(ctx context.Context, db *mongo.Database, collName, field string, defaultValue any) error {
     filter := bson.M{field: bson.M{"$exists": false}}
     update := bson.M{"$set": bson.M{field: defaultValue}}
     result, err := db.Collection(collName).UpdateMany(ctx, filter, update)

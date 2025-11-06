@@ -51,7 +51,7 @@ func (r *mongoBusinessUnitRepository) ExecuteTransaction(ctx context.Context, fn
 	defer session.EndSession(ctx)
 
 	// WithTransaction handles commit/abort and retries on transient errors
-	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (interface{}, error) {
+	_, err = session.WithTransaction(ctx, func(sessCtx mongo.SessionContext) (any, error) {
 		return nil, fn(sessCtx)
 	})
 
