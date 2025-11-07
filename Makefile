@@ -1,4 +1,4 @@
-.PHONY: local-up mongo-up kind-up kind-down migrate business-units-up test-integration
+.PHONY: local-up mongo-up kind-up kind-down migrate business-units-up test-integration test-integration-app-verbose
 
 local-up:
 	@echo "🚀 Spinning up full local environment..."
@@ -31,3 +31,8 @@ test-integration:
 	@echo "🧪 Running integration tests..."
 	@echo "💡 Tip: Customize test config in .env.test"
 	bash test/scripts/run-integration-tests.sh
+
+test-integration-app-verbose:
+	@echo "🧪 Running integration tests..."
+	@echo "💡 Tip: Customize test config in .env.test"
+	bash test/scripts/run-integration-tests.sh --verbose

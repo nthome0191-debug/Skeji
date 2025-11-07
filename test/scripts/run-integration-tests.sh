@@ -2,7 +2,6 @@
 
 set -e
 
-# Parse command line flags
 VERBOSE=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -45,6 +44,13 @@ load_env_file() {
     else
         echo -e "${YELLOW}No .env.test file found, using defaults${NC}"
     fi
+}
+
+print_logo() {
+    echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${GREEN}║  Integration Test Orchestration                            ║${NC}"
+    echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
 }
 
 cleanup() {
@@ -221,11 +227,7 @@ main() {
     load_env_file
 
     trap cleanup EXIT INT TERM
-
-    echo -e "${GREEN}╔════════════════════════════════════════════════════════════╗${NC}"
-    echo -e "${GREEN}║  Integration Test Orchestration                            ║${NC}"
-    echo -e "${GREEN}╚════════════════════════════════════════════════════════════╝${NC}"
-    echo ""
+    print_logo
 
     if check_existing_environment; then
         echo -e "${GREEN}Reusing existing environment${NC}"
