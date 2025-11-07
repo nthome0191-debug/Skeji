@@ -3,6 +3,8 @@ package validator
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"strings"
@@ -45,6 +47,11 @@ func NewBusinessUnitValidator(log *logger.Logger) *BusinessUnitValidator {
 			"error", err,
 		)
 	}
+	if err := v.RegisterValidation("valid_url", validateUrl); err != nil {
+		log.Fatal("Failed to register 'valid_url' validator",
+			"error", err,
+		)
+	}
 
 	log.Info("Business unit validator initialized successfully")
 
@@ -69,6 +76,33 @@ func validateSupportedCountry(fl validator.FieldLevel) bool {
 	}
 
 	return false
+}
+
+func validateUrl(fl validator.FieldLevel) bool {
+	input := strings.TrimSpace(fl.Field().String())
+
+	u, err := url.ParseRequestURI(input)
+	if err != nil {
+		return false
+	}
+
+	if u.Scheme != "https" {
+		return false
+	}
+
+	if u.Host == "" {
+		return false
+	}
+
+	ip := net.ParseIP(u.Hostname())
+	if ip != nil && (ip.IsLoopback() || ip.IsPrivate()) {
+		return false
+	}
+
+	if strings.Contains(u.Path, "..") {
+		return false
+	}
+	return true
 }
 
 func (v *BusinessUnitValidator) Validate(bu *model.BusinessUnit) error {

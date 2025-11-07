@@ -1,23 +1,40 @@
 package sanitizer
 
 import (
+	"net/url"
 	"strings"
 )
 
-func NormalizeURL(url string) string {
-	url = strings.TrimSpace(url)
-	if url == "" {
+func NormalizeURL(input string) string {
+	input = strings.TrimSpace(input)
+	if input == "" {
 		return ""
 	}
-	url = strings.TrimPrefix(url, "http://")
-	url = strings.TrimPrefix(url, "https://")
-	parts := strings.SplitN(url, "/", 2)
-	domain := strings.ToLower(parts[0])
-	var path string
-	if len(parts) > 1 {
-		path = "/" + parts[1]
+	u, err := url.Parse(input)
+	if err != nil {
+		return "invalid_url"
 	}
-	result := "https://" + domain + path
-	result = strings.TrimSuffix(result, "/")
-	return result
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	u.Host = strings.ToLower(u.Host)
+	q := u.Query()
+	for _, key := range []string{
+		"utm_source", "utm_medium", "utm_campaign", "utm_term",
+		"utm_content", "fbclid", "gclid", "ref", "ref_src",
+	} {
+		q.Del(key)
+	}
+	u.RawQuery = q.Encode()
+	u.Fragment = ""
+	u.Path = strings.TrimSuffix(u.Path, "/")
+	if after, ok := strings.CutPrefix(u.Host, "www."); ok {
+		u.Host = after
+	}
+	u.Path = strings.ToLower(u.Path)
+	normalized := u.Scheme + "://" + u.Host + u.Path
+	if u.RawQuery != "" {
+		normalized += "?" + u.RawQuery
+	}
+	return normalized
 }

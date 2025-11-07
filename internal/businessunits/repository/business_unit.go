@@ -29,7 +29,8 @@ type BusinessUnitRepository interface {
 	Create(ctx context.Context, bu *model.BusinessUnit) error
 	FindByID(ctx context.Context, id string) (*model.BusinessUnit, error)
 	FindAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, error)
-	Update(ctx context.Context, id string, bu *model.BusinessUnit) error
+	Update(ctx context.Context, id string, bu *model.BusinessUnit) (*mongo.UpdateResult, error)
+
 	Delete(ctx context.Context, id string) error
 
 	FindByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
@@ -121,13 +122,13 @@ func (r *mongoBusinessUnitRepository) FindAll(ctx context.Context, limit int, of
 	return businessUnits, nil
 }
 
-func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu *model.BusinessUnit) error {
+func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu *model.BusinessUnit) (*mongo.UpdateResult, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.WriteTimeout)
 	defer cancel()
 
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		return fmt.Errorf("%w: %s", businessunitserrors.ErrInvalidID, id)
+		return nil, fmt.Errorf("%w: %s", businessunitserrors.ErrInvalidID, id)
 	}
 
 	filter := bson.M{"_id": objectID}
@@ -146,14 +147,14 @@ func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu 
 
 	result, err := r.collection.UpdateOne(ctx, filter, update)
 	if err != nil {
-		return fmt.Errorf("failed to update business unit: %w", err)
+		return nil, fmt.Errorf("failed to update business unit: %w", err)
 	}
 
 	if result.MatchedCount == 0 {
-		return fmt.Errorf("%w: %s", businessunitserrors.ErrNotFound, id)
+		return nil, fmt.Errorf("%w: %s", businessunitserrors.ErrNotFound, id)
 	}
 
-	return nil
+	return result, nil
 }
 
 func (r *mongoBusinessUnitRepository) Delete(ctx context.Context, id string) error {

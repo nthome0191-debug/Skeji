@@ -182,15 +182,6 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 		s.cfg.Log.Warn("Business unit validation failed",
 			"name", merged.Name,
 			"admin_phone", merged.AdminPhone,
-			"error", err,
-		)
-		return apperrors.Validation("Business unit validation failed", map[string]any{
-			"error": err.Error(),
-		})
-	}
-
-	if err := s.validator.Validate(merged); err != nil {
-		s.cfg.Log.Warn("Business unit update validation failed",
 			"id", id,
 			"error", err,
 		)
@@ -199,14 +190,13 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 		})
 	}
 
-	if err := s.repo.Update(ctx, id, merged); err != nil {
+	if _, err := s.repo.Update(ctx, id, merged); err != nil {
 		s.cfg.Log.Error("Failed to update business unit",
 			"id", id,
 			"error", err,
 		)
 		return apperrors.Internal("Failed to update business unit", err)
 	}
-
 	s.cfg.Log.Info("Business unit updated successfully",
 		"id", id,
 		"name", merged.Name,
