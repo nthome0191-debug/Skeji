@@ -66,7 +66,7 @@ func (r *mongoBusinessUnitRepository) Create(ctx context.Context, bu *model.Busi
 	ctx, cancel := r.withTimeout(ctx, r.cfg.WriteTimeout)
 	defer cancel()
 
-	bu.CreatedAt = time.Now()
+	bu.CreatedAt = time.Now().UTC().Truncate(time.Millisecond)
 	result, err := r.collection.InsertOne(ctx, bu)
 	if err != nil {
 		return fmt.Errorf("failed to create business unit: %w", err)

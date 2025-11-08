@@ -301,7 +301,7 @@ func testGetVerifyCreatedAt(t *testing.T) {
 	common.AssertStatusCode(t, getResp, 200)
 	fetched := decodeBusinessUnit(t, getResp)
 
-	if fetched.CreatedAt != originalCreatedAt {
+	if !fetched.CreatedAt.Equal(originalCreatedAt) {
 		t.Errorf("created_at should not change on update: original=%v, after_update=%v", originalCreatedAt, fetched.CreatedAt)
 	}
 
