@@ -15,7 +15,7 @@ type Schedule struct {
 	DefaultBreakDuration   int       `json:"default_break_duration_min" bson:"default_break_duration_min" validate:"required,min=0,max=480"`
 	MaxParticipantsPerSlot int       `json:"max_participants_per_slot" bson:"max_participants_per_slot" validate:"required,min=1,max=200"`
 	Exceptions             []string  `json:"exceptions,omitempty" bson:"exceptions" validate:"omitempty"`
-	CreatedAt              time.Time `json:"created_at,omitempty" bson:"created_at" validate:"omitempty"`
+	CreatedAt              time.Time `json:"created_at" bson:"created_at" validate:"omitempty"`
 }
 
 type ScheduleUpdate struct {

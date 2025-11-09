@@ -12,7 +12,7 @@ type BusinessUnit struct {
 	Priority    int64     `json:"priority,omitempty" bson:"priority" validate:"omitempty,min=0"`
 	TimeZone    string    `json:"time_zone,omitempty" bson:"time_zone" validate:"omitempty,timezone"`
 	WebsiteURL  string    `json:"website_url,omitempty" bson:"website_url,omitempty" validate:"omitempty,valid_url"`
-	CreatedAt   time.Time `json:"created_at,omitempty" bson:"created_at" validate:"omitempty"`
+	CreatedAt   time.Time `json:"created_at" bson:"created_at" validate:"omitempty"`
 }
 
 type BusinessUnitUpdate struct {
