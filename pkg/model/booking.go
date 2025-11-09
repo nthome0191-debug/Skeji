@@ -15,7 +15,3 @@ type Booking struct {
 	ManagedBy    string    `bson:"managed_by"`
 	CreatedAt    time.Time `bson:"created_at"`
 }
-
-func (b *Booking) GetID() string {
-	return b.ID
-}

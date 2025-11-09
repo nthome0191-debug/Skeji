@@ -17,7 +17,3 @@ type Schedule struct {
 	Exceptions             []string  `bson:"exceptions"`
 	CreatedAt              time.Time `bson:"created_at"`
 }
-
-func (s *Schedule) GetID() string {
-	return s.ID
-}

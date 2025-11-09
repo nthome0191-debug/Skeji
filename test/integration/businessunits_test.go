@@ -9,7 +9,10 @@ import (
 	"testing"
 )
 
-const ServiceName = "business-units-integration-tests"
+const (
+	ServiceName = "business-units-integration-tests"
+	TableName   = "business-units"
+)
 
 var (
 	cfg        *config.Config
@@ -47,25 +50,6 @@ func createValidBusinessUnit(name, phone string) map[string]any {
 		"admin_phone": phone,
 		"priority":    1,
 		"time_zone":   "Asia/Jerusalem",
-	}
-}
-
-func clearTestData(t *testing.T) {
-	t.Helper()
-	resp := httpClient.GET(t, "/api/v1/business-units?limit=1000&offset=0")
-	if resp.StatusCode != 200 {
-		return
-	}
-
-	var result struct {
-		Data []model.BusinessUnit `json:"data"`
-	}
-	if err := resp.DecodeJSON(&result); err != nil {
-		return
-	}
-
-	for _, bu := range result.Data {
-		httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", bu.ID))
 	}
 }
 
@@ -120,7 +104,7 @@ func testGet(t *testing.T) {
 	testGetPaginationEdgeCases(t)
 	testGetSearchNormalization(t)
 	testGetSearchMultipleCitiesLabels(t)
-	clearTestData(t)
+	common.ClearTestData(t, httpClient, TableName)
 }
 
 func testPost(t *testing.T) {
@@ -137,7 +121,7 @@ func testPost(t *testing.T) {
 	testPostWithUSPhoneNumber(t)
 	testPostWithSpecialCharacters(t)
 	testPostDuplicateDetection(t)
-	clearTestData(t)
+	common.ClearTestData(t, httpClient, TableName)
 }
 
 func testUpdate(t *testing.T) {
@@ -153,25 +137,25 @@ func testUpdate(t *testing.T) {
 	testUpdatePriorityEdgeCases(t)
 	testUpdateClearOptionalFields(t)
 	testUpdateMalformedJSON(t)
-	clearTestData(t)
+	common.ClearTestData(t, httpClient, TableName)
 }
 
 func testDelete(t *testing.T) {
 	testDeleteNonExistingRecord(t)
 	testDeleteWithInvalidId(t)
 	testDeletedRecord(t)
-	clearTestData(t)
+	common.ClearTestData(t, httpClient, TableName)
 }
 
 func testGetByIdEmptyTable(t *testing.T) {
-	clearTestData(t)
+	common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units/id/507f1f77bcf86cd799439011")
 	common.AssertStatusCode(t, resp, 404)
 	common.AssertContains(t, resp, "not found")
 }
 
 func testGetBySearchEmptyTable(t *testing.T) {
-	clearTestData(t)
+	common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=Tel%20Aviv&labels=Haircut")
 	common.AssertStatusCode(t, resp, 200)
 
@@ -182,7 +166,7 @@ func testGetBySearchEmptyTable(t *testing.T) {
 }
 
 func testGetAllPaginatedEmptyTable(t *testing.T) {
-	clearTestData(t)
+	common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=10&offset=0")
 	common.AssertStatusCode(t, resp, 200)
 
