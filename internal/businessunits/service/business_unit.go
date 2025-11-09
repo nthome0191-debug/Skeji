@@ -411,7 +411,7 @@ func (s *businessUnitService) mergeBusinessUnitUpdates(existing *model.BusinessU
 }
 
 func (s *businessUnitService) isDuplicate(newBU, existingBU *model.BusinessUnit) bool {
-	if sanitizer.NormalizeName(newBU.Name) != sanitizer.NormalizeName(existingBU.Name) {
+	if sanitizer.NormalizeNameForComparison(newBU.Name) != sanitizer.NormalizeNameForComparison(existingBU.Name) {
 		return false
 	}
 

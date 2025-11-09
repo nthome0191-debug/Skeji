@@ -34,6 +34,31 @@ func NormalizeName(name string) string {
 	return TrimAndNormalize(name)
 }
 
+func NormalizeNameForComparison(name string) string {
+	name = strings.TrimSpace(name)
+
+	if name == "" {
+		return ""
+	}
+
+	var result strings.Builder
+	var lastWasSpace bool
+
+	for _, r := range name {
+		if unicode.IsSpace(r) {
+			if !lastWasSpace {
+				result.WriteRune(' ')
+				lastWasSpace = true
+			}
+		} else {
+			result.WriteRune(unicode.ToLower(r))
+			lastWasSpace = false
+		}
+	}
+
+	return result.String()
+}
+
 func NormalizeCity(city string) string {
 	city = strings.TrimSpace(city)
 	if city == "" {

@@ -41,6 +41,8 @@ func WriteError(w http.ResponseWriter, err error) error {
 			statusCode = http.StatusNotFound
 		case apperrors.CodeValidation:
 			statusCode = http.StatusUnprocessableEntity
+		case apperrors.CodeConflict:
+			statusCode = http.StatusConflict
 		case apperrors.CodeInternal:
 			statusCode = http.StatusInternalServerError
 		default:

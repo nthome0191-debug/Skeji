@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	apperrors "skeji/pkg/errors"
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -21,6 +22,9 @@ func (r *mongoBusinessUnitRepository) ExecuteTransaction(ctx context.Context, fn
 	})
 
 	if err != nil {
+		if apperrors.IsAppError(err) {
+			return err
+		}
 		return fmt.Errorf("transaction failed: %w", err)
 	}
 
