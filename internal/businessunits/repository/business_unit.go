@@ -30,13 +30,13 @@ type BusinessUnitRepository interface {
 	FindByID(ctx context.Context, id string) (*model.BusinessUnit, error)
 	FindAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, error)
 	Update(ctx context.Context, id string, bu *model.BusinessUnit) (*mongo.UpdateResult, error)
-
 	Delete(ctx context.Context, id string) error
 
 	FindByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
 	Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error)
-
 	Count(ctx context.Context) (int64, error)
+
+	ExecuteTransaction(ctx context.Context, fn TransactionFunc) error
 }
 
 func NewMongoBusinessUnitRepository(cfg *config.Config) BusinessUnitRepository {
@@ -49,6 +49,10 @@ func NewMongoBusinessUnitRepository(cfg *config.Config) BusinessUnitRepository {
 }
 
 func (r *mongoBusinessUnitRepository) withTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if _, ok := ctx.(mongo.SessionContext); ok {
+		return ctx, func() {}
+	}
+
 	deadline, hasDeadline := ctx.Deadline()
 	if !hasDeadline {
 		return context.WithTimeout(ctx, timeout)

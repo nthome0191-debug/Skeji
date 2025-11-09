@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	businessunitserrors "skeji/internal/businessunits/errors"
 	"skeji/internal/businessunits/repository"
 	"skeji/internal/businessunits/validator"
@@ -12,10 +13,13 @@ import (
 	"skeji/pkg/model"
 	"skeji/pkg/sanitizer"
 	"sync"
+
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type BusinessUnitService interface {
 	Create(ctx context.Context, bu *model.BusinessUnit) error
+	CreateWithDuplicateCheck(ctx context.Context, bu *model.BusinessUnit) error
 	GetByID(ctx context.Context, id string) (*model.BusinessUnit, error)
 	GetAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error)
 	Update(ctx context.Context, id string, updates *model.BusinessUnitUpdate) error
@@ -68,6 +72,57 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 	}
 
 	s.cfg.Log.Info("Business unit created successfully",
+		"id", bu.ID,
+		"name", bu.Name,
+		"admin_phone", bu.AdminPhone,
+		"timezone", bu.TimeZone,
+	)
+
+	return nil
+}
+
+func (s *businessUnitService) CreateWithDuplicateCheck(ctx context.Context, bu *model.BusinessUnit) error {
+	s.sanitize(bu)
+	s.applyDefaultsForNewCreatedBusiness(bu)
+
+	if err := s.validator.Validate(bu); err != nil {
+		s.cfg.Log.Warn("Business unit validation failed",
+			"name", bu.Name,
+			"admin_phone", bu.AdminPhone,
+			"error", err,
+		)
+		return apperrors.Validation("Business unit validation failed", map[string]any{
+			"error": err.Error(),
+		})
+	}
+
+	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
+		existing, err := s.repo.FindByAdminPhone(sessCtx, bu.AdminPhone)
+		if err != nil {
+			return fmt.Errorf("failed to check for duplicates: %w", err)
+		}
+
+		if len(existing) > 0 {
+			return apperrors.Conflict("Business unit with this admin phone already exists")
+		}
+
+		if err := s.repo.Create(sessCtx, bu); err != nil {
+			return fmt.Errorf("failed to create business unit: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		s.cfg.Log.Error("Failed to create business unit with duplicate check",
+			"name", bu.Name,
+			"admin_phone", bu.AdminPhone,
+			"error", err,
+		)
+		return err
+	}
+
+	s.cfg.Log.Info("Business unit created successfully with duplicate check",
 		"id", bu.ID,
 		"name", bu.Name,
 		"admin_phone", bu.AdminPhone,
