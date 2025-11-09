@@ -298,11 +298,19 @@ func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) 
 	if updates.Name != "" {
 		updates.Name = sanitizer.NormalizeName(updates.Name)
 	}
-	if len(updates.Cities) > 0 {
-		updates.Cities = sanitizer.NormalizeCities(updates.Cities)
+	if updates.Cities != nil {
+		if len(updates.Cities) == 0 {
+			s.cfg.Log.Warn("Attempted to update cities with empty array")
+		} else {
+			updates.Cities = sanitizer.NormalizeCities(updates.Cities)
+		}
 	}
-	if len(updates.Labels) > 0 {
-		updates.Labels = sanitizer.NormalizeLabels(updates.Labels)
+	if updates.Labels != nil {
+		if len(updates.Labels) == 0 {
+			s.cfg.Log.Warn("Attempted to update labels with empty array")
+		} else {
+			updates.Labels = sanitizer.NormalizeLabels(updates.Labels)
+		}
 	}
 	if updates.AdminPhone != "" {
 		updates.AdminPhone = sanitizer.NormalizePhone(updates.AdminPhone)
@@ -343,11 +351,11 @@ func (s *businessUnitService) mergeBusinessUnitUpdates(existing *model.BusinessU
 		merged.Name = updates.Name
 	}
 
-	if len(updates.Cities) > 0 {
+	if updates.Cities != nil {
 		merged.Cities = updates.Cities
 	}
 
-	if len(updates.Labels) > 0 {
+	if updates.Labels != nil {
 		merged.Labels = updates.Labels
 	}
 

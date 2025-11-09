@@ -416,6 +416,13 @@ func testPostInvalidRecord(t *testing.T) {
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected status 422 or 400 for empty cities, got %d", resp.StatusCode)
 	}
+
+	bu5 := createValidBusinessUnit("No Labels", "+972512225")
+	bu5["labels"] = []string{}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu5)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected status 422 or 400 for empty labels, got %d", resp.StatusCode)
+	}
 }
 
 func testPostWithExtraJsonKeys(t *testing.T) {
@@ -1011,6 +1018,14 @@ func testUpdateArraysToMaxLength(t *testing.T) {
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for empty cities, got %d", resp.StatusCode)
+	}
+
+	updates = map[string]any{
+		"labels": []string{},
+	}
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for empty labels, got %d", resp.StatusCode)
 	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
