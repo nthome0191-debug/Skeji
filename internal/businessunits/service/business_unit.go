@@ -19,7 +19,6 @@ import (
 
 type BusinessUnitService interface {
 	Create(ctx context.Context, bu *model.BusinessUnit) error
-	CreateWithDuplicateCheck(ctx context.Context, bu *model.BusinessUnit) error
 	GetByID(ctx context.Context, id string) (*model.BusinessUnit, error)
 	GetAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error)
 	Update(ctx context.Context, id string, updates *model.BusinessUnitUpdate) error
@@ -62,48 +61,19 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 		})
 	}
 
-	if err := s.repo.Create(ctx, bu); err != nil {
-		s.cfg.Log.Error("Failed to create business unit",
-			"name", bu.Name,
-			"admin_phone", bu.AdminPhone,
-			"error", err,
-		)
-		return apperrors.Internal("Failed to create business unit", err)
-	}
-
-	s.cfg.Log.Info("Business unit created successfully",
-		"id", bu.ID,
-		"name", bu.Name,
-		"admin_phone", bu.AdminPhone,
-		"timezone", bu.TimeZone,
-	)
-
-	return nil
-}
-
-func (s *businessUnitService) CreateWithDuplicateCheck(ctx context.Context, bu *model.BusinessUnit) error {
-	s.sanitize(bu)
-	s.applyDefaultsForNewCreatedBusiness(bu)
-
-	if err := s.validator.Validate(bu); err != nil {
-		s.cfg.Log.Warn("Business unit validation failed",
-			"name", bu.Name,
-			"admin_phone", bu.AdminPhone,
-			"error", err,
-		)
-		return apperrors.Validation("Business unit validation failed", map[string]any{
-			"error": err.Error(),
-		})
-	}
-
 	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
 		existing, err := s.repo.FindByAdminPhone(sessCtx, bu.AdminPhone)
 		if err != nil {
 			return fmt.Errorf("failed to check for duplicates: %w", err)
 		}
 
-		if len(existing) > 0 {
-			return apperrors.Conflict("Business unit with this admin phone already exists")
+		for _, existingBU := range existing {
+			if s.isDuplicate(bu, existingBU) {
+				return apperrors.Conflict(fmt.Sprintf(
+					"Business unit with similar details already exists (id: %s)",
+					existingBU.ID,
+				))
+			}
 		}
 
 		if err := s.repo.Create(sessCtx, bu); err != nil {
@@ -114,7 +84,7 @@ func (s *businessUnitService) CreateWithDuplicateCheck(ctx context.Context, bu *
 	})
 
 	if err != nil {
-		s.cfg.Log.Error("Failed to create business unit with duplicate check",
+		s.cfg.Log.Error("Failed to create business unit",
 			"name", bu.Name,
 			"admin_phone", bu.AdminPhone,
 			"error", err,
@@ -122,7 +92,7 @@ func (s *businessUnitService) CreateWithDuplicateCheck(ctx context.Context, bu *
 		return err
 	}
 
-	s.cfg.Log.Info("Business unit created successfully with duplicate check",
+	s.cfg.Log.Info("Business unit created successfully",
 		"id", bu.ID,
 		"name", bu.Name,
 		"admin_phone", bu.AdminPhone,
@@ -438,4 +408,39 @@ func (s *businessUnitService) mergeBusinessUnitUpdates(existing *model.BusinessU
 	merged.CreatedAt = existing.CreatedAt
 
 	return &merged
+}
+
+func (s *businessUnitService) isDuplicate(newBU, existingBU *model.BusinessUnit) bool {
+	if sanitizer.NormalizeName(newBU.Name) != sanitizer.NormalizeName(existingBU.Name) {
+		return false
+	}
+
+	if !s.setsOverlap(newBU.Cities, existingBU.Cities) {
+		return false
+	}
+
+	if !s.setsOverlap(newBU.Labels, existingBU.Labels) {
+		return false
+	}
+
+	return true
+}
+
+func (s *businessUnitService) setsOverlap(set1, set2 []string) bool {
+	return s.isSubset(set1, set2) || s.isSubset(set2, set1)
+}
+
+func (s *businessUnitService) isSubset(subset, superset []string) bool {
+	supersetMap := make(map[string]bool)
+	for _, item := range superset {
+		supersetMap[item] = true
+	}
+
+	for _, item := range subset {
+		if !supersetMap[item] {
+			return false
+		}
+	}
+
+	return true
 }
