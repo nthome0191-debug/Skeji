@@ -23,5 +23,5 @@ type BusinessUnitUpdate struct {
 	Maintainers *[]string `json:"maintainers,omitempty" validate:"omitempty,dive,required"`
 	Priority    *int64    `json:"priority,omitempty" validate:"omitempty,min=0"`
 	TimeZone    string    `json:"time_zone,omitempty" validate:"omitempty,timezone"`
-	WebsiteURL  *string   `json:"website_url,omitempty" validate:"omitempty,valid_url"`
+	WebsiteURL  *string   `json:"website_url,omitempty" validate:"omitempty,valid_url"` //todo: support list (multiple)
 }
