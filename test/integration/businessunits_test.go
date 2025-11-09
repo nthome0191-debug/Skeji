@@ -142,12 +142,11 @@ func testDelete(t *testing.T) {
 	testDeleteNonExistingRecord(t)
 	testDeleteWithInvalidId(t)
 	testDeletedRecord(t)
-	common.ClearTestData(t, httpClient, TableName)
+
 }
 
 func testGetByIdEmptyTable(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
-	common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units/id/507f1f77bcf86cd799439011")
 	common.AssertStatusCode(t, resp, 404)
 	common.AssertContains(t, resp, "not found")
@@ -155,7 +154,6 @@ func testGetByIdEmptyTable(t *testing.T) {
 
 func testGetBySearchEmptyTable(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
-	common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=Tel%20Aviv&labels=Haircut")
 	common.AssertStatusCode(t, resp, 200)
 
@@ -167,7 +165,6 @@ func testGetBySearchEmptyTable(t *testing.T) {
 
 func testGetAllPaginatedEmptyTable(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
-	common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=10&offset=0")
 	common.AssertStatusCode(t, resp, 200)
 
@@ -1191,8 +1188,8 @@ func testUpdateClearOptionalFields(t *testing.T) {
 	}
 
 	updates := map[string]any{
-		"website_url": nil,
-		"maintainers": nil,
+		"website_url": "",
+		"maintainers": []string{},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
 	common.AssertStatusCode(t, resp, 204)
@@ -1201,10 +1198,10 @@ func testUpdateClearOptionalFields(t *testing.T) {
 	fetched := decodeBusinessUnit(t, getResp)
 
 	if fetched.WebsiteURL != "" {
-		t.Logf("Note: website_url was '%s', expected empty after clearing with null", fetched.WebsiteURL)
+		t.Errorf("Note: website_url was '%s', expected empty after clearing with null", fetched.WebsiteURL)
 	}
 	if len(fetched.Maintainers) != 0 {
-		t.Logf("Note: maintainers has %d items, expected 0 after clearing with null", len(fetched.Maintainers))
+		t.Errorf("Note: maintainers has %d items, expected 0 after clearing with null", len(fetched.Maintainers))
 	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
