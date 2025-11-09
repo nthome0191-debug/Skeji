@@ -6,6 +6,7 @@ import (
 	"fmt"
 	businessunitserrors "skeji/internal/businessunits/errors"
 	"skeji/pkg/config"
+	mongotx "skeji/pkg/db/mongo"
 	"skeji/pkg/model"
 	"time"
 
@@ -23,6 +24,7 @@ type mongoBusinessUnitRepository struct {
 	cfg        *config.Config
 	db         *mongo.Database
 	collection *mongo.Collection
+	txManager  mongotx.TransactionManager
 }
 
 type BusinessUnitRepository interface {
@@ -36,7 +38,7 @@ type BusinessUnitRepository interface {
 	Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error)
 	Count(ctx context.Context) (int64, error)
 
-	ExecuteTransaction(ctx context.Context, fn TransactionFunc) error
+	ExecuteTransaction(ctx context.Context, fn mongotx.TransactionFunc) error
 }
 
 func NewMongoBusinessUnitRepository(cfg *config.Config) BusinessUnitRepository {
@@ -45,6 +47,7 @@ func NewMongoBusinessUnitRepository(cfg *config.Config) BusinessUnitRepository {
 		cfg:        cfg,
 		db:         db,
 		collection: db.Collection(CollectionName),
+		txManager:  mongotx.NewTransactionManager(cfg.Client.Mongo),
 	}
 }
 
