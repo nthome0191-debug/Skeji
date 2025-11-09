@@ -59,6 +59,16 @@ func (c *Client) POSTWithHeaders(t *testing.T, path string, body any, headers ma
 	return c.request(t, http.MethodPost, path, body, headers)
 }
 
+func (c *Client) POSTRaw(t *testing.T, path string, rawBody []byte) *Response {
+	t.Helper()
+	return c.requestRaw(t, http.MethodPost, path, rawBody, nil)
+}
+
+func (c *Client) PATCHRaw(t *testing.T, path string, rawBody []byte) *Response {
+	t.Helper()
+	return c.requestRaw(t, http.MethodPatch, path, rawBody, nil)
+}
+
 func (c *Client) request(t *testing.T, method, path string, body any, headers map[string]string) *Response {
 	t.Helper()
 
@@ -78,6 +88,45 @@ func (c *Client) request(t *testing.T, method, path string, body any, headers ma
 	}
 
 	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read response body: %v", err)
+	}
+
+	return &Response{
+		Response: resp,
+		Body:     respBody,
+	}
+}
+
+func (c *Client) requestRaw(t *testing.T, method, path string, rawBody []byte, headers map[string]string) *Response {
+	t.Helper()
+
+	var reqBody io.Reader
+	if rawBody != nil {
+		reqBody = bytes.NewBuffer(rawBody)
+	}
+
+	url := c.BaseURL + path
+	req, err := http.NewRequestWithContext(context.Background(), method, url, reqBody)
+	if err != nil {
+		t.Fatalf("failed to create request: %v", err)
+	}
+
+	if rawBody != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
