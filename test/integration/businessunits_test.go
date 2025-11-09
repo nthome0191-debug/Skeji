@@ -136,6 +136,7 @@ func testPost(t *testing.T) {
 	testPostMalformedJSON(t)
 	testPostWithUSPhoneNumber(t)
 	testPostWithSpecialCharacters(t)
+	testPostDuplicateDetection(t)
 	clearTestData(t)
 }
 
@@ -980,6 +981,83 @@ func testPostWithSpecialCharacters(t *testing.T) {
 	common.AssertStatusCode(t, resp, 201)
 	created = decodeBusinessUnit(t, resp)
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testPostDuplicateDetection(t *testing.T) {
+	adminPhone := "+972523370"
+
+	bu1 := createValidBusinessUnit("My Salon", adminPhone)
+	bu1["cities"] = []string{"Tel Aviv"}
+	bu1["labels"] = []string{"Haircut"}
+	resp := httpClient.POST(t, "/api/v1/business-units", bu1)
+	common.AssertStatusCode(t, resp, 201)
+	created1 := decodeBusinessUnit(t, resp)
+
+	bu2 := createValidBusinessUnit("Different Salon", adminPhone)
+	bu2["cities"] = []string{"Tel Aviv"}
+	bu2["labels"] = []string{"Haircut"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
+	common.AssertStatusCode(t, resp, 201)
+	created2 := decodeBusinessUnit(t, resp)
+
+	bu3 := createValidBusinessUnit("My Salon", adminPhone)
+	bu3["cities"] = []string{"Haifa"}
+	bu3["labels"] = []string{"Haircut"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
+	common.AssertStatusCode(t, resp, 201)
+	created3 := decodeBusinessUnit(t, resp)
+
+	bu4 := createValidBusinessUnit("My Salon", adminPhone)
+	bu4["cities"] = []string{"Tel Aviv"}
+	bu4["labels"] = []string{"Massage"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu4)
+	common.AssertStatusCode(t, resp, 201)
+	created4 := decodeBusinessUnit(t, resp)
+
+	bu5 := createValidBusinessUnit("My Salon", adminPhone)
+	bu5["cities"] = []string{"Tel Aviv"}
+	bu5["labels"] = []string{"Haircut"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu5)
+	if resp.StatusCode != 409 && resp.StatusCode != 400 {
+		t.Errorf("expected conflict for exact duplicate, got %d", resp.StatusCode)
+	}
+
+	bu6 := createValidBusinessUnit("My Salon", adminPhone)
+	bu6["cities"] = []string{"Tel Aviv", "Haifa"}
+	bu6["labels"] = []string{"Haircut"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu6)
+	if resp.StatusCode != 409 && resp.StatusCode != 400 {
+		t.Errorf("expected conflict for cities overlap (subset), got %d", resp.StatusCode)
+	}
+
+	bu7 := createValidBusinessUnit("My Salon", adminPhone)
+	bu7["cities"] = []string{"Tel Aviv"}
+	bu7["labels"] = []string{"Haircut", "Massage"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu7)
+	if resp.StatusCode != 409 && resp.StatusCode != 400 {
+		t.Errorf("expected conflict for labels overlap (subset), got %d", resp.StatusCode)
+	}
+
+	bu8 := createValidBusinessUnit("my salon", adminPhone)
+	bu8["cities"] = []string{"telaviv"}
+	bu8["labels"] = []string{"haircut"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu8)
+	if resp.StatusCode != 409 && resp.StatusCode != 400 {
+		t.Errorf("expected conflict for case-insensitive duplicate, got %d", resp.StatusCode)
+	}
+
+	bu9 := createValidBusinessUnit("My Salon", adminPhone)
+	bu9["cities"] = []string{"Eilat", "Netanya"}
+	bu9["labels"] = []string{"Spa", "Styling"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu9)
+	common.AssertStatusCode(t, resp, 201)
+	created9 := decodeBusinessUnit(t, resp)
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created1.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created2.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created3.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created4.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created9.ID))
 }
 
 func testUpdateArraysToMaxLength(t *testing.T) {
