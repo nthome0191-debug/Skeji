@@ -104,9 +104,6 @@ func (r *mongoBusinessUnitRepository) FindAll(ctx context.Context, limit int, of
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
-	if limit == 0 {
-		limit = 10
-	}
 	opts := options.Find().SetLimit(int64(limit)).SetSkip(int64(offset)).SetSort(bson.D{{Key: "priority", Value: -1}})
 	cursor, err := r.collection.Find(ctx, bson.M{}, opts)
 	if err != nil {

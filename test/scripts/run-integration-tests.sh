@@ -32,6 +32,7 @@ set_variables() {
     APP_BINARY="$PROJECT_ROOT/bin/business-units"
     APP_PID_FILE="/tmp/business-units-test.pid"
     PORT_FORWARD_PID_FILE="/tmp/mongo-port-forward.pid"
+    LOCK_FILE="/tmp/skeji_integration.lock"
 }
 
 load_env_file() {
@@ -85,7 +86,8 @@ cleanup() {
         rm -f "$PORT_FORWARD_PID_FILE"
     fi
 
-    pkill -f business-units || true
+    pkill -f "business-units" 2>/dev/null || true
+    rm -f "$LOCK_FILE"
     echo -e "${GREEN}Cleanup complete${NC}"
 }
 
@@ -100,7 +102,6 @@ check_existing_environment() {
         pkill -f "kubectl port-forward.*mongo.*27017" 2>/dev/null || true
         sleep 1
     fi
-
     return 1
 }
 
@@ -118,7 +119,6 @@ setup_mongodb() {
 
 setup_port_forward() {
     echo -e "${BLUE}=== Setting up MongoDB port forwarding ===${NC}"
-
     pkill -f "kubectl port-forward.*mongo.*27017" 2>/dev/null || true
     sleep 1
 
@@ -148,12 +148,31 @@ run_migrations() {
 build_app() {
     echo -e "${BLUE}=== Building application ===${NC}"
     cd "$PROJECT_ROOT"
+
+    echo -e "${YELLOW}Cleaning old caches and binary...${NC}"
+    go clean -cache -testcache -modcache >/dev/null 2>&1 || true
+    rm -f "$APP_BINARY"
+
     go build -o "$APP_BINARY" ./cmd/business-units
     echo -e "${GREEN}Build complete${NC}"
+
+    echo -e "${BLUE}Using binary:${NC} $APP_BINARY"
+    ls -lh "$APP_BINARY"
 }
 
 start_app() {
     echo -e "${BLUE}=== Starting application on port $TEST_SERVER_PORT ===${NC}"
+
+    # Kill anything already running on that port
+    if lsof -ti:$TEST_SERVER_PORT > /dev/null 2>&1; then
+        echo -e "${YELLOW}Port $TEST_SERVER_PORT already in use, killing process...${NC}"
+        lsof -ti:$TEST_SERVER_PORT | xargs kill -9 2>/dev/null || true
+        sleep 1
+    fi
+
+    # Kill old app binaries by name
+    pkill -f "$APP_BINARY" 2>/dev/null || true
+    pkill -f "business-units" 2>/dev/null || true
 
     if $VERBOSE; then
         (
@@ -176,7 +195,6 @@ start_app() {
     APP_PID=$!
     echo $APP_PID > "$APP_PID_FILE"
     echo "Application started with PID: $APP_PID"
-
     echo -e "${YELLOW}Waiting for application to be ready...${NC}"
 
     MAX_WAIT=30
@@ -226,8 +244,24 @@ main() {
     set_variables
     load_env_file
 
+    # cross-platform single instance lock
+    if [ -f "$LOCK_FILE" ]; then
+        OLD_PID=$(cat "$LOCK_FILE" 2>/dev/null || echo "")
+        if [ -n "$OLD_PID" ] && ps -p "$OLD_PID" > /dev/null 2>&1; then
+            echo -e "${RED}Another integration test run is already in progress (PID: $OLD_PID).${NC}"
+            exit 1
+        else
+            echo -e "${YELLOW}Removing stale lock file...${NC}"
+            rm -f "$LOCK_FILE"
+        fi
+    fi
+    echo $$ > "$LOCK_FILE"
+
     trap cleanup EXIT INT TERM
     print_logo
+
+    # Always rebuild to ensure new logs are visible
+    build_app
 
     if check_existing_environment; then
         echo -e "${GREEN}Reusing existing environment${NC}"
@@ -239,7 +273,6 @@ main() {
     fi
 
     run_migrations
-    build_app
     start_app
 
     echo ""

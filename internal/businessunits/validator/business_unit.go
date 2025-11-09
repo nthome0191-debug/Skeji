@@ -94,7 +94,12 @@ func validateUrl(fl validator.FieldLevel) bool {
 		return false
 	}
 
-	ip := net.ParseIP(u.Hostname())
+	hostname := u.Hostname()
+	if !strings.Contains(hostname, ".") {
+		return false
+	}
+
+	ip := net.ParseIP(hostname)
 	if ip != nil && (ip.IsLoopback() || ip.IsPrivate()) {
 		return false
 	}
@@ -102,6 +107,7 @@ func validateUrl(fl validator.FieldLevel) bool {
 	if strings.Contains(u.Path, "..") {
 		return false
 	}
+
 	return true
 }
 
@@ -129,6 +135,8 @@ func (v *BusinessUnitValidator) translateValidationErrors(errs validator.Validat
 			message = fmt.Sprintf("invalid timezone '%s', must be a valid IANA timezone (e.g., America/New_York, Asia/Jerusalem, UTC)", err.Value())
 		case "e164":
 			message = "phone number must be in E.164 format (e.g., +972501234567)"
+		case "valid_url":
+			message = fmt.Sprintf("invalid URL '%s', must be a valid HTTPS URL with a domain (e.g., https://example.com)", err.Value())
 		case "url":
 			message = fmt.Sprintf("invalid URL format '%s'", err.Value())
 		case "startswith":

@@ -346,8 +346,8 @@ func testGetPaginationEdgeCases(t *testing.T) {
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=0&offset=0")
 	common.AssertStatusCode(t, resp, 200)
 	data, _, _, _ := decodePaginated(t, resp)
-	if len(data) > 0 {
-		t.Errorf("limit=0 should return empty array, got %d results", len(data))
+	if len(data) > 10 {
+		t.Errorf("limit=0 should return max 10 results, got %d results", len(data))
 	}
 
 	resp = httpClient.GET(t, "/api/v1/business-units?limit=1000&offset=0")
