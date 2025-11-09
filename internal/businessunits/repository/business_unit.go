@@ -242,3 +242,7 @@ func (r *mongoBusinessUnitRepository) Count(ctx context.Context) (int64, error) 
 	}
 	return count, nil
 }
+
+func (r *mongoBusinessUnitRepository) ExecuteTransaction(ctx context.Context, fn mongotx.TransactionFunc) error {
+	return r.txManager.ExecuteTransaction(ctx, fn)
+}
