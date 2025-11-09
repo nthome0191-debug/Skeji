@@ -6,8 +6,6 @@ import (
 )
 
 func ClearTestData(t *testing.T, httpClient *Client, tableName string) {
-	t.Helper()
-
 	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/%s?limit=1000&offset=0", tableName))
 	if resp.StatusCode != 200 {
 		return
@@ -29,4 +27,5 @@ func ClearTestData(t *testing.T, httpClient *Client, tableName string) {
 		}
 		httpClient.DELETE(t, fmt.Sprintf("/api/v1/%s/id/%s", tableName, id))
 	}
+	t.Log("Test data cleared")
 }

@@ -104,7 +104,6 @@ func testGet(t *testing.T) {
 	testGetPaginationEdgeCases(t)
 	testGetSearchNormalization(t)
 	testGetSearchMultipleCitiesLabels(t)
-	common.ClearTestData(t, httpClient, TableName)
 }
 
 func testPost(t *testing.T) {
@@ -121,7 +120,6 @@ func testPost(t *testing.T) {
 	testPostWithUSPhoneNumber(t)
 	testPostWithSpecialCharacters(t)
 	testPostDuplicateDetection(t)
-	common.ClearTestData(t, httpClient, TableName)
 }
 
 func testUpdate(t *testing.T) {
@@ -137,10 +135,10 @@ func testUpdate(t *testing.T) {
 	testUpdatePriorityEdgeCases(t)
 	testUpdateClearOptionalFields(t)
 	testUpdateMalformedJSON(t)
-	common.ClearTestData(t, httpClient, TableName)
 }
 
 func testDelete(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	testDeleteNonExistingRecord(t)
 	testDeleteWithInvalidId(t)
 	testDeletedRecord(t)
@@ -148,6 +146,7 @@ func testDelete(t *testing.T) {
 }
 
 func testGetByIdEmptyTable(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units/id/507f1f77bcf86cd799439011")
 	common.AssertStatusCode(t, resp, 404)
@@ -155,6 +154,7 @@ func testGetByIdEmptyTable(t *testing.T) {
 }
 
 func testGetBySearchEmptyTable(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=Tel%20Aviv&labels=Haircut")
 	common.AssertStatusCode(t, resp, 200)
@@ -166,6 +166,7 @@ func testGetBySearchEmptyTable(t *testing.T) {
 }
 
 func testGetAllPaginatedEmptyTable(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=10&offset=0")
 	common.AssertStatusCode(t, resp, 200)
@@ -177,6 +178,7 @@ func testGetAllPaginatedEmptyTable(t *testing.T) {
 }
 
 func testGetValidIdExistingRecord(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Get Test Business", "+972541234567")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
@@ -194,6 +196,7 @@ func testGetValidIdExistingRecord(t *testing.T) {
 }
 
 func testGetInvalidIdExistingRecord(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Invalid ID Test", "+972541234567")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
@@ -209,6 +212,7 @@ func testGetInvalidIdExistingRecord(t *testing.T) {
 }
 
 func testGetValidSearchExistingRecords(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu1 := createValidBusinessUnit("Tel Aviv Salon", "+972541234567")
 	httpClient.POST(t, "/api/v1/business-units", bu1)
 
@@ -230,6 +234,7 @@ func testGetValidSearchExistingRecords(t *testing.T) {
 }
 
 func testGetInvalidSearchExistingRecords(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units/search?labels=Haircut")
 	common.AssertStatusCode(t, resp, 400)
 	common.AssertContains(t, resp, "cities")
@@ -243,6 +248,7 @@ func testGetInvalidSearchExistingRecords(t *testing.T) {
 }
 
 func testGetValidPaginationExistingRecords(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	for i := 1; i <= 5; i++ {
 		bu := createValidBusinessUnit(fmt.Sprintf("Business %d", i), fmt.Sprintf("+97250%04d", 1120+i))
 		httpClient.POST(t, "/api/v1/business-units", bu)
@@ -267,6 +273,7 @@ func testGetValidPaginationExistingRecords(t *testing.T) {
 }
 
 func testGetInvalidPaginationExistingRecords(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=abc&offset=xyz")
 	common.AssertStatusCode(t, resp, 200)
 
@@ -275,6 +282,7 @@ func testGetInvalidPaginationExistingRecords(t *testing.T) {
 }
 
 func testGetVerifyCreatedAt(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("CreatedAt Test", "+972523353")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
@@ -303,6 +311,7 @@ func testGetVerifyCreatedAt(t *testing.T) {
 }
 
 func testGetSearchPriorityOrdering(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu1 := createValidBusinessUnit("Priority 1", "+972523354")
 	bu1["priority"] = 1
 	httpClient.POST(t, "/api/v1/business-units", bu1)
@@ -332,6 +341,7 @@ func testGetSearchPriorityOrdering(t *testing.T) {
 }
 
 func testGetPaginationEdgeCases(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	for i := 0; i < 3; i++ {
 		bu := createValidBusinessUnit(fmt.Sprintf("Pagination Test %d", i), fmt.Sprintf("+97252335%d", 7+i))
 		httpClient.POST(t, "/api/v1/business-units", bu)
@@ -360,6 +370,7 @@ func testGetPaginationEdgeCases(t *testing.T) {
 }
 
 func testPostValidRecord(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Valid Business", "+972512221")
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, resp, 201)
@@ -376,6 +387,7 @@ func testPostValidRecord(t *testing.T) {
 }
 
 func testPostInvalidRecord(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Invalid Phone", "not-a-phone")
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
@@ -411,6 +423,7 @@ func testPostInvalidRecord(t *testing.T) {
 }
 
 func testPostWithExtraJsonKeys(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	payload := map[string]any{
 		"name":        "Extra Fields Test",
 		"cities":      []string{"Tel Aviv"},
@@ -430,6 +443,7 @@ func testPostWithExtraJsonKeys(t *testing.T) {
 }
 
 func testPostWithMissingRelevantKeys(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	payload := map[string]any{
 		"cities":      []string{"Tel Aviv"},
 		"labels":      []string{"Haircut"},
@@ -472,6 +486,7 @@ func testPostWithMissingRelevantKeys(t *testing.T) {
 }
 
 func testPostWithWebsiteURL(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Website Test", "+972523336")
 	bu["website_url"] = "https://example.com"
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
@@ -499,6 +514,7 @@ func testPostWithWebsiteURL(t *testing.T) {
 }
 
 func testPostWithMaintainers(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Maintainers Test", "+972523339")
 	bu["maintainers"] = []string{"+972541111111", "+972542222222"}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
@@ -523,6 +539,7 @@ func testPostWithMaintainers(t *testing.T) {
 }
 
 func testPostWithArrayMaxLengths(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Max Cities Test", "+972523341")
 	cities := make([]string, 51)
 	for i := 0; i < 51; i++ {
@@ -563,6 +580,7 @@ func testPostWithArrayMaxLengths(t *testing.T) {
 }
 
 func testPostWithNameBoundaries(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("AB", "+972523344")
 	bu["name"] = "AB"
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
@@ -598,6 +616,7 @@ func testPostWithNameBoundaries(t *testing.T) {
 }
 
 func testPostWithPriorityValues(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Priority Test", "+972523348")
 	bu["priority"] = 0
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
@@ -632,6 +651,7 @@ func testPostWithPriorityValues(t *testing.T) {
 }
 
 func testUpdateNonExistingRecord(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	updates := map[string]any{
 		"name": "Updated Name",
 	}
@@ -640,6 +660,7 @@ func testUpdateNonExistingRecord(t *testing.T) {
 }
 
 func testUpdateWithInvalidId(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	updates := map[string]any{
 		"name": "Updated Name",
 	}
@@ -648,6 +669,7 @@ func testUpdateWithInvalidId(t *testing.T) {
 }
 
 func testUpdateDeletedRecord(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Update Deleted Test", "+972523331")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
@@ -664,6 +686,7 @@ func testUpdateDeletedRecord(t *testing.T) {
 }
 
 func testUpdateWithBadFormatKeys(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Update Bad Format Test", "+972523332")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
@@ -697,6 +720,7 @@ func testUpdateWithBadFormatKeys(t *testing.T) {
 }
 
 func testUpdateWithGoodFormatKeys(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Original Name", "+972523335")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
@@ -766,6 +790,7 @@ func testUpdateWithGoodFormatKeys(t *testing.T) {
 }
 
 func testUpdateWithEmptyJson(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Update Empty Test", "+972523333")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
@@ -796,6 +821,7 @@ func testUpdateWithEmptyJson(t *testing.T) {
 }
 
 func testUpdateWebsiteURL(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("URL Update Test", "+972523351")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
@@ -827,6 +853,7 @@ func testUpdateWebsiteURL(t *testing.T) {
 }
 
 func testUpdateMaintainers(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Maintainers Update Test", "+972523352")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
@@ -850,16 +877,19 @@ func testUpdateMaintainers(t *testing.T) {
 }
 
 func testDeleteNonExistingRecord(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.DELETE(t, "/api/v1/business-units/id/507f1f77bcf86cd799439011")
 	common.AssertStatusCode(t, resp, 404)
 }
 
 func testDeleteWithInvalidId(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.DELETE(t, "/api/v1/business-units/id/invalid-id-format")
 	common.AssertStatusCode(t, resp, 400)
 }
 
 func testDeletedRecord(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Delete Twice Test", "+972523334")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
@@ -873,6 +903,7 @@ func testDeletedRecord(t *testing.T) {
 }
 
 func testGetSearchNormalization(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Normalization Test", "+972523361")
 	bu["cities"] = []string{"Tel Aviv", "JERUSALEM"}
 	bu["labels"] = []string{"Haircut", "MASSAGE"}
@@ -901,6 +932,7 @@ func testGetSearchNormalization(t *testing.T) {
 }
 
 func testGetSearchMultipleCitiesLabels(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu1 := createValidBusinessUnit("Multi Search 1", "+972523362")
 	bu1["cities"] = []string{"Tel Aviv", "Haifa"}
 	bu1["labels"] = []string{"Haircut", "Massage"}
@@ -927,6 +959,7 @@ func testGetSearchMultipleCitiesLabels(t *testing.T) {
 }
 
 func testPostMalformedJSON(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.POSTRaw(t, "/api/v1/business-units", []byte(`{"name": "test", "invalid json`))
 	common.AssertStatusCode(t, resp, 400)
 
@@ -935,6 +968,7 @@ func testPostMalformedJSON(t *testing.T) {
 }
 
 func testPostWithUSPhoneNumber(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("US Phone Test", "+12125551234")
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, resp, 201)
@@ -947,6 +981,7 @@ func testPostWithUSPhoneNumber(t *testing.T) {
 }
 
 func testPostWithSpecialCharacters(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Café & Spa™", "+972523364")
 	bu["name"] = "Café & Spa™ 🎨"
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
@@ -968,6 +1003,7 @@ func testPostWithSpecialCharacters(t *testing.T) {
 }
 
 func testPostDuplicateDetection(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	adminPhone := "+972523370"
 
 	bu1 := createValidBusinessUnit("My Salon", adminPhone)
@@ -1045,6 +1081,7 @@ func testPostDuplicateDetection(t *testing.T) {
 }
 
 func testUpdateArraysToMaxLength(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Array Max Test", "+972523366")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
@@ -1094,6 +1131,7 @@ func testUpdateArraysToMaxLength(t *testing.T) {
 }
 
 func testUpdatePriorityEdgeCases(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Priority Update Test", "+972523367")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
@@ -1137,6 +1175,7 @@ func testUpdatePriorityEdgeCases(t *testing.T) {
 }
 
 func testUpdateClearOptionalFields(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Clear Fields Test", "+972523368")
 	bu["website_url"] = "https://example.com"
 	bu["maintainers"] = []string{"+972541111111"}
@@ -1172,6 +1211,7 @@ func testUpdateClearOptionalFields(t *testing.T) {
 }
 
 func testUpdateMalformedJSON(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Malformed Update Test", "+972523369")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
