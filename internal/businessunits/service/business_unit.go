@@ -14,10 +14,6 @@ import (
 	"sync"
 )
 
-const (
-	DefaultPriority = 10
-)
-
 type BusinessUnitService interface {
 	Create(ctx context.Context, bu *model.BusinessUnit) error
 	GetByID(ctx context.Context, id string) (*model.BusinessUnit, error)
@@ -295,7 +291,7 @@ func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
 	bu.AdminPhone = sanitizer.NormalizePhone(bu.AdminPhone)
 	bu.Maintainers = sanitizer.NormalizeMaintainers(bu.Maintainers)
 	bu.WebsiteURL = sanitizer.NormalizeURL(bu.WebsiteURL)
-	bu.Priority = sanitizer.NormalizePriority(bu.Priority)
+	bu.Priority = sanitizer.NormalizePriority(s.cfg, bu.Priority)
 }
 
 func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) {
@@ -319,7 +315,7 @@ func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) 
 		updates.Maintainers = &normalized
 	}
 	if updates.Priority != nil {
-		normalized := sanitizer.NormalizePriority(*updates.Priority)
+		normalized := sanitizer.NormalizePriority(s.cfg, *updates.Priority)
 		updates.Priority = &normalized
 	}
 	if updates.WebsiteURL != nil {
@@ -336,7 +332,7 @@ func (s *businessUnitService) applyDefaultsForNewCreatedBusiness(bu *model.Busin
 		bu.TimeZone = locale.InferTimezoneFromPhone(bu.AdminPhone)
 	}
 	if bu.Priority == 0 {
-		bu.Priority = DefaultPriority
+		bu.Priority = int64(s.cfg.DefaultBusinessPriority)
 	}
 }
 

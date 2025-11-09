@@ -30,6 +30,10 @@ type Config struct {
 	IdleTimeout     time.Duration
 	ShutdownTimeout time.Duration
 
+	DefaultBusinessPriority int
+	MinBusinessPriotity     int
+	MaxBusinessPriority     int
+
 	Log    *logger.Logger
 	Client *client.Client
 }
@@ -55,6 +59,10 @@ func Load(serviceName string) *Config {
 		WriteTimeout:    getEnvDuration(EnvWriteTimeout, DefaultWriteTimeout),
 		IdleTimeout:     getEnvDuration(EnvIdleTimeout, DefaultIdleTimeout),
 		ShutdownTimeout: getEnvDuration(EnvShutdownTimeout, DefaultShutdownTimeout),
+
+		DefaultBusinessPriority: getEnvNum(EnvBusinessPriority, DefaultDefaultBusinessPriority),
+		MinBusinessPriotity:     getEnvNum(EnvMinBusinessPriority, DefaultMinBusinessPriority),
+		MaxBusinessPriority:     getEnvNum(EnvMaxBusinessPriority, DefaultMaxBusinessPriority),
 
 		Log: logger.New(logger.Config{
 			Level:     getEnvStr(EnvLogLevel, DefaultLogLevel),

@@ -21,4 +21,8 @@ const (
 	DefaultWriteTimeout    = 15 * time.Second
 	DefaultIdleTimeout     = 60 * time.Second
 	DefaultShutdownTimeout = 30 * time.Second
+
+	DefaultDefaultBusinessPriority = 10
+	DefaultMinBusinessPriority     = 0
+	DefaultMaxBusinessPriority     = 1000
 )

@@ -1,17 +1,13 @@
 package sanitizer
 
-const (
-	MinPriority = 0
+import "skeji/pkg/config"
 
-	MaxPriority = 100000
-)
-
-func NormalizePriority(priority int64) int64 {
-	if priority < MinPriority {
-		return MinPriority
+func NormalizePriority(cfg *config.Config, priority int64) int64 {
+	if priority < int64(cfg.MinBusinessPriotity) {
+		return int64(cfg.MinBusinessPriotity)
 	}
-	if priority > MaxPriority {
-		return MaxPriority
+	if priority > int64(cfg.MaxBusinessPriority) {
+		return int64(cfg.MaxBusinessPriority)
 	}
 	return priority
 }

@@ -21,4 +21,8 @@ const (
 	EnvWriteTimeout    = "WRITE_TIMEOUT"
 	EnvIdleTimeout     = "IDLE_TIMEOUT"
 	EnvShutdownTimeout = "SHUTDOWN_TIMEOUT"
+
+	EnvBusinessPriority    = "BUSINESS_PRIORITY"
+	EnvMinBusinessPriority = "MIN_BUSINESS_PRIORITY"
+	EnvMaxBusinessPriority = "MAX_BUSINESS_PRIORITY"
 )

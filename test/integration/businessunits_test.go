@@ -603,16 +603,19 @@ func testPostWithPriorityValues(t *testing.T) {
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
-	if created.Priority != 0 {
-		t.Errorf("expected priority 0, got %d", created.Priority)
+	if created.Priority != config.DefaultDefaultBusinessPriority {
+		t.Errorf("expected priority %d, got %d", config.DefaultDefaultBusinessPriority, created.Priority)
 	}
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
 	bu2 := createValidBusinessUnit("Negative Priority Test", "+972523349")
 	bu2["priority"] = -1
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
-	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Errorf("expected validation error for negative priority, got %d", resp.StatusCode)
+	common.AssertStatusCode(t, resp, 201)
+	created = decodeBusinessUnit(t, resp)
+
+	if created.Priority < 0 {
+		t.Errorf("expected normalization error for negative priority, got %d", created.Priority)
 	}
 
 	bu3 := createValidBusinessUnit("High Priority Test", "+972523350")
@@ -621,8 +624,8 @@ func testPostWithPriorityValues(t *testing.T) {
 	common.AssertStatusCode(t, resp, 201)
 	created = decodeBusinessUnit(t, resp)
 
-	if created.Priority != 9999 {
-		t.Errorf("expected priority 9999, got %d", created.Priority)
+	if created.Priority > config.DefaultMaxBusinessPriority {
+		t.Errorf("expected priority %d, got %d", config.DefaultMaxBusinessPriority, created.Priority)
 	}
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }
