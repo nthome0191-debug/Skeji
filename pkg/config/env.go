@@ -25,4 +25,8 @@ const (
 	EnvBusinessPriority    = "BUSINESS_PRIORITY"
 	EnvMinBusinessPriority = "MIN_BUSINESS_PRIORITY"
 	EnvMaxBusinessPriority = "MAX_BUSINESS_PRIORITY"
+
+	EnvDefaultMeetingDurationMin    = "DEFAULT_MEETING_DURATION_MIN"
+	EnvDefaultBreakDuratoinMin      = "DEFAULT_BREAK_DURATION_MIN"
+	EnvDefaultMaxParticipantsInSlot = "DEFAULT_MAX_PARTICIPANTS_IN_SLOT"
 )

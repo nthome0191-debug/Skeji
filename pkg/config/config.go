@@ -34,6 +34,10 @@ type Config struct {
 	MinBusinessPriotity     int
 	MaxBusinessPriority     int
 
+	DefaultMeetingDurationMin     int
+	DefaultBreakDurationMin       int
+	DefaultMaxParticipantsPerSlot int
+
 	Log    *logger.Logger
 	Client *client.Client
 }
@@ -63,6 +67,10 @@ func Load(serviceName string) *Config {
 		DefaultBusinessPriority: getEnvNum(EnvBusinessPriority, DefaultDefaultBusinessPriority),
 		MinBusinessPriotity:     getEnvNum(EnvMinBusinessPriority, DefaultMinBusinessPriority),
 		MaxBusinessPriority:     getEnvNum(EnvMaxBusinessPriority, DefaultMaxBusinessPriority),
+
+		DefaultMeetingDurationMin:     getEnvNum(EnvDefaultMeetingDurationMin, DefaultDefaultMeetingDurationMin),
+		DefaultBreakDurationMin:       getEnvNum(EnvDefaultBreakDuratoinMin, DefaultDefaultBreakDurationMin),
+		DefaultMaxParticipantsPerSlot: getEnvNum(EnvDefaultMaxParticipantsInSlot, DefaultDefaultMaxParticipantsPerSlot),
 
 		Log: logger.New(logger.Config{
 			Level:     getEnvStr(EnvLogLevel, DefaultLogLevel),

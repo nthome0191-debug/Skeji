@@ -126,7 +126,7 @@ func (s *businessUnitService) GetByID(ctx context.Context, id string) (*model.Bu
 }
 
 func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error) {
-	if limit <= 0 {
+	if limit <= 0 { //todo: to config
 		limit = 10
 	}
 	if limit > 100 {
@@ -222,6 +222,10 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 		return nil
 	})
 
+	if err != nil {
+		//todo
+	}
+
 	s.cfg.Log.Info("Business unit updated successfully",
 		"id", id,
 		"name", merged.Name,
@@ -234,6 +238,8 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return apperrors.InvalidInput("Business unit ID cannot be empty")
 	}
+
+	// todo: transaction
 
 	if err := s.repo.Delete(ctx, id); err != nil {
 		if errors.Is(err, businessunitserrors.ErrNotFound) {

@@ -1,0 +1,330 @@
+package service
+
+import (
+	"context"
+	"errors"
+	scheduleerrors "skeji/internal/schedules/errors"
+	"skeji/internal/schedules/repository"
+	"skeji/internal/schedules/validator"
+	"skeji/pkg/config"
+	apperrors "skeji/pkg/errors"
+	"skeji/pkg/model"
+	"skeji/pkg/sanitizer"
+	"sync"
+
+	"go.mongodb.org/mongo-driver/mongo"
+)
+
+type ScheduleService interface {
+	Create(ctx context.Context, sc *model.Schedule) error
+	GetByID(ctx context.Context, id string) (*model.Schedule, error)
+	GetAll(ctx context.Context, limit int, offset int) ([]*model.Schedule, int64, error)
+	Update(ctx context.Context, id string, updates *model.ScheduleUpdate) error
+	Delete(ctx context.Context, id string) error
+	Search(ctx context.Context, businessID string, city string) ([]*model.Schedule, error)
+}
+
+type scheduleService struct {
+	repo      repository.ScheduleRepository
+	validator *validator.ScheduleValidator
+	cfg       *config.Config
+}
+
+func NewScheduleService(
+	repo repository.ScheduleRepository,
+	validator *validator.ScheduleValidator,
+	cfg *config.Config,
+) ScheduleService {
+	return &scheduleService{
+		repo:      repo,
+		validator: validator,
+		cfg:       cfg,
+	}
+}
+
+func (s *scheduleService) Create(ctx context.Context, sc *model.Schedule) error {
+	s.sanitize(sc)
+	s.applyDefaults(sc)
+
+	if err := s.validator.Validate(sc); err != nil {
+		s.cfg.Log.Warn("Schedule validation failed",
+			"name", sc.Name,
+			"business_id", sc.BusinessID,
+			"error", err,
+		)
+		return apperrors.Validation("Schedule validation failed", map[string]any{
+			"error": err.Error(),
+		})
+	}
+
+	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
+		// todo: decide how duplication looks like (business_id and address? business_id and name and city? both?)
+		return s.repo.Create(sessCtx, sc)
+	})
+	if err != nil {
+		s.cfg.Log.Error("Failed to create schedule",
+			"name", sc.Name,
+			"business_id", sc.BusinessID,
+			"error", err,
+		)
+		return err
+	}
+
+	s.cfg.Log.Info("Schedule created successfully",
+		"id", sc.ID,
+		"name", sc.Name,
+		"business_id", sc.BusinessID,
+		"city", sc.City,
+	)
+	return nil
+}
+
+func (s *scheduleService) GetByID(ctx context.Context, id string) (*model.Schedule, error) {
+	if id == "" {
+		return nil, apperrors.InvalidInput("Schedule ID cannot be empty")
+	}
+
+	sc, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, scheduleerrors.ErrNotFound) {
+			return nil, apperrors.NotFoundWithID("Schedule", id)
+		}
+		if errors.Is(err, scheduleerrors.ErrInvalidID) {
+			return nil, apperrors.InvalidInput("Invalid schedule ID format")
+		}
+		s.cfg.Log.Error("Failed to get schedule by ID",
+			"id", id,
+			"error", err,
+		)
+		return nil, apperrors.Internal("Failed to retrieve schedule", err)
+	}
+
+	return sc, nil
+}
+
+func (s *scheduleService) GetAll(ctx context.Context, limit int, offset int) ([]*model.Schedule, int64, error) {
+	if limit <= 0 { //todo: to config
+		limit = 10
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	var count int64
+	var schedules []*model.Schedule
+	var errCount, errFind error
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		var err error
+		ctxCount, cancel := context.WithTimeout(ctx, s.cfg.ReadTimeout)
+		defer cancel()
+		count, err = s.repo.Count(ctxCount)
+		if err != nil {
+			s.cfg.Log.Error("Failed to count schedules", "error", err)
+			errCount = apperrors.Internal("Failed to count schedules", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		var err error
+		ctxFind, cancel := context.WithTimeout(ctx, s.cfg.ReadTimeout)
+		defer cancel()
+		schedules, err = s.repo.FindAll(ctxFind, limit, offset)
+		if err != nil {
+			s.cfg.Log.Error("Failed to get all schedules",
+				"limit", limit,
+				"offset", offset,
+				"error", err,
+			)
+			errFind = apperrors.Internal("Failed to retrieve schedules", err)
+		}
+	}()
+
+	wg.Wait()
+	if errCount != nil {
+		return nil, 0, errCount
+	}
+	if errFind != nil {
+		return nil, 0, errFind
+	}
+
+	return schedules, count, nil
+}
+
+func (s *scheduleService) Update(ctx context.Context, id string, updates *model.ScheduleUpdate) error {
+	if id == "" {
+		return apperrors.InvalidInput("Schedule ID cannot be empty")
+	}
+
+	existing, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, scheduleerrors.ErrNotFound) {
+			return apperrors.NotFoundWithID("Schedule", id)
+		}
+		if errors.Is(err, scheduleerrors.ErrInvalidID) {
+			return apperrors.InvalidInput("Invalid schedule ID format")
+		}
+		return apperrors.Internal("Failed to check schedule existence", err)
+	}
+
+	s.sanitizeUpdate(updates)
+	merged := s.mergeScheduleUpdates(existing, updates)
+	if err := s.validator.Validate(merged); err != nil {
+		s.cfg.Log.Warn("Schedule validation failed",
+			"name", merged.Name,
+			"business_id", merged.BusinessID,
+			"id", id,
+			"error", err,
+		)
+		return apperrors.Validation("Schedule validation failed", map[string]any{
+			"error": err.Error(),
+		})
+	}
+
+	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
+		if _, err := s.repo.Update(sessCtx, id, merged); err != nil {
+			s.cfg.Log.Error("Failed to update schedule",
+				"id", id,
+				"error", err,
+			)
+			return apperrors.Internal("Failed to update schedule", err)
+		}
+		return nil
+	})
+
+	if err != nil {
+		// todo
+	}
+
+	s.cfg.Log.Info("Schedule updated successfully", "id", id, "name", merged.Name)
+	return nil
+}
+
+func (s *scheduleService) Delete(ctx context.Context, id string) error {
+	if id == "" {
+		return apperrors.InvalidInput("Schedule ID cannot be empty")
+	}
+
+	//todo: transaction
+
+	if err := s.repo.Delete(ctx, id); err != nil {
+		if errors.Is(err, scheduleerrors.ErrNotFound) {
+			return apperrors.NotFoundWithID("Schedule", id)
+		}
+		if errors.Is(err, scheduleerrors.ErrInvalidID) {
+			return apperrors.InvalidInput("Invalid schedule ID format")
+		}
+		s.cfg.Log.Error("Failed to delete schedule",
+			"id", id,
+			"error", err,
+		)
+		return apperrors.Internal("Failed to delete schedule", err)
+	}
+
+	s.cfg.Log.Info("Schedule deleted successfully", "id", id)
+	return nil
+}
+
+func (s *scheduleService) Search(ctx context.Context, businessID string, city string) ([]*model.Schedule, error) {
+	if businessID == "" {
+		return nil, apperrors.InvalidInput("Business_id must be provided, city is optional")
+	}
+
+	city = sanitizer.TrimAndNormalize(city) //todo: we do allow empty city, make sure what is the impact on result in current implementation
+	businessID = sanitizer.TrimAndNormalize(businessID)
+
+	schedules, err := s.repo.Search(ctx, businessID, city)
+	if err != nil {
+		s.cfg.Log.Error("Failed to search schedules",
+			"business_id", businessID,
+			"city", city,
+			"error", err,
+		)
+		return nil, apperrors.Internal("Failed to search schedules", err)
+	}
+
+	s.cfg.Log.Debug("Schedules search completed",
+		"business_id", businessID,
+		"city", city,
+		"results_count", len(schedules),
+	)
+
+	return schedules, nil
+}
+
+func (s *scheduleService) sanitize(sc *model.Schedule) {
+	sc.Name = sanitizer.NormalizeName(sc.Name)
+	sc.City = sanitizer.TrimAndNormalize(sc.City)
+	sc.Address = sanitizer.TrimAndNormalize(sc.Address)
+}
+
+func (s *scheduleService) sanitizeUpdate(updates *model.ScheduleUpdate) {
+	if updates.Name != "" {
+		updates.Name = sanitizer.NormalizeName(updates.Name)
+	}
+	if updates.City != "" {
+		updates.City = sanitizer.TrimAndNormalize(updates.City)
+	}
+	if updates.Address != "" {
+		updates.Address = sanitizer.TrimAndNormalize(updates.Address)
+	}
+}
+
+func (s *scheduleService) applyDefaults(sc *model.Schedule) {
+	if sc.DefaultMeetingDurationMin == 0 {
+		sc.DefaultMeetingDurationMin = s.cfg.DefaultMeetingDurationMin
+	}
+	if sc.DefaultBreakDurationMin == 0 {
+		sc.DefaultBreakDurationMin = s.cfg.DefaultBreakDurationMin
+	}
+	if sc.MaxParticipantsPerSlot == 0 {
+		sc.MaxParticipantsPerSlot = s.cfg.DefaultMaxParticipantsPerSlot
+	}
+	// todo: add here plus to config start of day, enf of day, working days
+}
+
+func (s *scheduleService) mergeScheduleUpdates(existing *model.Schedule, updates *model.ScheduleUpdate) *model.Schedule {
+	merged := *existing
+
+	if updates.Name != "" {
+		merged.Name = updates.Name
+	}
+	if updates.City != "" {
+		merged.City = updates.City
+	}
+	if updates.Address != "" {
+		merged.Address = updates.Address
+	}
+	if updates.StartOfDay != "" {
+		merged.StartOfDay = updates.StartOfDay
+	}
+	if updates.EndOfDay != "" {
+		merged.EndOfDay = updates.EndOfDay
+	}
+	if updates.WorkingDays != nil {
+		merged.WorkingDays = updates.WorkingDays
+	}
+	if updates.DefaultMeetingDurationMin != nil {
+		merged.DefaultMeetingDurationMin = *updates.DefaultMeetingDurationMin
+	}
+	if updates.DefaultBreakDurationMin != nil {
+		merged.DefaultBreakDurationMin = *updates.DefaultBreakDurationMin
+	}
+	if updates.MaxParticipantsPerSlot != nil {
+		merged.MaxParticipantsPerSlot = *updates.MaxParticipantsPerSlot
+	}
+	if updates.Exceptions != nil {
+		merged.Exceptions = *updates.Exceptions
+	}
+
+	merged.ID = existing.ID
+	merged.CreatedAt = existing.CreatedAt
+	return &merged
+}
