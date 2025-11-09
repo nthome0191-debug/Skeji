@@ -15,6 +15,10 @@ type BusinessUnit struct {
 	CreatedAt   time.Time `json:"created_at,omitempty" bson:"created_at" validate:"omitempty"`
 }
 
+func (bu *BusinessUnit) GetID() string {
+	return bu.ID
+}
+
 type BusinessUnitUpdate struct {
 	Name        string    `json:"name,omitempty" validate:"omitempty,min=2,max=100"`
 	Cities      []string  `json:"cities,omitempty" validate:"omitempty,min=1,max=50,dive,required"`
