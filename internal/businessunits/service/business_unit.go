@@ -260,7 +260,7 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 		return apperrors.InvalidInput("Business unit ID cannot be empty")
 	}
 	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-		if err := s.repo.Delete(ctx, id); err != nil {
+		if err := s.repo.Delete(sessCtx, id); err != nil {
 			if errors.Is(err, businessunitserrors.ErrNotFound) {
 				return apperrors.NotFoundWithID("Business unit", id)
 			}

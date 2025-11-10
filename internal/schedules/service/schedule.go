@@ -242,7 +242,7 @@ func (s *scheduleService) Delete(ctx context.Context, id string) error {
 	}
 
 	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-		if err := s.repo.Delete(ctx, id); err != nil {
+		if err := s.repo.Delete(sessCtx, id); err != nil {
 			if errors.Is(err, scheduleerrors.ErrNotFound) {
 				return apperrors.NotFoundWithID("Schedule", id)
 			}
