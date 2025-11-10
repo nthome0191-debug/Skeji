@@ -12,6 +12,7 @@ import (
 	"skeji/pkg/locale"
 	"skeji/pkg/model"
 	"skeji/pkg/sanitizer"
+	"strings"
 	"sync"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -212,6 +213,26 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 	}
 
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
+		existingUnits, err := s.repo.FindByAdminPhone(sessCtx, merged.AdminPhone)
+		if err != nil {
+			return apperrors.Internal("Failed to check for duplicate business units", err)
+		}
+
+		for _, other := range existingUnits {
+			if other.ID == merged.ID {
+				continue
+			}
+
+			if strings.EqualFold(other.Name, merged.Name) &&
+				s.setsOverlap(other.Cities, merged.Cities) &&
+				s.setsOverlap(other.Labels, merged.Labels) {
+				return apperrors.Conflict(fmt.Sprintf(
+					"Another business unit with name '%s' already serves overlapping cities (%v) and labels (%v)",
+					other.Name, other.Cities, other.Labels,
+				))
+			}
+		}
+
 		if _, err = s.repo.Update(ctx, id, merged); err != nil {
 			s.cfg.Log.Error("Failed to update business unit",
 				"id", id,
@@ -223,7 +244,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 	})
 
 	if err != nil {
-		return apperrors.Internal("Failed to update schedule", err)
+		return err
 	}
 
 	s.cfg.Log.Info("Business unit updated successfully",

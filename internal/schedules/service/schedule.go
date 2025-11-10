@@ -204,6 +204,21 @@ func (s *scheduleService) Update(ctx context.Context, id string, updates *model.
 	}
 
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
+		existingSchedules, err := s.repo.Search(sessCtx, merged.BusinessID, merged.City)
+		if err != nil {
+			return apperrors.Internal("Failed to check for duplicate schedules", err)
+		}
+		for _, e := range existingSchedules {
+			if e.ID == merged.ID {
+				continue
+			}
+			if strings.EqualFold(e.Address, merged.Address) {
+				return apperrors.Conflict("Another schedule with the same address already exists for this business")
+			}
+			if strings.EqualFold(e.Name, merged.Name) && strings.EqualFold(e.City, merged.City) {
+				return apperrors.Conflict("Another schedule with the same name and city already exists for this business")
+			}
+		}
 		if _, err := s.repo.Update(sessCtx, id, merged); err != nil {
 			s.cfg.Log.Error("Failed to update schedule",
 				"id", id,
