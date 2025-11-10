@@ -51,6 +51,14 @@ func (h *ScheduleHandler) Create(w http.ResponseWriter, r *http.Request, _ httpr
 
 func (h *ScheduleHandler) GetByID(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
+	if id == "" {
+		if err := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+			Error: "ID parameter is required",
+		}); err != nil {
+			h.log.Error("failed to write bad request response", "handler", "GetByID", "operation", "WriteJSON", "error", err)
+		}
+		return
+	}
 
 	sc, err := h.service.GetByID(r.Context(), id)
 	if err != nil {
@@ -85,6 +93,14 @@ func (h *ScheduleHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httpr
 
 func (h *ScheduleHandler) Update(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
+	if id == "" {
+		if err := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+			Error: "ID parameter is required",
+		}); err != nil {
+			h.log.Error("failed to write bad request response", "handler", "Update", "operation", "WriteJSON", "error", err)
+		}
+		return
+	}
 
 	var updates model.ScheduleUpdate
 	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
@@ -108,6 +124,14 @@ func (h *ScheduleHandler) Update(w http.ResponseWriter, r *http.Request, ps http
 
 func (h *ScheduleHandler) Delete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
+	if id == "" {
+		if err := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+			Error: "ID parameter is required",
+		}); err != nil {
+			h.log.Error("failed to write bad request response", "handler", "Delete", "operation", "WriteJSON", "error", err)
+		}
+		return
+	}
 
 	if err := h.service.Delete(r.Context(), id); err != nil {
 		if writeErr := httputil.WriteError(w, err); writeErr != nil {

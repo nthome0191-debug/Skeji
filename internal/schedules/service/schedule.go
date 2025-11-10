@@ -11,6 +11,7 @@ import (
 	"skeji/pkg/locale"
 	"skeji/pkg/model"
 	"skeji/pkg/sanitizer"
+	"strings"
 	"sync"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -59,7 +60,20 @@ func (s *scheduleService) Create(ctx context.Context, sc *model.Schedule) error 
 	}
 
 	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-		// todo: decide how duplication looks like (business_id and address or business_id and name and city - probably both - i.e one of them)
+		existing, err := s.repo.Search(sessCtx, sc.BusinessID, sc.City)
+		if err != nil {
+			return apperrors.Internal("Failed to check for existing schedules", err)
+		}
+
+		for _, e := range existing {
+			if strings.EqualFold(e.Address, sc.Address) {
+				return apperrors.Conflict("Schedule with the same address already exists for this business")
+			}
+
+			if strings.EqualFold(e.Name, sc.Name) {
+				return apperrors.Conflict("Schedule with the same name and city already exists for this business")
+			}
+		}
 		return s.repo.Create(sessCtx, sc)
 	})
 	if err != nil {
