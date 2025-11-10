@@ -2,11 +2,13 @@ package integrationtests
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"skeji/pkg/config"
 	"skeji/pkg/model"
 	"skeji/test/common"
 	"testing"
+	"time"
 )
 
 const (
@@ -43,11 +45,14 @@ func teardown() {
 }
 
 func createValidSchedule(name string) map[string]any {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	suffix := r.Intn(100000)
+
 	return map[string]any{
 		"business_id":  "507f1f77bcf86cd799439011",
-		"name":         name,
+		"name":         fmt.Sprintf("%s-%d", name, suffix),
 		"city":         "Tel Aviv",
-		"address":      "Derech Menachem Begin 121",
+		"address":      fmt.Sprintf("Derech Menachem Begin 121 #%d", suffix),
 		"working_days": []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"},
 		"start_hour":   "09:00",
 		"end_hour":     "18:00",
@@ -235,7 +240,8 @@ func testGetValidPaginationExistingRecords(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	for i := 1; i <= 5; i++ {
 		req := createValidSchedule(fmt.Sprintf("Branch %d", i))
-		httpClient.POST(t, "/api/v1/schedules", req)
+		resp := httpClient.POST(t, "/api/v1/schedules", req)
+		common.AssertStatusCode(t, resp, 201)
 	}
 
 	resp := httpClient.GET(t, "/api/v1/schedules?limit=2&offset=0")
@@ -329,7 +335,7 @@ func testPostValidRecord(t *testing.T) {
 	if created.ID == "" {
 		t.Error("expected ID to be set")
 	}
-	if created.Name != "Acro Tower Branch" {
+	if created.Name != req["name"] {
 		t.Errorf("expected name 'Acro Tower Branch', got %s", created.Name)
 	}
 

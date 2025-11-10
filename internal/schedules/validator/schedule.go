@@ -62,12 +62,47 @@ func validateTimeRange(fl validator.FieldLevel) bool {
 		return true
 	}
 
-	start, errStart := time.Parse("15:04", schedule.StartOfDay)
-	end, errEnd := time.Parse("15:04", schedule.EndOfDay)
-	if errStart != nil || errEnd != nil {
-		return false
+	var start, end time.Time
+	var err error
+	if schedule.StartOfDay != "" {
+		start, err = time.Parse("15:04", schedule.StartOfDay)
+		if err != nil {
+			return false
+		}
+		var startHour, startMin int
+		if _, err := fmt.Sscanf(schedule.StartOfDay, "%02d:%02d", &startHour, &startMin); err != nil {
+			return false
+		}
+		if startHour < 0 || startHour > 23 {
+			return false
+		}
+		if startMin < 0 || startMin > 59 {
+			return false
+		}
 	}
-	return end.After(start)
+
+	if schedule.EndOfDay != "" {
+		end, err = time.Parse("15:04", schedule.EndOfDay)
+		if err != nil {
+			return false
+		}
+		var endHour, endMin int
+		if _, err := fmt.Sscanf(schedule.EndOfDay, "%02d:%02d", &endHour, &endMin); err != nil {
+			return false
+		}
+		if endHour < 0 || endHour > 23 {
+			return false
+		}
+		if endMin < 0 || endMin > 59 {
+			return false
+		}
+	}
+
+	if schedule.StartOfDay != "" && schedule.EndOfDay != "" {
+		return end.After(start)
+	}
+
+	return true
 }
 
 func validateWorkingDays(fl validator.FieldLevel) bool {
