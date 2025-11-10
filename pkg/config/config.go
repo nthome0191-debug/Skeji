@@ -31,7 +31,7 @@ type Config struct {
 	ShutdownTimeout time.Duration
 
 	DefaultBusinessPriority int
-	MinBusinessPriotity     int
+	MinBusinessPriority     int
 	MaxBusinessPriority     int
 
 	DefaultMeetingDurationMin     int
@@ -69,11 +69,11 @@ func Load(serviceName string) *Config {
 		ShutdownTimeout: getEnvDuration(EnvShutdownTimeout, DefaultShutdownTimeout),
 
 		DefaultBusinessPriority: getEnvNum(EnvBusinessPriority, DefaultDefaultBusinessPriority),
-		MinBusinessPriotity:     getEnvNum(EnvMinBusinessPriority, DefaultMinBusinessPriority),
+		MinBusinessPriority:     getEnvNum(EnvMinBusinessPriority, DefaultMinBusinessPriority),
 		MaxBusinessPriority:     getEnvNum(EnvMaxBusinessPriority, DefaultMaxBusinessPriority),
 
 		DefaultMeetingDurationMin:     getEnvNum(EnvDefaultMeetingDurationMin, DefaultDefaultMeetingDurationMin),
-		DefaultBreakDurationMin:       getEnvNum(EnvDefaultBreakDuratoinMin, DefaultDefaultBreakDurationMin),
+		DefaultBreakDurationMin:       getEnvNum(EnvDefaultBreakDurationMin, DefaultDefaultBreakDurationMin),
 		DefaultMaxParticipantsPerSlot: getEnvNum(EnvDefaultMaxParticipantsInSlot, DefaultDefaultMaxParticipantsPerSlot),
 		DefaultStartOfDay:             getEnvStr(EnvDefaultStartOfDay, DefaultDefaultStartOfDay),
 		DefaultEndOfDay:               getEnvStr(EnvDefaultEndOfDay, DefaultDefaultEndOfDay),

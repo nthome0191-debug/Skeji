@@ -353,7 +353,7 @@ start_time       timestamp
 end_time         timestamp
 capacity         int
 participants     []string (phone numbers)
-status           string (pending/approved/declined/cancelled)
+status           string (pending/confirmed/cancelled/completed)
 managed_by       string (who created the booking)
 created_at       timestamp
 ```

@@ -227,7 +227,13 @@ func (r *mongoBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phon
 	if err != nil {
 		return nil, fmt.Errorf("failed to find business units for phone [%s]: %w", phone, err)
 	}
-	defer cursor.Close(ctx)
+
+	// Ensure cursor is always closed, even if ctx is cancelled
+	defer func() {
+		if cursor != nil {
+			_ = cursor.Close(context.Background())
+		}
+	}()
 
 	var businessUnits []*model.BusinessUnit
 	if err = cursor.All(ctx, &businessUnits); err != nil {
