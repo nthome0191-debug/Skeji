@@ -75,6 +75,15 @@ start_app() {
     for _ in {1..30}; do
         if curl -fs "http://localhost:$TEST_SERVER_PORT/health" >/dev/null 2>&1; then
             echo -e "${GREEN}✅ $APP_NAME ready${NC}"
+            # small grace period for listener to stabilize
+            sleep 1
+            # verify port actually accepting connections
+            for _ in {1..10}; do
+                if nc -z localhost "$TEST_SERVER_PORT" >/dev/null 2>&1; then
+                    return
+                fi
+                sleep 0.5
+            done
             return
         fi
         sleep 1
@@ -115,6 +124,7 @@ cleanup_app() {
             kill -9 "$pid" 2>/dev/null || true
         fi
         rm -f "$APP_PID_FILE"
+        echo -e "${GREEN}✅ $APP_NAME stopped and cleaned up${NC}"
     fi
 }
 
