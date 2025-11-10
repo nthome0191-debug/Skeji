@@ -73,7 +73,7 @@ func Load(serviceName string) *Config {
 		MaxBusinessPriority:     getEnvNum(EnvMaxBusinessPriority, DefaultMaxBusinessPriority),
 
 		DefaultMeetingDurationMin:     getEnvNum(EnvDefaultMeetingDurationMin, DefaultDefaultMeetingDurationMin),
-		DefaultBreakDurationMin:       getEnvNum(EnvDefaultBreakDuratoinMin, DefaultDefaultBreakDurationMin),
+		DefaultBreakDurationMin:       getEnvNum(EnvDefaultBreakDurationMin, DefaultDefaultBreakDurationMin),
 		DefaultMaxParticipantsPerSlot: getEnvNum(EnvDefaultMaxParticipantsInSlot, DefaultDefaultMaxParticipantsPerSlot),
 		DefaultStartOfDay:             getEnvStr(EnvDefaultStartOfDay, DefaultDefaultStartOfDay),
 		DefaultEndOfDay:               getEnvStr(EnvDefaultEndOfDay, DefaultDefaultEndOfDay),
