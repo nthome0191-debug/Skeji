@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	CollectionName = "schedules"
+	CollectionName = "Schedules"
 )
 
 type mongoScheduleRepository struct {
