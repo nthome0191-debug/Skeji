@@ -126,11 +126,11 @@ func (s *businessUnitService) GetByID(ctx context.Context, id string) (*model.Bu
 }
 
 func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error) {
-	if limit <= 0 { //todo: to config
+	if limit <= 0 {
 		limit = 10
 	}
 	if limit > 100 {
-		limit = 100
+		limit = config.DefaultPaginationLimit
 	}
 	if offset < 0 {
 		offset = 0
@@ -223,7 +223,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 	})
 
 	if err != nil {
-		//todo
+		return apperrors.Internal("Failed to update schedule", err)
 	}
 
 	s.cfg.Log.Info("Business unit updated successfully",
@@ -238,25 +238,26 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return apperrors.InvalidInput("Business unit ID cannot be empty")
 	}
-
-	// todo: transaction
-
-	if err := s.repo.Delete(ctx, id); err != nil {
-		if errors.Is(err, businessunitserrors.ErrNotFound) {
-			return apperrors.NotFoundWithID("Business unit", id)
+	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
+		if err := s.repo.Delete(ctx, id); err != nil {
+			if errors.Is(err, businessunitserrors.ErrNotFound) {
+				return apperrors.NotFoundWithID("Business unit", id)
+			}
+			if errors.Is(err, businessunitserrors.ErrInvalidID) {
+				return apperrors.InvalidInput("Invalid business unit ID format")
+			}
+			s.cfg.Log.Error("Failed to delete business unit",
+				"id", id,
+				"error", err,
+			)
+			return apperrors.Internal("Failed to delete business unit", err)
 		}
-		if errors.Is(err, businessunitserrors.ErrInvalidID) {
-			return apperrors.InvalidInput("Invalid business unit ID format")
-		}
-		s.cfg.Log.Error("Failed to delete business unit",
-			"id", id,
-			"error", err,
-		)
-		return apperrors.Internal("Failed to delete business unit", err)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-
 	s.cfg.Log.Info("Business unit deleted successfully", "id", id)
-
 	return nil
 }
 

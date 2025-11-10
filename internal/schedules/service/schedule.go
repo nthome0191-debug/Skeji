@@ -8,6 +8,7 @@ import (
 	"skeji/internal/schedules/validator"
 	"skeji/pkg/config"
 	apperrors "skeji/pkg/errors"
+	"skeji/pkg/locale"
 	"skeji/pkg/model"
 	"skeji/pkg/sanitizer"
 	"sync"
@@ -58,7 +59,7 @@ func (s *scheduleService) Create(ctx context.Context, sc *model.Schedule) error 
 	}
 
 	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-		// todo: decide how duplication looks like (business_id and address? business_id and name and city? both?)
+		// todo: decide how duplication looks like (business_id and address or business_id and name and city - probably both - i.e one of them)
 		return s.repo.Create(sessCtx, sc)
 	})
 	if err != nil {
@@ -103,11 +104,11 @@ func (s *scheduleService) GetByID(ctx context.Context, id string) (*model.Schedu
 }
 
 func (s *scheduleService) GetAll(ctx context.Context, limit int, offset int) ([]*model.Schedule, int64, error) {
-	if limit <= 0 { //todo: to config
+	if limit <= 0 {
 		limit = 10
 	}
 	if limit > 100 {
-		limit = 100
+		limit = config.DefaultPaginationLimit
 	}
 	if offset < 0 {
 		offset = 0
@@ -200,7 +201,7 @@ func (s *scheduleService) Update(ctx context.Context, id string, updates *model.
 	})
 
 	if err != nil {
-		// todo
+		return err
 	}
 
 	s.cfg.Log.Info("Schedule updated successfully", "id", id, "name", merged.Name)
@@ -212,22 +213,25 @@ func (s *scheduleService) Delete(ctx context.Context, id string) error {
 		return apperrors.InvalidInput("Schedule ID cannot be empty")
 	}
 
-	//todo: transaction
-
-	if err := s.repo.Delete(ctx, id); err != nil {
-		if errors.Is(err, scheduleerrors.ErrNotFound) {
-			return apperrors.NotFoundWithID("Schedule", id)
+	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
+		if err := s.repo.Delete(ctx, id); err != nil {
+			if errors.Is(err, scheduleerrors.ErrNotFound) {
+				return apperrors.NotFoundWithID("Schedule", id)
+			}
+			if errors.Is(err, scheduleerrors.ErrInvalidID) {
+				return apperrors.InvalidInput("Invalid schedule ID format")
+			}
+			s.cfg.Log.Error("Failed to delete schedule",
+				"id", id,
+				"error", err,
+			)
+			return apperrors.Internal("Failed to delete schedule", err)
 		}
-		if errors.Is(err, scheduleerrors.ErrInvalidID) {
-			return apperrors.InvalidInput("Invalid schedule ID format")
-		}
-		s.cfg.Log.Error("Failed to delete schedule",
-			"id", id,
-			"error", err,
-		)
-		return apperrors.Internal("Failed to delete schedule", err)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
-
 	s.cfg.Log.Info("Schedule deleted successfully", "id", id)
 	return nil
 }
@@ -237,7 +241,7 @@ func (s *scheduleService) Search(ctx context.Context, businessID string, city st
 		return nil, apperrors.InvalidInput("Business_id must be provided, city is optional")
 	}
 
-	city = sanitizer.TrimAndNormalize(city) //todo: we do allow empty city, make sure what is the impact on result in current implementation
+	city = sanitizer.TrimAndNormalize(city)
 	businessID = sanitizer.TrimAndNormalize(businessID)
 
 	schedules, err := s.repo.Search(ctx, businessID, city)
@@ -294,8 +298,14 @@ func (s *scheduleService) applyDefaults(sc *model.Schedule) {
 		sc.EndOfDay = s.cfg.DefaultEndOfDay
 	}
 	if len(sc.WorkingDays) == 0 {
-		// todo: assume the timezone, if israel assign israel value, if us assign us value
-		sc.WorkingDays = s.cfg.DefaultWorkingDaysIsrael
+		switch locale.DetectRegion(sc.TimeZone) {
+		case "IL":
+			sc.WorkingDays = s.cfg.DefaultWorkingDaysIsrael
+		case "US":
+			sc.WorkingDays = s.cfg.DefaultWorkingDaysUs
+		default:
+			sc.WorkingDays = s.cfg.DefaultWorkingDaysIsrael
+		}
 	}
 }
 

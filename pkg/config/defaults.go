@@ -22,6 +22,8 @@ const (
 	DefaultPort     = "8080"
 	DefaultLogLevel = "info"
 
+	DefaultPaginationLimit = 100
+
 	DefaultRateLimitRequests = 10
 	DefaultRateLimitWindow   = 1 * time.Minute
 
