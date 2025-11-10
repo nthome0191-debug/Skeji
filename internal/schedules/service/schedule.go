@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	scheduleerrors "skeji/internal/schedules/errors"
 	"skeji/internal/schedules/repository"
 	"skeji/internal/schedules/validator"
@@ -128,8 +127,6 @@ func (s *scheduleService) GetAll(ctx context.Context, limit int, offset int) ([]
 	if offset < 0 {
 		offset = 0
 	}
-
-	fmt.Printf("\n\nnatali print lalala 1")
 
 	var count int64
 	var schedules []*model.Schedule
