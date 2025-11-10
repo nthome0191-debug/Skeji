@@ -177,6 +177,9 @@ func (c *Client) WaitForHealthy(t *testing.T, maxWait time.Duration) {
 func AssertStatusCode(t *testing.T, resp *Response, expected int) {
 	t.Helper()
 	if resp.StatusCode != expected {
+		if resp.Body == nil {
+			resp.Body = []byte{}
+		}
 		t.Fatalf("expected status %d, got %d. Body: %s", expected, resp.StatusCode, string(resp.Body))
 	}
 }
