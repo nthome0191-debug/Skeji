@@ -44,9 +44,6 @@ func NewScheduleValidator(log *logger.Logger) *ScheduleValidator {
 	if err := v.RegisterValidation("valid_time_range", validateTimeRange); err != nil {
 		log.Fatal("Failed to register 'valid_time_range' validator", "error", err)
 	}
-	if err := v.RegisterValidation("valid_working_days", validateWorkingDays); err != nil {
-		log.Fatal("Failed to register 'valid_working_days' validator", "error", err)
-	}
 
 	log.Info("Schedule validator initialized successfully")
 
@@ -82,24 +79,6 @@ func validateTimeRange(fl validator.FieldLevel) bool {
 	return true
 }
 
-func validateWorkingDays(fl validator.FieldLevel) bool {
-	days, ok := fl.Field().Interface().([]string)
-	if !ok || len(days) == 0 {
-		return false
-	}
-
-	validDays := map[string]struct{}{
-		"sunday": {}, "monday": {}, "tuesday": {}, "wednesday": {},
-		"thursday": {}, "friday": {}, "saturday": {},
-	}
-
-	for _, d := range days {
-		if _, valid := validDays[strings.ToLower(strings.TrimSpace(d))]; !valid {
-			return false
-		}
-	}
-	return true
-}
 
 func (v *ScheduleValidator) Validate(sc *model.Schedule) error {
 	if err := v.validate.Struct(sc); err != nil {
@@ -127,8 +106,6 @@ func (v *ScheduleValidator) translateValidationErrors(errs validator.ValidationE
 			message = fmt.Sprintf("%s must be at most %s characters", err.Field(), err.Param())
 		case "valid_time_range":
 			message = "end_of_day must be after start_of_day and both must be in HH:MM 24-hour format"
-		case "valid_working_days":
-			message = "working_days must contain only valid weekday names (Sunday-Saturday)"
 		}
 
 		validationErrors = append(validationErrors, ValidationError{
