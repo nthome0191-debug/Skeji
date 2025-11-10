@@ -1,4 +1,4 @@
-package businessunits
+package integrationtests
 
 import (
 	"fmt"
