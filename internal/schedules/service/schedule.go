@@ -287,7 +287,16 @@ func (s *scheduleService) applyDefaults(sc *model.Schedule) {
 	if sc.MaxParticipantsPerSlot == 0 {
 		sc.MaxParticipantsPerSlot = s.cfg.DefaultMaxParticipantsPerSlot
 	}
-	// todo: add here plus to config start of day, enf of day, working days
+	if sc.StartOfDay == "" {
+		sc.StartOfDay = s.cfg.DefaultStartOfDay
+	}
+	if sc.EndOfDay == "" {
+		sc.EndOfDay = s.cfg.DefaultEndOfDay
+	}
+	if len(sc.WorkingDays) == 0 {
+		// todo: assume the timezone, if israel assign israel value, if us assign us value
+		sc.WorkingDays = s.cfg.DefaultWorkingDaysIsrael
+	}
 }
 
 func (s *scheduleService) mergeScheduleUpdates(existing *model.Schedule, updates *model.ScheduleUpdate) *model.Schedule {

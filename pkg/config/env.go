@@ -29,4 +29,6 @@ const (
 	EnvDefaultMeetingDurationMin    = "DEFAULT_MEETING_DURATION_MIN"
 	EnvDefaultBreakDuratoinMin      = "DEFAULT_BREAK_DURATION_MIN"
 	EnvDefaultMaxParticipantsInSlot = "DEFAULT_MAX_PARTICIPANTS_IN_SLOT"
+	EnvDefaultStartOfDay            = "DEFAULT_START_OF_DAY"
+	EnvDefaultEndOfDay              = "DEFAULT_END_OF_DAY"
 )

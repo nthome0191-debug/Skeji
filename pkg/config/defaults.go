@@ -2,6 +2,18 @@ package config
 
 import "time"
 
+type Weekday string
+
+const (
+	Sunday    Weekday = "sunday"
+	Monday    Weekday = "monday"
+	Tuesday   Weekday = "tuesday"
+	Wednesday Weekday = "wednesday"
+	Thursday  Weekday = "thursday"
+	Friday    Weekday = "friday"
+	Saturday  Weekday = "saturday"
+)
+
 const (
 	DefaultMongoURI          = "mongodb://localhost:27017"
 	DefaultMongoDatabaseName = "skeji"
@@ -29,4 +41,12 @@ const (
 	DefaultDefaultMeetingDurationMin     = 45
 	DefaultDefaultBreakDurationMin       = 15
 	DefaultDefaultMaxParticipantsPerSlot = 1
+
+	DefaultDefaultStartOfDay = "09:00"
+	DefaultDefaultEndOfDay   = "18:00"
+)
+
+var (
+	DefaultWorkingDaysIsrael = []Weekday{Sunday, Monday, Tuesday, Wednesday, Thursday}
+	DefaultWorkingDaysUs     = []Weekday{Monday, Tuesday, Wednesday, Thursday, Friday}
 )

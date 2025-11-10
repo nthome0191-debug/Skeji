@@ -37,6 +37,10 @@ type Config struct {
 	DefaultMeetingDurationMin     int
 	DefaultBreakDurationMin       int
 	DefaultMaxParticipantsPerSlot int
+	DefaultStartOfDay             string
+	DefaultEndOfDay               string
+	DefaultWorkingDaysIsrael      []Weekday
+	DefaultWorkingDaysUs          []Weekday
 
 	Log    *logger.Logger
 	Client *client.Client
@@ -71,6 +75,10 @@ func Load(serviceName string) *Config {
 		DefaultMeetingDurationMin:     getEnvNum(EnvDefaultMeetingDurationMin, DefaultDefaultMeetingDurationMin),
 		DefaultBreakDurationMin:       getEnvNum(EnvDefaultBreakDuratoinMin, DefaultDefaultBreakDurationMin),
 		DefaultMaxParticipantsPerSlot: getEnvNum(EnvDefaultMaxParticipantsInSlot, DefaultDefaultMaxParticipantsPerSlot),
+		DefaultStartOfDay:             getEnvStr(EnvDefaultStartOfDay, DefaultDefaultStartOfDay),
+		DefaultEndOfDay:               getEnvStr(EnvDefaultEndOfDay, DefaultDefaultEndOfDay),
+		DefaultWorkingDaysIsrael:      DefaultWorkingDaysIsrael,
+		DefaultWorkingDaysUs:          DefaultWorkingDaysUs,
 
 		Log: logger.New(logger.Config{
 			Level:     getEnvStr(EnvLogLevel, DefaultLogLevel),
