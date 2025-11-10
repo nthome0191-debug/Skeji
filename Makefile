@@ -8,6 +8,9 @@
 	schedules-up \
 	bookings-up \
 	notifications-up \
+	test-unit \
+	test-unit-verbose \
+	test-unit-coverage \
 	test-integration \
 	test-integration-app-verbose \
 	test-integration-business-units \
@@ -64,6 +67,47 @@ schedules-up:
 # 	@echo "🔔 Deploying Notifications service..."
 # 	bash deployment/local/notifications/setup.sh
 # 	@echo "✅ Notifications service deployed successfully."
+
+# === Unit Tests ==============================================================
+
+test-unit:
+	@echo "🧪 Running unit tests..."
+	@go test \
+		./pkg/errors/... \
+		./pkg/sanitizer/... \
+		./pkg/locale/... \
+		./internal/businessunits/validator/... \
+		./internal/schedules/validator/... \
+		-count=1
+	@echo "✅ All unit tests passed."
+
+test-unit-verbose:
+	@echo "🧪 Running unit tests (verbose mode)..."
+	@go test \
+		./pkg/errors/... \
+		./pkg/sanitizer/... \
+		./pkg/locale/... \
+		./internal/businessunits/validator/... \
+		./internal/schedules/validator/... \
+		-v \
+		-count=1
+	@echo "✅ All unit tests passed."
+
+test-unit-coverage:
+	@echo "🧪 Running unit tests with coverage report..."
+	@go test \
+		./pkg/errors/... \
+		./pkg/sanitizer/... \
+		./pkg/locale/... \
+		./internal/businessunits/validator/... \
+		./internal/schedules/validator/... \
+		-cover \
+		-coverprofile=coverage.out \
+		-count=1
+	@echo "📊 Generating coverage report..."
+	@go tool cover -html=coverage.out -o coverage.html
+	@echo "✅ Coverage report generated: coverage.html"
+	@go tool cover -func=coverage.out | grep total:
 
 # === Integration Tests =======================================================
 
