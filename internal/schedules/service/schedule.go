@@ -370,6 +370,9 @@ func (s *scheduleService) mergeScheduleUpdates(existing *model.Schedule, updates
 	if updates.Exceptions != nil {
 		merged.Exceptions = *updates.Exceptions
 	}
+	if updates.TimeZone != "" {
+		merged.TimeZone = updates.TimeZone
+	}
 
 	merged.ID = existing.ID
 	merged.CreatedAt = existing.CreatedAt

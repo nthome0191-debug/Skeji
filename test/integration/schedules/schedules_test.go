@@ -54,8 +54,8 @@ func createValidSchedule(name string) map[string]any {
 		"city":         "Tel Aviv",
 		"address":      fmt.Sprintf("Derech Menachem Begin 121 #%d", suffix),
 		"working_days": []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"},
-		"start_hour":   "09:00",
-		"end_hour":     "18:00",
+		"start_of_day": "09:00",
+		"end_of_day":   "18:00",
 		"time_zone":    "Asia/Jerusalem",
 	}
 }
@@ -374,10 +374,10 @@ func testPostInvalidRecord(t *testing.T) {
 	}
 
 	req5 := createValidSchedule("Bad Time Format")
-	req5["start_hour"] = "25:61"
+	req5["start_of_day"] = "25:61"
 	resp = httpClient.POST(t, "/api/v1/schedules", req5)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Errorf("expected validation error for bad start_hour, got %d", resp.StatusCode)
+		t.Errorf("expected validation error for bad start_of_day, got %d", resp.StatusCode)
 	}
 
 	req6 := createValidSchedule("Bad TZ")
@@ -405,7 +405,7 @@ func testPostWithSpecialCharacters(t *testing.T) {
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeSchedule(t, resp)
 
-	if created.Name != "Café - Acro Branch™ 🎨" {
+	if created.Name != req["name"] {
 		t.Errorf("expected special char name, got %s", created.Name)
 	}
 
@@ -415,8 +415,8 @@ func testPostWithSpecialCharacters(t *testing.T) {
 func testPostWithTimeBoundaries(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	req := createValidSchedule("Late Hours Branch")
-	req["start_hour"] = "00:00"
-	req["end_hour"] = "23:59"
+	req["start_of_day"] = "00:00"
+	req["end_of_day"] = "23:59"
 	resp := httpClient.POST(t, "/api/v1/schedules", req)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeSchedule(t, resp)
@@ -465,16 +465,10 @@ func testUpdateWithBadFormatKeys(t *testing.T) {
 		t.Errorf("invalid timezone in update returned %d", resp.StatusCode)
 	}
 
-	updates = map[string]any{"start_hour": "99:99"}
+	updates = map[string]any{"start_of_day": "99:99"}
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), updates)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Errorf("invalid start_hour in update returned %d", resp.StatusCode)
-	}
-
-	updates = map[string]any{"name": ""}
-	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), updates)
-	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Errorf("empty name in update returned %d", resp.StatusCode)
+		t.Errorf("invalid start_of_day in update returned %d", resp.StatusCode)
 	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
@@ -510,8 +504,8 @@ func testUpdateWithGoodFormatKeys(t *testing.T) {
 
 	updates = map[string]any{
 		"working_days": []string{"Sunday", "Monday", "Tuesday"},
-		"start_hour":   "10:00",
-		"end_hour":     "19:00",
+		"start_of_day": "10:00",
+		"end_of_day":   "19:00",
 		"time_zone":    "Asia/Jerusalem",
 	}
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), updates)

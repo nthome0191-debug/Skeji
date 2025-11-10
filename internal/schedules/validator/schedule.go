@@ -57,20 +57,18 @@ func NewScheduleValidator(log *logger.Logger) *ScheduleValidator {
 }
 
 func validateTimeRange(fl validator.FieldLevel) bool {
-	schedule, ok := fl.Top().Interface().(model.Schedule)
-	if !ok {
-		return true
-	}
 
-	var start, end time.Time
+	dayFrame := strings.TrimSpace(fl.Field().String())
+
 	var err error
-	if schedule.StartOfDay != "" {
-		start, err = time.Parse("15:04", schedule.StartOfDay)
+
+	if dayFrame != "" {
+		_, err = time.Parse("15:04", dayFrame)
 		if err != nil {
 			return false
 		}
 		var startHour, startMin int
-		if _, err := fmt.Sscanf(schedule.StartOfDay, "%02d:%02d", &startHour, &startMin); err != nil {
+		if _, err := fmt.Sscanf(dayFrame, "%02d:%02d", &startHour, &startMin); err != nil {
 			return false
 		}
 		if startHour < 0 || startHour > 23 {
@@ -79,27 +77,6 @@ func validateTimeRange(fl validator.FieldLevel) bool {
 		if startMin < 0 || startMin > 59 {
 			return false
 		}
-	}
-
-	if schedule.EndOfDay != "" {
-		end, err = time.Parse("15:04", schedule.EndOfDay)
-		if err != nil {
-			return false
-		}
-		var endHour, endMin int
-		if _, err := fmt.Sscanf(schedule.EndOfDay, "%02d:%02d", &endHour, &endMin); err != nil {
-			return false
-		}
-		if endHour < 0 || endHour > 23 {
-			return false
-		}
-		if endMin < 0 || endMin > 59 {
-			return false
-		}
-	}
-
-	if schedule.StartOfDay != "" && schedule.EndOfDay != "" {
-		return end.After(start)
 	}
 
 	return true

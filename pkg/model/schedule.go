@@ -19,7 +19,7 @@ type Schedule struct {
 	MaxParticipantsPerSlot    int              `json:"max_participants_per_slot" bson:"max_participants_per_slot" validate:"required,min=1,max=200"`
 	Exceptions                []string         `json:"exceptions,omitempty" bson:"exceptions" validate:"omitempty"`
 	CreatedAt                 time.Time        `json:"created_at" bson:"created_at" validate:"omitempty"`
-	TimeZone                  string           `json:"time_zone,omitempty" bson:"time_zone" validate:"omitempty,timezone"`
+	TimeZone                  string           `json:"time_zone" bson:"time_zone" validate:"required,timezone"`
 }
 
 type ScheduleUpdate struct {
@@ -33,5 +33,5 @@ type ScheduleUpdate struct {
 	DefaultBreakDurationMin   *int             `json:"default_break_duration_min,omitempty" validate:"omitempty,min=0,max=480"`
 	MaxParticipantsPerSlot    *int             `json:"max_participants_per_slot,omitempty" validate:"omitempty,min=1,max=200"`
 	Exceptions                *[]string        `json:"exceptions,omitempty" validate:"omitempty"`
-	TimeZone                  string           `json:"time_zone,omitempty" bson:"time_zone" validate:"omitempty,timezone"`
+	TimeZone                  string           `json:"time_zone" bson:"time_zone" validate:"required,timezone"`
 }
