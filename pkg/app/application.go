@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"skeji/internal/businessunits/handler"
 	"skeji/pkg/config"
 	"skeji/pkg/contracts"
 	"skeji/pkg/middleware"
@@ -37,11 +36,10 @@ func (a *Application) SetApp(appHandler contracts.Handler) {
 
 func (a *Application) setHealthHandler() {
 	healthRouter := httprouter.New()
-	healthHandler := handler.NewHealthHandler(a.cfg.Client.Mongo, a.cfg.Log)
+	healthHandler := NewHealthHandler(a.cfg.Client.Mongo, a.cfg.Log)
 	healthHandler.RegisterRoutes(healthRouter)
 
 	var healthHTTPHandler http.Handler = healthRouter
-	healthHTTPHandler = middleware.RequestLogging(a.cfg.Log)(healthHTTPHandler)
 	healthHTTPHandler = middleware.Recovery(a.cfg.Log)(healthHTTPHandler)
 	a.healthHandler = &healthHTTPHandler
 	a.cfg.Log.Info("Health endpoints configured with minimal middleware (Recovery + Logging only)")

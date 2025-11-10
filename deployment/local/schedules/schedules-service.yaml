@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: schedules
+  namespace: apps
+  labels:
+    app: schedules
+spec:
+  type: ClusterIP
+  selector:
+    app: schedules
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
