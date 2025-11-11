@@ -128,11 +128,8 @@ func (s *scheduleService) GetAll(ctx context.Context, limit int, offset int) ([]
 		offset = 0
 	}
 
-	// Create shared context with timeout for both goroutines
-	// This ensures coordinated cancellation if one operation times out
-	sharedCtx, cancel := context.WithTimeout(ctx, s.cfg.ReadTimeout)
-	defer cancel()
-
+	// Execute Count and FindAll concurrently
+	// Repository layer handles timeouts for each operation
 	var count int64
 	var schedules []*model.Schedule
 	var errCount, errFind error
@@ -142,7 +139,7 @@ func (s *scheduleService) GetAll(ctx context.Context, limit int, offset int) ([]
 	go func() {
 		defer wg.Done()
 		var err error
-		count, err = s.repo.Count(sharedCtx)
+		count, err = s.repo.Count(ctx)
 		if err != nil {
 			s.cfg.Log.Error("Failed to count schedules", "error", err)
 			errCount = apperrors.Internal("Failed to count schedules", err)
@@ -152,7 +149,7 @@ func (s *scheduleService) GetAll(ctx context.Context, limit int, offset int) ([]
 	go func() {
 		defer wg.Done()
 		var err error
-		schedules, err = s.repo.FindAll(sharedCtx, limit, offset)
+		schedules, err = s.repo.FindAll(ctx, limit, offset)
 		if err != nil {
 			s.cfg.Log.Error("Failed to get all schedules",
 				"limit", limit,

@@ -137,11 +137,8 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 		offset = 0
 	}
 
-	// Create shared context with timeout for both goroutines
-	// This ensures coordinated cancellation if one operation times out
-	sharedCtx, cancel := context.WithTimeout(ctx, s.cfg.ReadTimeout)
-	defer cancel()
-
+	// Execute Count and FindAll concurrently
+	// Repository layer handles timeouts for each operation
 	var count int64
 	var units []*model.BusinessUnit
 	var errCount, errFind error
@@ -150,7 +147,7 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 	go func() {
 		defer wg.Done()
 		var err error
-		count, err = s.repo.Count(sharedCtx)
+		count, err = s.repo.Count(ctx)
 		if err != nil {
 			s.cfg.Log.Error("Failed to count business units", "error", err)
 			errCount = apperrors.Internal("Failed to count business units", err)
@@ -160,7 +157,7 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 	go func() {
 		defer wg.Done()
 		var err error
-		units, err = s.repo.FindAll(sharedCtx, limit, offset)
+		units, err = s.repo.FindAll(ctx, limit, offset)
 		if err != nil {
 			s.cfg.Log.Error("Failed to get all business units",
 				"limit", limit,
