@@ -368,6 +368,24 @@ func (s *scheduleService) mergeScheduleUpdates(existing *model.Schedule, updates
 		merged.MaxParticipantsPerSlot = *updates.MaxParticipantsPerSlot
 	}
 	if updates.Exceptions != nil {
+		// Validate that all exception dates are in YYYY-MM-DD format
+		for _, date := range *updates.Exceptions {
+			if len(date) != 10 || date[4] != '-' || date[7] != '-' {
+				s.cfg.Log.Warn("Invalid exception date format",
+					"date", date,
+					"expected_format", "YYYY-MM-DD",
+				)
+				// Skip invalid dates
+				continue
+			}
+			// Basic validation: check that it looks like a date
+			if date < "1900-01-01" || date > "2100-12-31" {
+				s.cfg.Log.Warn("Exception date out of reasonable range",
+					"date", date,
+				)
+				continue
+			}
+		}
 		merged.Exceptions = *updates.Exceptions
 	}
 	if updates.TimeZone != "" {
