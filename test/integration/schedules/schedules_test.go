@@ -116,6 +116,19 @@ func testPost(t *testing.T) {
 	testPostMalformedJSON(t)
 	testPostWithSpecialCharacters(t)
 	testPostWithTimeBoundaries(t)
+	testPostWorkingDaysSingleDay(t)
+	testPostWorkingDaysAllWeek(t)
+	testPostWorkingDaysInvalidDay(t)
+	testPostWorkingDaysDuplicates(t)
+	testPostWorkingDaysCaseSensitivity(t)
+	testPostTimeEqualStartEnd(t)
+	testPostTimeEndBeforeStart(t)
+	testPostTimeMinuteBoundaries(t)
+	testPostOptionalFieldsBoundaries(t)
+	testPostNameAndAddressLengths(t)
+	testPostMultipleSchedulesSameBusiness(t)
+	testPostExceptionsArray(t)
+	testPostAllOptionalFields(t)
 }
 
 func testUpdate(t *testing.T) {
@@ -126,6 +139,13 @@ func testUpdate(t *testing.T) {
 	testUpdateWithGoodFormatKeys(t)
 	testUpdateWithEmptyJson(t)
 	testUpdateMalformedJSON(t)
+	testUpdateWorkingDays(t)
+	testUpdateTimeZone(t)
+	testUpdateAddExceptions(t)
+	testUpdateRemoveExceptions(t)
+	testUpdateAllFieldsAtOnce(t)
+	testUpdateOnlyName(t)
+	testUpdateOnlyTimeRange(t)
 }
 
 func testDelete(t *testing.T) {
@@ -588,4 +608,439 @@ func testDeletedRecord(t *testing.T) {
 
 	resp = httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 	common.AssertStatusCode(t, resp, 404)
+}
+
+func testPostWorkingDaysSingleDay(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Single Day Branch")
+	req["working_days"] = []string{"Monday"}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeSchedule(t, resp)
+	if len(created.WorkingDays) != 1 {
+		t.Errorf("expected 1 working day, got %d", len(created.WorkingDays))
+	}
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testPostWorkingDaysAllWeek(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("All Week Branch")
+	req["working_days"] = []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeSchedule(t, resp)
+	if len(created.WorkingDays) != 7 {
+		t.Errorf("expected 7 working days, got %d", len(created.WorkingDays))
+	}
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testPostWorkingDaysInvalidDay(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Invalid Day Branch")
+	req["working_days"] = []string{"InvalidDay", "Monday"}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for invalid day, got %d", resp.StatusCode)
+	}
+}
+
+func testPostWorkingDaysDuplicates(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Duplicate Days Branch")
+	req["working_days"] = []string{"Monday", "Tuesday", "Monday"}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	if resp.StatusCode != 201 && resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("unexpected status code for duplicate days: %d", resp.StatusCode)
+	}
+}
+
+func testPostWorkingDaysCaseSensitivity(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Case Sensitivity Branch")
+	req["working_days"] = []string{"monday", "TUESDAY", "Wednesday"}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+
+	if resp.StatusCode != 201 && resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("unexpected status code for case sensitivity: %d", resp.StatusCode)
+	}
+}
+
+func testPostTimeEqualStartEnd(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Zero Hours Branch")
+	req["start_of_day"] = "10:00"
+	req["end_of_day"] = "10:00"
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for start=end, got %d", resp.StatusCode)
+	}
+}
+
+func testPostTimeEndBeforeStart(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Reverse Time Branch")
+	req["start_of_day"] = "18:00"
+	req["end_of_day"] = "09:00"
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for end<start, got %d", resp.StatusCode)
+	}
+}
+
+func testPostTimeMinuteBoundaries(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	times := []struct {
+		start string
+		end   string
+	}{
+		{"09:00", "17:00"},
+		{"09:15", "17:15"},
+		{"09:30", "17:30"},
+		{"09:45", "17:45"},
+	}
+
+	for i, tc := range times {
+		req := createValidSchedule(fmt.Sprintf("Minute Boundary %d", i))
+		req["start_of_day"] = tc.start
+		req["end_of_day"] = tc.end
+
+		resp := httpClient.POST(t, "/api/v1/schedules", req)
+		common.AssertStatusCode(t, resp, 201)
+		created := decodeSchedule(t, resp)
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	}
+}
+
+func testPostOptionalFieldsBoundaries(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req1 := createValidSchedule("Meeting Duration Min")
+	req1["default_meeting_duration_min"] = 1
+	resp1 := httpClient.POST(t, "/api/v1/schedules", req1)
+	common.AssertStatusCode(t, resp1, 201)
+
+	req2 := createValidSchedule("Meeting Duration Max")
+	req2["default_meeting_duration_min"] = 480
+	resp2 := httpClient.POST(t, "/api/v1/schedules", req2)
+	common.AssertStatusCode(t, resp2, 201)
+
+	req3 := createValidSchedule("Break Duration")
+	req3["default_break_duration_min"] = 15
+	resp3 := httpClient.POST(t, "/api/v1/schedules", req3)
+	common.AssertStatusCode(t, resp3, 201)
+
+	req4 := createValidSchedule("Max Participants Min")
+	req4["max_participants_per_slot"] = 1
+	resp4 := httpClient.POST(t, "/api/v1/schedules", req4)
+	common.AssertStatusCode(t, resp4, 201)
+
+	req5 := createValidSchedule("Max Participants Large")
+	req5["max_participants_per_slot"] = 100
+	resp5 := httpClient.POST(t, "/api/v1/schedules", req5)
+	common.AssertStatusCode(t, resp5, 201)
+}
+
+func testPostNameAndAddressLengths(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req1 := createValidSchedule("AB")
+	resp1 := httpClient.POST(t, "/api/v1/schedules", req1)
+	common.AssertStatusCode(t, resp1, 201)
+
+	req2 := createValidSchedule("A")
+	resp2 := httpClient.POST(t, "/api/v1/schedules", req2)
+	if resp2.StatusCode != 422 && resp2.StatusCode != 400 {
+		t.Errorf("expected validation error for 1-char name, got %d", resp2.StatusCode)
+	}
+
+	longName := ""
+	for range 100 {
+		longName += "A"
+	}
+	req3 := createValidSchedule(longName)
+	resp3 := httpClient.POST(t, "/api/v1/schedules", req3)
+	common.AssertStatusCode(t, resp3, 201)
+
+	tooLongName := longName + "A"
+	req4 := createValidSchedule(tooLongName)
+	resp4 := httpClient.POST(t, "/api/v1/schedules", req4)
+	if resp4.StatusCode != 422 && resp4.StatusCode != 400 {
+		t.Errorf("expected validation error for 101-char name, got %d", resp4.StatusCode)
+	}
+
+	longAddr := ""
+	for range 200 {
+		longAddr += "Long Address Street "
+	}
+	req5 := createValidSchedule("Long Address Branch")
+	req5["address"] = longAddr
+	resp5 := httpClient.POST(t, "/api/v1/schedules", req5)
+	if resp5.StatusCode != 201 && resp5.StatusCode != 422 && resp5.StatusCode != 400 {
+		t.Errorf("unexpected status for very long address: %d", resp5.StatusCode)
+	}
+}
+
+func testPostMultipleSchedulesSameBusiness(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	businessID := "507f1f77bcf86cd799439011"
+
+	req1 := createValidSchedule("Tel Aviv Branch")
+	req1["business_id"] = businessID
+	req1["city"] = "Tel Aviv"
+	resp1 := httpClient.POST(t, "/api/v1/schedules", req1)
+	common.AssertStatusCode(t, resp1, 201)
+
+	req2 := createValidSchedule("Jerusalem Branch")
+	req2["business_id"] = businessID
+	req2["city"] = "Jerusalem"
+	resp2 := httpClient.POST(t, "/api/v1/schedules", req2)
+	common.AssertStatusCode(t, resp2, 201)
+
+	req3 := createValidSchedule("Tel Aviv North")
+	req3["business_id"] = businessID
+	req3["city"] = "Tel Aviv"
+	resp3 := httpClient.POST(t, "/api/v1/schedules", req3)
+	common.AssertStatusCode(t, resp3, 201)
+
+	searchResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/search?business_id=%s", businessID))
+	common.AssertStatusCode(t, searchResp, 200)
+	results := decodeSchedules(t, searchResp)
+	if len(results) < 3 {
+		t.Errorf("expected at least 3 schedules for business, got %d", len(results))
+	}
+}
+
+func testPostExceptionsArray(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("Exceptions Branch")
+	req["exceptions"] = []string{"2025-12-25", "2025-12-26", "2026-01-01"}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeSchedule(t, resp)
+	if len(created.Exceptions) != 3 {
+		t.Errorf("expected 3 exceptions, got %d", len(created.Exceptions))
+	}
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+
+	req2 := createValidSchedule("No Exceptions Branch")
+	req2["exceptions"] = []string{}
+	resp2 := httpClient.POST(t, "/api/v1/schedules", req2)
+	common.AssertStatusCode(t, resp2, 201)
+
+	req3 := createValidSchedule("Invalid Exception")
+	req3["exceptions"] = []string{"not-a-date"}
+	resp3 := httpClient.POST(t, "/api/v1/schedules", req3)
+	if resp3.StatusCode != 422 && resp3.StatusCode != 400 && resp3.StatusCode != 201 {
+		t.Errorf("unexpected status for invalid exception date: %d", resp3.StatusCode)
+	}
+}
+
+func testPostAllOptionalFields(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("All Optional Fields")
+	req["default_meeting_duration_min"] = 30
+	req["default_break_duration_min"] = 10
+	req["max_participants_per_slot"] = 5
+	req["exceptions"] = []string{"2025-12-25"}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeSchedule(t, resp)
+
+	if created.DefaultMeetingDurationMin != 30 {
+		t.Errorf("expected meeting duration 30, got %d", created.DefaultMeetingDurationMin)
+	}
+	if created.DefaultBreakDurationMin != 10 {
+		t.Errorf("expected break duration 10, got %d", created.DefaultBreakDurationMin)
+	}
+	if created.MaxParticipantsPerSlot != 5 {
+		t.Errorf("expected max participants 5, got %d", created.MaxParticipantsPerSlot)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testUpdateWorkingDays(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Update Working Days")
+	createResp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeSchedule(t, createResp)
+
+	update := map[string]any{
+		"working_days": []string{"Friday", "Saturday"},
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), update)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	fetched := decodeSchedule(t, getResp)
+	if len(fetched.WorkingDays) != 2 {
+		t.Errorf("expected 2 working days after update, got %d", len(fetched.WorkingDays))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testUpdateTimeZone(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Update Timezone")
+	createResp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeSchedule(t, createResp)
+
+	update := map[string]any{"time_zone": "America/New_York"}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), update)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	fetched := decodeSchedule(t, getResp)
+	if fetched.TimeZone != "America/New_York" {
+		t.Errorf("expected timezone America/New_York, got %s", fetched.TimeZone)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testUpdateAddExceptions(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Add Exceptions")
+	req["exceptions"] = []string{}
+	createResp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeSchedule(t, createResp)
+
+	update := map[string]any{
+		"exceptions": []string{"2025-12-25", "2025-12-26"},
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), update)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	fetched := decodeSchedule(t, getResp)
+	if len(fetched.Exceptions) != 2 {
+		t.Errorf("expected 2 exceptions after update, got %d", len(fetched.Exceptions))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testUpdateRemoveExceptions(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Remove Exceptions")
+	req["exceptions"] = []string{"2025-12-25", "2025-12-26"}
+	createResp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeSchedule(t, createResp)
+
+	update := map[string]any{
+		"exceptions": []string{},
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), update)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	fetched := decodeSchedule(t, getResp)
+	if len(fetched.Exceptions) != 0 {
+		t.Errorf("expected 0 exceptions after update, got %d", len(fetched.Exceptions))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testUpdateAllFieldsAtOnce(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Update All Fields")
+	createResp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeSchedule(t, createResp)
+
+	update := map[string]any{
+		"name":                         "Completely Updated Branch",
+		"city":                         "Haifa",
+		"address":                      "New Address 123",
+		"working_days":                 []string{"Sunday", "Monday"},
+		"start_of_day":                 "08:00",
+		"end_of_day":                   "20:00",
+		"time_zone":                    "America/New_York",
+		"default_meeting_duration_min": 45,
+		"default_break_duration_min":   15,
+		"max_participants_per_slot":    10,
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), update)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	fetched := decodeSchedule(t, getResp)
+	if fetched.Name != "Completely Updated Branch" {
+		t.Errorf("expected updated name, got %s", fetched.Name)
+	}
+	if fetched.City != "Haifa" {
+		t.Errorf("expected city Haifa, got %s", fetched.City)
+	}
+	if fetched.StartOfDay != "08:00" {
+		t.Errorf("expected start 08:00, got %s", fetched.StartOfDay)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testUpdateOnlyName(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Original Name")
+	createResp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeSchedule(t, createResp)
+
+	update := map[string]any{"name": "New Name Only"}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), update)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	fetched := decodeSchedule(t, getResp)
+	if fetched.Name != "New Name Only" {
+		t.Errorf("expected name 'New Name Only', got %s", fetched.Name)
+	}
+
+	if fetched.City != created.City {
+		t.Errorf("city should not change, was %s, now %s", created.City, fetched.City)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testUpdateOnlyTimeRange(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	req := createValidSchedule("Time Range Update")
+	createResp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeSchedule(t, createResp)
+
+	update := map[string]any{
+		"start_of_day": "07:00",
+		"end_of_day":   "21:00",
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), update)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	fetched := decodeSchedule(t, getResp)
+	if fetched.StartOfDay != "07:00" || fetched.EndOfDay != "21:00" {
+		t.Errorf("expected time range 07:00-21:00, got %s-%s", fetched.StartOfDay, fetched.EndOfDay)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 }
