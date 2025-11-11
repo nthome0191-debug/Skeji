@@ -17,11 +17,35 @@ type mockBusinessUnitService struct {
 	getAllFunc func(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error)
 }
 
+func (m *mockBusinessUnitService) Create(ctx context.Context, bu *model.BusinessUnit) error {
+	return nil
+}
+
+func (m *mockBusinessUnitService) GetByID(ctx context.Context, id string) (*model.BusinessUnit, error) {
+	return nil, nil
+}
+
 func (m *mockBusinessUnitService) GetAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error) {
 	if m.getAllFunc != nil {
 		return m.getAllFunc(ctx, limit, offset)
 	}
 	return []*model.BusinessUnit{}, 0, nil
+}
+
+func (m *mockBusinessUnitService) Update(ctx context.Context, id string, updates *model.BusinessUnitUpdate) error {
+	return nil
+}
+
+func (m *mockBusinessUnitService) Delete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *mockBusinessUnitService) GetByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {
+	return nil, nil
+}
+
+func (m *mockBusinessUnitService) Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error) {
+	return nil, nil
 }
 
 func TestGetAll_InvalidQueryParameters(t *testing.T) {

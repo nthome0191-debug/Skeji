@@ -76,8 +76,12 @@ test-unit:
 		./pkg/errors/... \
 		./pkg/sanitizer/... \
 		./pkg/locale/... \
+		./pkg/model/... \
 		./internal/businessunits/validator/... \
+		./internal/businessunits/service/... \
+		./internal/businessunits/handler/... \
 		./internal/schedules/validator/... \
+		./internal/schedules/service/... \
 		-count=1
 	@echo "✅ All unit tests passed."
 
@@ -87,8 +91,12 @@ test-unit-verbose:
 		./pkg/errors/... \
 		./pkg/sanitizer/... \
 		./pkg/locale/... \
+		./pkg/model/... \
 		./internal/businessunits/validator/... \
+		./internal/businessunits/service/... \
+		./internal/businessunits/handler/... \
 		./internal/schedules/validator/... \
+		./internal/schedules/service/... \
 		-v \
 		-count=1
 	@echo "✅ All unit tests passed."
@@ -99,8 +107,12 @@ test-unit-coverage:
 		./pkg/errors/... \
 		./pkg/sanitizer/... \
 		./pkg/locale/... \
+		./pkg/model/... \
 		./internal/businessunits/validator/... \
+		./internal/businessunits/service/... \
+		./internal/businessunits/handler/... \
 		./internal/schedules/validator/... \
+		./internal/schedules/service/... \
 		-cover \
 		-coverprofile=coverage.out \
 		-count=1

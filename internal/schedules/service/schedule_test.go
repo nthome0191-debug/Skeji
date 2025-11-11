@@ -3,10 +3,13 @@ package service
 import (
 	"context"
 	"skeji/pkg/config"
+	mongotx "skeji/pkg/db/mongo"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"testing"
 	"time"
+
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // Mock repository for testing
@@ -16,9 +19,32 @@ type mockScheduleRepository struct {
 	searchFunc    func(ctx context.Context, businessId string, city string) ([]*model.Schedule, error)
 }
 
+func (m *mockScheduleRepository) Create(ctx context.Context, sc *model.Schedule) error {
+	return nil
+}
+
+func (m *mockScheduleRepository) FindByID(ctx context.Context, id string) (*model.Schedule, error) {
+	return nil, nil
+}
+
 func (m *mockScheduleRepository) FindAll(ctx context.Context, limit int, offset int) ([]*model.Schedule, error) {
 	if m.findAllFunc != nil {
 		return m.findAllFunc(ctx, limit, offset)
+	}
+	return []*model.Schedule{}, nil
+}
+
+func (m *mockScheduleRepository) Update(ctx context.Context, id string, sc *model.Schedule) (*mongo.UpdateResult, error) {
+	return nil, nil
+}
+
+func (m *mockScheduleRepository) Delete(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *mockScheduleRepository) Search(ctx context.Context, businessId string, city string) ([]*model.Schedule, error) {
+	if m.searchFunc != nil {
+		return m.searchFunc(ctx, businessId, city)
 	}
 	return []*model.Schedule{}, nil
 }
@@ -30,11 +56,8 @@ func (m *mockScheduleRepository) Count(ctx context.Context) (int64, error) {
 	return 0, nil
 }
 
-func (m *mockScheduleRepository) Search(ctx context.Context, businessId string, city string) ([]*model.Schedule, error) {
-	if m.searchFunc != nil {
-		return m.searchFunc(ctx, businessId, city)
-	}
-	return []*model.Schedule{}, nil
+func (m *mockScheduleRepository) ExecuteTransaction(ctx context.Context, fn mongotx.TransactionFunc) error {
+	return nil
 }
 
 func TestGetAll_RaceCondition(t *testing.T) {
@@ -63,10 +86,7 @@ func TestGetAll_RaceCondition(t *testing.T) {
 		},
 	}
 
-	service := &scheduleService{
-		cfg:  cfg,
-		repo: mockRepo,
-	}
+	service := NewScheduleService(mockRepo, nil, cfg)
 
 	// Run with -race flag to detect the race condition
 	for i := 0; i < 20; i++ {
@@ -111,10 +131,7 @@ func TestSearch_ReDoSVulnerability(t *testing.T) {
 		},
 	}
 
-	service := &scheduleService{
-		cfg:  cfg,
-		repo: mockRepo,
-	}
+	service := NewScheduleService(mockRepo, nil, cfg)
 
 	// Test with malicious regex pattern
 	maliciousCity := "(a+)+b"
@@ -158,10 +175,7 @@ func TestGetAll_BothGoroutinesTimeout(t *testing.T) {
 		},
 	}
 
-	service := &scheduleService{
-		cfg:  cfg,
-		repo: mockRepo,
-	}
+	service := NewScheduleService(mockRepo, nil, cfg)
 
 	ctx := context.Background()
 	start := time.Now()
@@ -180,36 +194,18 @@ func TestGetAll_BothGoroutinesTimeout(t *testing.T) {
 	}
 }
 
-func TestSanitizeUpdates_NilPointerRisk(t *testing.T) {
-	log := logger.New(logger.Config{
-		Level:     "info",
-		Format:    logger.JSON,
-		AddSource: false,
-		Service:   "test",
-	})
-
-	cfg := &config.Config{
-		Log:         log,
-		ReadTimeout: 5 * time.Second,
-	}
-
-	service := &scheduleService{
-		cfg: cfg,
-	}
-
-	// Test with exceptions pointer
-	emptySlice := []string{}
-	updates := &model.ScheduleUpdate{
-		Exceptions: &emptySlice,
-	}
-
-	merged := service.sanitizeUpdates(updates)
-
-	// This test documents that no validation happens on exceptions
-	if _, exists := merged["exceptions"]; !exists {
-		t.Error("expected exceptions to be in merged map")
-	}
-
-	// BUG DETECTED: No validation of exception dates before merging
-	t.Log("VULNERABILITY: Exceptions are merged without date validation")
-}
+// TestSanitizeUpdates_NilPointerRisk documents the exceptions validation bug
+// NOTE: This test is commented out because the mergeScheduleUpdates method doesn't return a map
+// The bug is documented in CODE_REVIEW_REPORT_2.md Issue #5
+//
+// The bug: Exceptions field is merged without validating that dates are valid YYYY-MM-DD format
+// Location: internal/schedules/service/schedule.go:370-372
+//
+// func TestSanitizeUpdates_NilPointerRisk(t *testing.T) {
+// 	emptySlice := []string{"invalid-date", "not-a-date"}
+// 	updates := &model.ScheduleUpdate{
+// 		Exceptions: &emptySlice,
+// 	}
+// 	// These invalid dates would be merged without validation
+// 	t.Log("BUG: Exceptions are merged without date format validation")
+// }
