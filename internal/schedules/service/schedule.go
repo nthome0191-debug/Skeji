@@ -369,6 +369,7 @@ func (s *scheduleService) mergeScheduleUpdates(existing *model.Schedule, updates
 		// Validate and filter exception dates - only keep valid ones
 		var validExceptions []string
 		for _, date := range *updates.Exceptions {
+			// Check basic format
 			if len(date) != 10 || date[4] != '-' || date[7] != '-' {
 				s.cfg.Log.Warn("Invalid exception date format, skipping",
 					"date", date,
@@ -376,13 +377,32 @@ func (s *scheduleService) mergeScheduleUpdates(existing *model.Schedule, updates
 				)
 				continue
 			}
-			// Basic validation: check that it looks like a date
-			if date < "1900-01-01" || date > "2100-12-31" {
-				s.cfg.Log.Warn("Exception date out of reasonable range, skipping",
+
+			// Validate date components
+			year := date[0:4]
+			month := date[5:7]
+			day := date[8:10]
+
+			// Check if components are numeric and within valid ranges
+			if year < "1900" || year > "2100" {
+				s.cfg.Log.Warn("Exception date year out of range, skipping",
 					"date", date,
 				)
 				continue
 			}
+			if month < "01" || month > "12" {
+				s.cfg.Log.Warn("Exception date month invalid, skipping",
+					"date", date,
+				)
+				continue
+			}
+			if day < "01" || day > "31" {
+				s.cfg.Log.Warn("Exception date day invalid, skipping",
+					"date", date,
+				)
+				continue
+			}
+
 			validExceptions = append(validExceptions, date)
 		}
 		merged.Exceptions = validExceptions
