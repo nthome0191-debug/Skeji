@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	scheduleserrors "skeji/internal/schedules/errors"
 	"skeji/pkg/config"
 	mongotx "skeji/pkg/db/mongo"
@@ -185,6 +186,15 @@ func (r *mongoScheduleRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// escapeRegexSpecialChars escapes special regex characters to prevent ReDoS attacks
+func escapeRegexSpecialChars(s string) string {
+	// Escape special regex characters: . * + ? ^ $ ( ) [ ] { } | \
+	specialChars := regexp.MustCompile(`[.*+?^$()[\]{}|\\]`)
+	return specialChars.ReplaceAllStringFunc(s, func(match string) string {
+		return "\\" + match
+	})
+}
+
 func (r *mongoScheduleRepository) Search(ctx context.Context, businessId string, city string) ([]*model.Schedule, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
@@ -194,7 +204,9 @@ func (r *mongoScheduleRepository) Search(ctx context.Context, businessId string,
 		filter["business_id"] = businessId
 	}
 	if city != "" {
-		filter["city"] = bson.M{"$regex": city, "$options": "i"}
+		// Escape special regex characters to prevent ReDoS attacks
+		escapedCity := escapeRegexSpecialChars(city)
+		filter["city"] = bson.M{"$regex": escapedCity, "$options": "i"}
 	}
 
 	const maxSearchResults = 1000
