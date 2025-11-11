@@ -1253,11 +1253,11 @@ func testPostWithMultipleSocialMediaURLs(t *testing.T) {
 	}
 
 	expectedURLs := map[string]bool{
-		"https://example.com":                       true,
-		"https://facebook.com/businesspage":         true,
-		"https://instagram.com/businessprofile":     true,
-		"https://twitter.com/businesshandle":        true,
-		"https://linkedin.com/company/business":     true,
+		"https://example.com":                   true,
+		"https://facebook.com/businesspage":     true,
+		"https://instagram.com/businessprofile": true,
+		"https://twitter.com/businesshandle":    true,
+		"https://linkedin.com/company/business": true,
 	}
 
 	for _, url := range created.WebsiteURLs {
@@ -1273,21 +1273,19 @@ func testPostWithURLNormalization(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("URL Normalization Test", "+972523370")
 	bu["website_urls"] = []string{
-		"https://Example.COM/path",                           // Should lowercase domain
-		"https://www.example.com",                            // Should remove www
-		"https://example.com/path?utm_source=test&param=val", // Should remove UTM params
-		"https://example.com/path/",                          // Should remove trailing slash
+		"https://Example.COM/path",
+		"https://www.example.com",
+		"https://example.com/path?utm_source=test&param=val",
+		"https://example.com/path/",
 	}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
-	// URLs should be normalized
 	if len(created.WebsiteURLs) < 1 {
 		t.Errorf("expected at least 1 normalized URL, got %d", len(created.WebsiteURLs))
 	}
 
-	// Check that URLs are properly normalized (lowercase, no www, no UTM)
 	for _, url := range created.WebsiteURLs {
 		if strings.Contains(url, "www.") {
 			t.Errorf("URL should not contain 'www.': %s", url)
@@ -1305,16 +1303,15 @@ func testPostWithDuplicateURLs(t *testing.T) {
 	bu := createValidBusinessUnit("Duplicate URLs Test", "+972523371")
 	bu["website_urls"] = []string{
 		"https://example.com",
-		"https://example.com",        // Exact duplicate
-		"https://Example.com",        // Same after normalization
-		"https://www.example.com",    // Same after removing www
+		"https://example.com",
+		"https://Example.com",
+		"https://www.example.com",
 		"https://facebook.com/page",
 	}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
-	// Duplicates should be removed, expecting 2 unique URLs
 	if len(created.WebsiteURLs) > 3 {
 		t.Logf("Note: Expected deduplication to reduce URLs from 5 to ~2, got %d URLs", len(created.WebsiteURLs))
 		t.Logf("URLs: %v", created.WebsiteURLs)
@@ -1335,7 +1332,6 @@ func testUpdateAddURLs(t *testing.T) {
 		t.Errorf("expected 1 initial URL, got %d", len(created.WebsiteURLs))
 	}
 
-	// Add more URLs
 	updates := map[string]any{
 		"website_urls": []string{
 			"https://example.com",
@@ -1371,7 +1367,6 @@ func testUpdateRemoveAllURLs(t *testing.T) {
 		t.Errorf("expected 2 initial URLs, got %d", len(created.WebsiteURLs))
 	}
 
-	// Clear all URLs
 	updates := map[string]any{
 		"website_urls": []string{},
 	}
@@ -1399,7 +1394,6 @@ func testUpdateReplaceURLs(t *testing.T) {
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
-	// Replace with completely new URLs
 	updates := map[string]any{
 		"website_urls": []string{
 			"https://newexample.com",
@@ -1416,7 +1410,6 @@ func testUpdateReplaceURLs(t *testing.T) {
 		t.Errorf("expected 2 URLs after replacement, got %d", len(fetched.WebsiteURLs))
 	}
 
-	// Verify old URLs are gone and new ones are present
 	urlMap := make(map[string]bool)
 	for _, url := range fetched.WebsiteURLs {
 		urlMap[url] = true
@@ -1442,13 +1435,12 @@ func testPostWithMixedValidInvalidURLs(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Mixed URLs Test", "+972523375")
 	bu["website_urls"] = []string{
-		"https://example.com",  // Valid
-		"http://invalid.com",   // Invalid (not https)
-		"https://valid.com",    // Valid
-		"not-a-url",            // Invalid
+		"https://example.com",
+		"http://invalid.com",
+		"https://valid.com",
+		"not-a-url",
 	}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	// Should fail validation because of invalid URLs
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for mixed valid/invalid URLs, got %d", resp.StatusCode)
 	}
