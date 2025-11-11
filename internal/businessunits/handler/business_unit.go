@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"skeji/internal/businessunits/service"
+	apperrors "skeji/pkg/errors"
 	httputil "skeji/pkg/http"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
@@ -67,8 +69,28 @@ func (h *BusinessUnitHandler) GetByID(w http.ResponseWriter, r *http.Request, ps
 
 func (h *BusinessUnitHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
-	limit, _ := strconv.Atoi(query.Get("limit"))
-	offset, _ := strconv.Atoi(query.Get("offset"))
+
+	// Validate limit parameter
+	limit := 0
+	if limitStr := query.Get("limit"); limitStr != "" {
+		var err error
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid limit parameter: %s", limitStr)))
+			return
+		}
+	}
+
+	// Validate offset parameter
+	offset := 0
+	if offsetStr := query.Get("offset"); offsetStr != "" {
+		var err error
+		offset, err = strconv.Atoi(offsetStr)
+		if err != nil {
+			httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid offset parameter: %s", offsetStr)))
+			return
+		}
+	}
 
 	units, totalCount, err := h.service.GetAll(r.Context(), limit, offset)
 	if err != nil {
