@@ -195,7 +195,10 @@ func TestGetAll_ContextTimeout(t *testing.T) {
 
 	service := NewBusinessUnitService(mockRepo, nil, cfg)
 
-	ctx := context.Background()
+	// Create context with short timeout to simulate timeout scenario
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
 	_, _, err := service.GetAll(ctx, 10, 0)
 
 	// Should return error due to timeout

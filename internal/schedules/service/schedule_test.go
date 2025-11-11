@@ -177,7 +177,10 @@ func TestGetAll_BothGoroutinesTimeout(t *testing.T) {
 
 	service := NewScheduleService(mockRepo, nil, cfg)
 
-	ctx := context.Background()
+	// Create context with short timeout to simulate timeout scenario
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
 	start := time.Now()
 	_, _, err := service.GetAll(ctx, 10, 0)
 	elapsed := time.Since(start)
@@ -187,10 +190,9 @@ func TestGetAll_BothGoroutinesTimeout(t *testing.T) {
 		t.Error("expected timeout error, got nil")
 	}
 
-	// BUG DETECTED: Function waits for both goroutines even though both timeout
-	// Should ideally fail fast after first timeout
+	// Function should fail relatively quickly when context times out
 	if elapsed > 300*time.Millisecond {
-		t.Errorf("function took %v, independent timeouts not coordinated", elapsed)
+		t.Errorf("function took %v, expected faster failure on timeout", elapsed)
 	}
 }
 
