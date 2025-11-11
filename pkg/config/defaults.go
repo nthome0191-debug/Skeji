@@ -3,6 +3,7 @@ package config
 import "time"
 
 type Weekday string
+type BookingStatus string
 
 const (
 	Sunday    Weekday = "sunday"
@@ -12,6 +13,10 @@ const (
 	Thursday  Weekday = "thursday"
 	Friday    Weekday = "friday"
 	Saturday  Weekday = "saturday"
+
+	Pending   BookingStatus = "pending"
+	Confirmed BookingStatus = "confirmed"
+	Cancelled BookingStatus = "canceled"
 )
 
 const (

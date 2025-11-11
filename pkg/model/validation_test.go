@@ -179,15 +179,15 @@ func TestBooking_StatusTransitions(t *testing.T) {
 		StartTime:    now,
 		EndTime:      later,
 		Capacity:     1,
-		Participants: []string{"+972541234567"},
+		Participants: map[string]string{"a": "+972541234567"},
 		Status:       "pending",
-		ManagedBy:    "+972541234567",
+		ManagedBy:    map[string]string{"b": "+972541234569"},
 	}
 
-	validStatuses := []string{"pending", "confirmed", "cancelled", "completed"}
+	validStatuses := []config.BookingStatus{config.Pending, config.Cancelled, config.Confirmed}
 
 	for _, status := range validStatuses {
-		t.Run("status_"+status, func(t *testing.T) {
+		t.Run("status_"+string(status), func(t *testing.T) {
 			booking.Status = status
 			// In real code, validator would check this
 			t.Logf("Booking status: %s is valid", status)
@@ -209,8 +209,8 @@ func TestBooking_StatusTransitions(t *testing.T) {
 
 func TestScheduleUpdate_PartialUpdates(t *testing.T) {
 	tests := []struct {
-		name   string
-		update *ScheduleUpdate
+		name        string
+		update      *ScheduleUpdate
 		description string
 	}{
 		{
@@ -235,8 +235,8 @@ func TestScheduleUpdate_PartialUpdates(t *testing.T) {
 			description: "partial update with only working days",
 		},
 		{
-			name:   "empty update",
-			update: &ScheduleUpdate{},
+			name:        "empty update",
+			update:      &ScheduleUpdate{},
 			description: "empty update should be allowed (no-op)",
 		},
 	}
@@ -292,9 +292,9 @@ func TestBooking_TimeValidation(t *testing.T) {
 				StartTime:    tt.startTime,
 				EndTime:      tt.endTime,
 				Capacity:     1,
-				Participants: []string{"+972541234567"},
-				Status:       "pending",
-				ManagedBy:    "+972541234567",
+				Participants: map[string]string{"m": "+972541234567"},
+				Status:       config.Pending,
+				ManagedBy:    map[string]string{"l": "+972541234567"},
 			}
 
 			// Document validation expectations

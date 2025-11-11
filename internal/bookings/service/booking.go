@@ -48,7 +48,6 @@ func (s *bookingService) Create(ctx context.Context, booking *model.Booking) err
 	s.sanitize(booking)
 	s.applyDefaultsForNewCreatedBooking(booking)
 
-	// todo: validate it has start time and end time!!! not empty
 	if err := s.validator.Validate(booking); err != nil {
 		s.cfg.Log.Warn("Booking validation failed", "error", err)
 		return apperrors.Validation("Booking validation failed", map[string]any{"error": err.Error()})
@@ -90,7 +89,6 @@ func (s *bookingService) Create(ctx context.Context, booking *model.Booking) err
 	return nil
 }
 
-// GetByID retrieves a single booking by ID
 func (s *bookingService) GetByID(ctx context.Context, id string) (*model.Booking, error) {
 	if id == "" {
 		return nil, apperrors.InvalidInput("Booking ID cannot be empty")
@@ -110,7 +108,6 @@ func (s *bookingService) GetByID(ctx context.Context, id string) (*model.Booking
 	return booking, nil
 }
 
-// GetAll retrieves bookings with pagination
 func (s *bookingService) GetAll(ctx context.Context, limit int, offset int) ([]*model.Booking, int64, error) {
 	if limit <= 0 {
 		limit = 10
@@ -157,7 +154,6 @@ func (s *bookingService) GetAll(ctx context.Context, limit int, offset int) ([]*
 	return bookings, count, nil
 }
 
-// Update modifies an existing booking safely
 func (s *bookingService) Update(ctx context.Context, id string, updates *model.BookingUpdate) error {
 	if id == "" {
 		return apperrors.InvalidInput("Booking ID cannot be empty")
@@ -187,7 +183,7 @@ func (s *bookingService) Update(ctx context.Context, id string, updates *model.B
 	}
 
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-		// Prevent overlapping after update
+
 		existingBookings, err := s.repo.FindByBusinessAndSchedule(sessCtx, merged.BusinessID, merged.ScheduleID, &merged.StartTime, &merged.EndTime)
 		if err != nil {
 			return apperrors.Internal("Failed to check for overlapping bookings", err)
@@ -218,7 +214,6 @@ func (s *bookingService) Update(ctx context.Context, id string, updates *model.B
 	return nil
 }
 
-// Delete removes a booking by ID
 func (s *bookingService) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return apperrors.InvalidInput("Booking ID cannot be empty")
@@ -244,7 +239,6 @@ func (s *bookingService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// SearchBySchedule finds bookings in a specific schedule and time range
 func (s *bookingService) SearchBySchedule(ctx context.Context, businessID string, scheduleID string, startTime, endTime *time.Time) ([]*model.Booking, error) {
 	if businessID == "" || scheduleID == "" {
 		return nil, apperrors.InvalidInput("BusinessID and ScheduleID are required")
@@ -282,14 +276,10 @@ func (s *bookingService) sanitize(b *model.Booking) {
 
 func (s *bookingService) applyDefaultsForNewCreatedBooking(b *model.Booking) {
 	if b.Status == "" {
-		b.Status = "pending" // todo: enum
+		b.Status = config.Pending
 	}
 	if b.Capacity == 0 {
-		if len(b.Participants) > 1 {
-			b.Capacity = len(b.Participants)
-		} else {
-			b.Capacity = 1
-		}
+		b.Capacity = max(len(b.Participants), 1)
 	}
 }
 
