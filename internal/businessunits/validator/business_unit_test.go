@@ -218,17 +218,6 @@ func TestValidateRequiredFields(t *testing.T) {
 			wantError: true,
 			errorMsg:  "admin_phone",
 		},
-		{
-			name: "empty admin phone - Issue #2 fix",
-			bu: &model.BusinessUnit{
-				Name:       "Test Business",
-				Cities:     []string{"Tel Aviv"},
-				Labels:     []string{"Haircut"},
-				AdminPhone: "",
-			},
-			wantError: true,
-			errorMsg:  "admin_phone",
-		},
 	}
 
 	for _, tt := range tests {

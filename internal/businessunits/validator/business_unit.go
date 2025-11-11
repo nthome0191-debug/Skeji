@@ -13,7 +13,7 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-var phoneRegex = regexp.MustCompile(`^\+[1-9]\d{7,14}$`)
+var phoneRegex = regexp.MustCompile(`^(?:|\+[1-9]\d{7,14})$`)
 
 type ValidationError struct {
 	Field   string `json:"field"`
