@@ -11,38 +11,36 @@ import (
 )
 
 const (
-	BookingsServiceName = "bookings-integration-tests"
-	BookingsTableName   = "bookings"
+	ServiceName = "bookings-integration-tests"
+	TableName   = "bookings"
 )
 
 var (
-	bookingsCfg        *config.Config
-	bookingsHTTPClient *common.Client
+	cfg        *config.Config
+	httpClient *common.Client
 )
 
 func TestMain(t *testing.T) {
-	setupBookings()
-	testBookingsGet(t)
-	testBookingsPost(t)
-	testBookingsUpdate(t)
-	testBookingsDelete(t)
-	teardownBookings()
+	setup()
+	testGet(t)
+	testPost(t)
+	testUpdate(t)
+	testDelete(t)
+	teardown()
 }
 
-// --- Setup / Teardown ---
-
-func setupBookings() {
-	bookingsCfg = config.Load(BookingsServiceName)
+func setup() {
+	cfg = config.Load(ServiceName)
 
 	serverURL := os.Getenv("TEST_SERVER_URL")
 	if serverURL == "" {
 		serverURL = "http://localhost:8080"
 	}
-	bookingsHTTPClient = common.NewClient(serverURL)
+	httpClient = common.NewClient(serverURL)
 }
 
-func teardownBookings() {
-	bookingsCfg.GracefulShutdown()
+func teardown() {
+	cfg.GracefulShutdown()
 }
 
 // --- Helpers ---
@@ -100,51 +98,47 @@ func decodeBookingsPaginated(t *testing.T, resp *common.Response) ([]model.Booki
 	return result.Data, result.TotalCount, result.Limit, result.Offset
 }
 
-// --- Tests ---
-
-func testBookingsGet(t *testing.T) {
-	testBookingGetEmptyTable(t)
-	testBookingGetAllPaginatedEmpty(t)
-	testBookingCreateAndGetByID(t)
-	testBookingGetInvalidID(t)
-	testBookingSearchEmpty(t)
-	testBookingSearchRange(t)
+func testGet(t *testing.T) {
+	testGetEmptyTable(t)
+	testGetAllPaginatedEmpty(t)
+	testCreateAndGetByID(t)
+	testGetInvalidID(t)
+	testSearchEmpty(t)
+	testSearchRange(t)
 }
 
-func testBookingsPost(t *testing.T) {
-	testBookingCreateValid(t)
-	testBookingCreateInvalidTimeRange(t)
-	testBookingCreateOverlapConflict(t)
-	testBookingCreateInvalidParticipantFormat(t)
-	testBookingCreateMalformedJSON(t)
+func testPost(t *testing.T) {
+	testCreateValid(t)
+	testCreateInvalidTimeRange(t)
+	testCreateOverlapConflict(t)
+	testCreateInvalidParticipantFormat(t)
+	testCreateMalformedJSON(t)
 }
 
-func testBookingsUpdate(t *testing.T) {
-	testBookingUpdateValid(t)
-	testBookingUpdateInvalidID(t)
-	testBookingUpdateTimeOverlap(t)
-	testBookingUpdateMalformedJSON(t)
+func testUpdate(t *testing.T) {
+	testUpdateValid(t)
+	testUpdateInvalidID(t)
+	testUpdateTimeOverlap(t)
+	testUpdateMalformedJSON(t)
 }
 
-func testBookingsDelete(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
-	testBookingDeleteNonExisting(t)
-	testBookingDeleteInvalidID(t)
-	testBookingCreateAndDelete(t)
-	testBookingDoubleDelete(t)
+func testDelete(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	testDeleteNonExisting(t)
+	testDeleteInvalidID(t)
+	testCreateAndDelete(t)
+	testDoubleDelete(t)
 }
 
-// --- Individual Test Cases ---
-
-func testBookingGetEmptyTable(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
-	resp := bookingsHTTPClient.GET(t, "/api/v1/bookings?id=507f1f77bcf86cd799439011")
+func testGetEmptyTable(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	resp := httpClient.GET(t, "/api/v1/bookings/id=507f1f77bcf86cd799439011")
 	common.AssertStatusCode(t, resp, 404)
 }
 
-func testBookingGetAllPaginatedEmpty(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
-	resp := bookingsHTTPClient.GET(t, "/api/v1/bookings?limit=10&offset=0")
+func testGetAllPaginatedEmpty(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	resp := httpClient.GET(t, "/api/v1/bookings?limit=10&offset=0")
 	common.AssertStatusCode(t, resp, 200)
 	data, total, _, _ := decodeBookingsPaginated(t, resp)
 	if total != 0 || len(data) != 0 {
@@ -152,13 +146,13 @@ func testBookingGetAllPaginatedEmpty(t *testing.T) {
 	}
 }
 
-func testBookingCreateValid(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
+func testCreateValid(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Haircut", start, end)
 
-	resp := bookingsHTTPClient.POST(t, "/api/v1/bookings", payload)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBooking(t, resp)
 	if created.ID == "" {
@@ -167,83 +161,83 @@ func testBookingCreateValid(t *testing.T) {
 	if created.ServiceLabel != "Haircut" {
 		t.Errorf("expected service_label 'Haircut', got %s", created.ServiceLabel)
 	}
-	bookingsHTTPClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 }
 
-func testBookingCreateInvalidTimeRange(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
+func testCreateInvalidTimeRange(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	start := time.Now().Add(2 * time.Hour)
 	end := start.Add(-1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Invalid Time", start, end)
 
-	resp := bookingsHTTPClient.POST(t, "/api/v1/bookings", payload)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, resp, 422)
-	common.AssertContains(t, resp, "end_time")
+	common.AssertContains(t, resp, "EndTime")
 }
 
-func testBookingCreateOverlapConflict(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
+func testCreateOverlapConflict(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	now := time.Now().Add(1 * time.Hour)
-	payload1 := createValidBooking("b1", "s1", "Haircut", now, now.Add(1*time.Hour))
-	payload2 := createValidBooking("b1", "s1", "Haircut 2", now.Add(30*time.Minute), now.Add(2*time.Hour))
+	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Haircut", now, now.Add(1*time.Hour))
+	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Haircut 2", now.Add(30*time.Minute), now.Add(2*time.Hour))
 
-	resp1 := bookingsHTTPClient.POST(t, "/api/v1/bookings", payload1)
+	resp1 := httpClient.POST(t, "/api/v1/bookings", payload1)
 	common.AssertStatusCode(t, resp1, 201)
-	resp2 := bookingsHTTPClient.POST(t, "/api/v1/bookings", payload2)
+	resp2 := httpClient.POST(t, "/api/v1/bookings", payload2)
 	if resp2.StatusCode != 409 && resp2.StatusCode != 400 {
 		t.Errorf("expected conflict or validation error, got %d", resp2.StatusCode)
 	}
 }
 
-func testBookingCreateInvalidParticipantFormat(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
+func testCreateInvalidParticipantFormat(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
-	payload := createValidBooking("b1", "s1", "Bad Participants", start, end)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Bad Participants", start, end)
 	payload["participants"] = map[string]string{
 		"notaphone": "Invalid Name",
 	}
 
-	resp := bookingsHTTPClient.POST(t, "/api/v1/bookings", payload)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected 400/422 for invalid participant phone, got %d", resp.StatusCode)
 	}
 }
 
-func testBookingCreateMalformedJSON(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
-	resp := bookingsHTTPClient.POSTRaw(t, "/api/v1/bookings", []byte(`{"bad": json`))
+func testCreateMalformedJSON(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	resp := httpClient.POSTRaw(t, "/api/v1/bookings", []byte(`{"bad": json`))
 	common.AssertStatusCode(t, resp, 400)
 }
 
-func testBookingCreateAndGetByID(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
+func testCreateAndGetByID(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
-	payload := createValidBooking("b1", "s1", "Massage", start, end)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Massage", start, end)
 
-	createResp := bookingsHTTPClient.POST(t, "/api/v1/bookings", payload)
+	createResp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBooking(t, createResp)
 
-	getResp := bookingsHTTPClient.GET(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 	common.AssertStatusCode(t, getResp, 200)
 	fetched := decodeBooking(t, getResp)
 	if fetched.ID != created.ID {
 		t.Errorf("expected same ID, got %s != %s", fetched.ID, created.ID)
 	}
-	bookingsHTTPClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 }
 
-func testBookingGetInvalidID(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
-	resp := bookingsHTTPClient.GET(t, "/api/v1/bookings/id/invalid-id")
+func testGetInvalidID(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	resp := httpClient.GET(t, "/api/v1/bookings/id/invalid-id")
 	common.AssertStatusCode(t, resp, 400)
 }
 
-func testBookingSearchEmpty(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
-	resp := bookingsHTTPClient.GET(t, "/api/v1/bookings/search?business_id=b1&schedule_id=s1")
+func testSearchEmpty(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	resp := httpClient.GET(t, "/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012")
 	common.AssertStatusCode(t, resp, 200)
 	data := decodeBookings(t, resp)
 	if len(data) != 0 {
@@ -251,14 +245,14 @@ func testBookingSearchEmpty(t *testing.T) {
 	}
 }
 
-func testBookingSearchRange(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
+func testSearchRange(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(2 * time.Hour)
-	payload := createValidBooking("b1", "s1", "Range Search", start, end)
-	bookingsHTTPClient.POST(t, "/api/v1/bookings", payload)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Range Search", start, end)
+	httpClient.POST(t, "/api/v1/bookings", payload)
 
-	resp := bookingsHTTPClient.GET(t, fmt.Sprintf("/api/v1/bookings/search?business_id=b1&schedule_id=s1&start_time=%s&end_time=%s",
+	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012&start_time=%s&end_time=%s",
 		start.Format(time.RFC3339), end.Format(time.RFC3339)))
 	common.AssertStatusCode(t, resp, 200)
 	data := decodeBookings(t, resp)
@@ -267,46 +261,46 @@ func testBookingSearchRange(t *testing.T) {
 	}
 }
 
-func testBookingUpdateValid(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
+func testUpdateValid(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
-	payload := createValidBooking("b1", "s1", "Update Test", start, end)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Update Test", start, end)
 
-	createResp := bookingsHTTPClient.POST(t, "/api/v1/bookings", payload)
+	createResp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBooking(t, createResp)
 
 	update := map[string]any{
 		"service_label": "Updated Label",
 	}
-	resp := bookingsHTTPClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
 	common.AssertStatusCode(t, resp, 204)
 
-	getResp := bookingsHTTPClient.GET(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 	fetched := decodeBooking(t, getResp)
 	if fetched.ServiceLabel != "Updated Label" {
 		t.Errorf("expected updated label, got %s", fetched.ServiceLabel)
 	}
 }
 
-func testBookingUpdateInvalidID(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
+func testUpdateInvalidID(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	update := map[string]any{"service_label": "New Label"}
-	resp := bookingsHTTPClient.PATCH(t, "/api/v1/bookings/id/invalid-id", update)
+	resp := httpClient.PATCH(t, "/api/v1/bookings/id/invalid-id", update)
 	common.AssertStatusCode(t, resp, 400)
 }
 
-func testBookingUpdateTimeOverlap(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
+func testUpdateTimeOverlap(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	now := time.Now().Add(1 * time.Hour)
-	payload1 := createValidBooking("b1", "s1", "First", now, now.Add(1*time.Hour))
-	payload2 := createValidBooking("b1", "s1", "Second", now.Add(2*time.Hour), now.Add(3*time.Hour))
+	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "First", now, now.Add(1*time.Hour))
+	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Second", now.Add(2*time.Hour), now.Add(3*time.Hour))
 
-	resp1 := bookingsHTTPClient.POST(t, "/api/v1/bookings", payload1)
+	resp1 := httpClient.POST(t, "/api/v1/bookings", payload1)
 	common.AssertStatusCode(t, resp1, 201)
 	decodeBooking(t, resp1)
-	resp2 := bookingsHTTPClient.POST(t, "/api/v1/bookings", payload2)
+	resp2 := httpClient.POST(t, "/api/v1/bookings", payload2)
 	common.AssertStatusCode(t, resp2, 201)
 	created2 := decodeBooking(t, resp2)
 
@@ -314,59 +308,59 @@ func testBookingUpdateTimeOverlap(t *testing.T) {
 		"start_time": now.Add(30 * time.Minute).Format(time.RFC3339),
 		"end_time":   now.Add(90 * time.Minute).Format(time.RFC3339),
 	}
-	resp := bookingsHTTPClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created2.ID), update)
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created2.ID), update)
 	if resp.StatusCode != 409 && resp.StatusCode != 400 {
 		t.Errorf("expected conflict for overlapping update, got %d", resp.StatusCode)
 	}
 }
 
-func testBookingUpdateMalformedJSON(t *testing.T) {
-	defer common.ClearTestData(t, bookingsHTTPClient, BookingsTableName)
+func testUpdateMalformedJSON(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
-	payload := createValidBooking("b1", "s1", "Bad JSON Update", start, end)
-	createResp := bookingsHTTPClient.POST(t, "/api/v1/bookings", payload)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Bad JSON Update", start, end)
+	createResp := httpClient.POST(t, "/api/v1/bookings", payload)
 	created := decodeBooking(t, createResp)
 
-	resp := bookingsHTTPClient.PATCHRaw(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), []byte(`{"bad":json`))
+	resp := httpClient.PATCHRaw(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), []byte(`{"bad":json`))
 	common.AssertStatusCode(t, resp, 400)
 }
 
-func testBookingDeleteNonExisting(t *testing.T) {
-	resp := bookingsHTTPClient.DELETE(t, "/api/v1/bookings/id/507f1f77bcf86cd799439011")
+func testDeleteNonExisting(t *testing.T) {
+	resp := httpClient.DELETE(t, "/api/v1/bookings/id/507f1f77bcf86cd799439011")
 	common.AssertStatusCode(t, resp, 404)
 }
 
-func testBookingDeleteInvalidID(t *testing.T) {
-	resp := bookingsHTTPClient.DELETE(t, "/api/v1/bookings/id/invalid-id")
+func testDeleteInvalidID(t *testing.T) {
+	resp := httpClient.DELETE(t, "/api/v1/bookings/id/invalid-id")
 	common.AssertStatusCode(t, resp, 400)
 }
 
-func testBookingCreateAndDelete(t *testing.T) {
+func testCreateAndDelete(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
-	payload := createValidBooking("b1", "s1", "Delete Test", start, end)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Delete Test", start, end)
 
-	createResp := bookingsHTTPClient.POST(t, "/api/v1/bookings", payload)
+	createResp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBooking(t, createResp)
 
-	delResp := bookingsHTTPClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	delResp := httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 	common.AssertStatusCode(t, delResp, 204)
 }
 
-func testBookingDoubleDelete(t *testing.T) {
+func testDoubleDelete(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
-	payload := createValidBooking("b1", "s1", "Double Delete", start, end)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Double Delete", start, end)
 
-	createResp := bookingsHTTPClient.POST(t, "/api/v1/bookings", payload)
+	createResp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBooking(t, createResp)
 
-	delResp := bookingsHTTPClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	delResp := httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 	common.AssertStatusCode(t, delResp, 204)
 
-	delResp2 := bookingsHTTPClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	delResp2 := httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 	common.AssertStatusCode(t, delResp2, 404)
 }

@@ -17,8 +17,8 @@
 	test-integration-app-verbose-business-units \
 	test-integration-schedules \
 	test-integration-app-verbose-schedules
-# 	test-integration-bookings \
-# 	test-integration-app-verbose-bookings \
+	test-integration-bookings \
+	test-integration-app-verbose-bookings \
 # 	test-integration-notifications \
 # 	test-integration-app-verbose-notifications
 
@@ -58,10 +58,10 @@ schedules-up:
 	bash deployment/local/schedules/setup.sh
 	@echo "✅ Schedules service deployed successfully."
 
-# bookings-up:
-# 	@echo "📘 Deploying Bookings service..."
-# 	bash deployment/local/bookings/setup.sh
-# 	@echo "✅ Bookings service deployed successfully."
+bookings-up:
+	@echo "📘 Deploying Bookings service..."
+	bash deployment/local/bookings/setup.sh
+	@echo "✅ Bookings service deployed successfully."
 
 # notifications-up:
 # 	@echo "🔔 Deploying Notifications service..."
@@ -129,7 +129,7 @@ test-integration:
 	@echo "🧪 Running all integration tests sequentially..."
 	make test-integration-business-units
 	make test-integration-schedules
-# 	make test-integration-bookings
+	make test-integration-bookings
 # 	make test-integration-notifications
 	bash test/scripts/setup-infra.sh --clean
 	@echo "✅ All integration tests completed."
@@ -140,7 +140,7 @@ test-integration-app-verbose:
 	@echo "🧪 Running all integration tests (verbose mode)..."
 	make test-integration-app-verbose-business-units
 	make test-integration-app-verbose-schedules
-# 	make test-integration-app-verbose-bookings
+	make test-integration-app-verbose-bookings
 # 	make test-integration-app-verbose-notifications
 	bash test/scripts/setup-infra.sh --clean
 	@echo "✅ All verbose integration tests completed."
@@ -163,13 +163,13 @@ test-integration-app-verbose-schedules:
 	@echo "🧪 Running integration tests (verbose) for Schedules app..."
 	bash test/scripts/run-app-and-tests.sh schedules --verbose
 
-# test-integration-bookings:
-# 	@echo "🧪 Running integration tests for Bookings app..."
-# 	bash test/scripts/run-app-and-tests.sh bookings
+test-integration-bookings:
+	@echo "🧪 Running integration tests for Bookings app..."
+	bash test/scripts/run-app-and-tests.sh bookings
 
-# test-integration-app-verbose-bookings:
-# 	@echo "🧪 Running integration tests (verbose) for Bookings app..."
-# 	bash test/scripts/run-app-and-tests.sh bookings --verbose
+test-integration-app-verbose-bookings:
+	@echo "🧪 Running integration tests (verbose) for Bookings app..."
+	bash test/scripts/run-app-and-tests.sh bookings --verbose
 
 # test-integration-notifications:
 # 	@echo "🧪 Running integration tests for Notifications app..."

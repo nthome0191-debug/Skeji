@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"skeji/internal/bookings/service"
@@ -159,6 +160,9 @@ func (h *BookingHandler) Search(w http.ResponseWriter, r *http.Request, _ httpro
 		return
 	}
 
+	startStr = strings.ReplaceAll(startStr, " ", "+")
+	endStr = strings.ReplaceAll(endStr, " ", "+")
+
 	var startTime, endTime *time.Time
 	if startStr != "" {
 		if parsed, err := time.Parse(time.RFC3339, startStr); err == nil {
@@ -197,8 +201,9 @@ func (h *BookingHandler) Search(w http.ResponseWriter, r *http.Request, _ httpro
 func (h *BookingHandler) RegisterRoutes(router *httprouter.Router) {
 	router.POST("/api/v1/bookings", h.Create)
 	router.GET("/api/v1/bookings", h.GetAll)
+	router.GET("/api/v1/bookings/search", h.Search)
 	router.GET("/api/v1/bookings/id/:id", h.GetByID)
 	router.PATCH("/api/v1/bookings/id/:id", h.Update)
 	router.DELETE("/api/v1/bookings/id/:id", h.Delete)
-	router.GET("/api/v1/bookings/search", h.Search)
+
 }
