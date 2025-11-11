@@ -727,6 +727,11 @@ func testPostOptionalFieldsBoundaries(t *testing.T) {
 	req1 := createValidSchedule("Meeting Duration Min")
 	req1["default_meeting_duration_min"] = 1
 	resp1 := httpClient.POST(t, "/api/v1/schedules", req1)
+	common.AssertStatusCode(t, resp1, 422)
+
+	req1 = createValidSchedule("Meeting Duration Min")
+	req1["default_meeting_duration_min"] = 5
+	resp1 = httpClient.POST(t, "/api/v1/schedules", req1)
 	common.AssertStatusCode(t, resp1, 201)
 
 	req2 := createValidSchedule("Meeting Duration Max")

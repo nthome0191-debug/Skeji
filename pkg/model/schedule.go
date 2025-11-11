@@ -9,7 +9,7 @@ type Schedule struct {
 	ID                        string           `json:"id,omitempty" bson:"_id,omitempty" validate:"omitempty,mongodb"`
 	BusinessID                string           `json:"business_id" bson:"business_id" validate:"required,mongodb"`
 	Name                      string           `json:"name" bson:"name" validate:"required,min=2,max=100"`
-	City                      string           `json:"city" bson:"city" validate:"required,min=2,max=50"`
+	City                      string           `json:"city" bson:"city" validate:"required,min=2,max=100"`
 	Address                   string           `json:"address" bson:"address" validate:"required,min=2,max=200"`
 	StartOfDay                string           `json:"start_of_day" bson:"start_of_day" validate:"required,valid_time_range"`
 	EndOfDay                  string           `json:"end_of_day" bson:"end_of_day" validate:"required,valid_time_range"`
@@ -24,7 +24,7 @@ type Schedule struct {
 
 type ScheduleUpdate struct {
 	Name                      string           `json:"name,omitempty" validate:"omitempty,min=2,max=100"`
-	City                      string           `json:"city,omitempty" validate:"omitempty,min=2,max=50"`
+	City                      string           `json:"city,omitempty" validate:"omitempty,min=2,max=100"`
 	Address                   string           `json:"address,omitempty" validate:"omitempty,min=2,max=200"`
 	StartOfDay                string           `json:"start_of_day,omitempty" validate:"omitempty,valid_time_range"`
 	EndOfDay                  string           `json:"end_of_day,omitempty" validate:"omitempty,valid_time_range"`
