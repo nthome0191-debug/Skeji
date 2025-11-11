@@ -56,12 +56,8 @@ func TestGetAll_InvalidQueryParameters(t *testing.T) {
 		Service:   "test",
 	})
 
-	// Track what values the service receives
-	var receivedLimit, receivedOffset int
 	mockService := &mockBusinessUnitService{
 		getAllFunc: func(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error) {
-			receivedLimit = limit
-			receivedOffset = offset
 			return []*model.BusinessUnit{}, 0, nil
 		},
 	}
@@ -80,25 +76,25 @@ func TestGetAll_InvalidQueryParameters(t *testing.T) {
 		{
 			name:           "invalid limit - alphabetic",
 			queryString:    "?limit=abc&offset=0",
-			expectHTTPCode: http.StatusOK, // BUG: Should be 400
-			checkValues:    true,
+			expectHTTPCode: http.StatusBadRequest, // Now properly returns 400
+			checkValues:    false,
 		},
 		{
 			name:           "invalid offset - alphabetic",
 			queryString:    "?limit=10&offset=xyz",
-			expectHTTPCode: http.StatusOK, // BUG: Should be 400
-			checkValues:    true,
+			expectHTTPCode: http.StatusBadRequest, // Now properly returns 400
+			checkValues:    false,
 		},
 		{
 			name:           "invalid both parameters",
 			queryString:    "?limit=abc&offset=xyz",
-			expectHTTPCode: http.StatusOK, // BUG: Should be 400
-			checkValues:    true,
+			expectHTTPCode: http.StatusBadRequest, // Now properly returns 400
+			checkValues:    false,
 		},
 		{
 			name:           "negative values",
 			queryString:    "?limit=-10&offset=-5",
-			expectHTTPCode: http.StatusOK,
+			expectHTTPCode: http.StatusOK, // Negative values are normalized to 0
 			checkValues:    false,
 		},
 	}
@@ -114,12 +110,9 @@ func TestGetAll_InvalidQueryParameters(t *testing.T) {
 				t.Errorf("expected status %d, got %d", tt.expectHTTPCode, w.Code)
 			}
 
-			// BUG DETECTED: Invalid input is silently converted to 0
-			if tt.checkValues && tt.expectHTTPCode == http.StatusOK {
-				if receivedLimit != 0 || receivedOffset != 0 {
-					t.Logf("Invalid input converted to: limit=%d, offset=%d", receivedLimit, receivedOffset)
-				}
-				t.Log("BUG DETECTED: Invalid query parameters are silently ignored instead of returning 400 Bad Request")
+			// Verify invalid parameters now return 400 Bad Request (Issue #6 fixed)
+			if tt.expectHTTPCode == http.StatusBadRequest {
+				t.Logf("Successfully rejected invalid input with status 400")
 			}
 		})
 	}
