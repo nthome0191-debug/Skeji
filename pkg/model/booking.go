@@ -12,8 +12,8 @@ type Booking struct {
 	Capacity     int               `json:"capacity" bson:"capacity" validate:"required,min=1,max=200"`
 	Participants map[string]string `json:"participants" bson:"participants" validate:"participants_map"`
 	Status       string            `json:"status" bson:"status" validate:"required,oneof=pending confirmed cancelled completed"`
-	ManagedBy    map[string]string `json:"managed_by" bson:"managed_by" validate:"required,e164"`
-	CreatedAt    time.Time         `json:"created_at" bson:"created_at" validate:"omitempty,participants_map"`
+	ManagedBy    map[string]string `json:"managed_by" bson:"managed_by" validate:"required,participants_map"`
+	CreatedAt    time.Time         `json:"created_at" bson:"created_at" validate:"omitempty"`
 }
 
 type BookingUpdate struct {
@@ -23,5 +23,5 @@ type BookingUpdate struct {
 	Capacity     *int               `json:"capacity,omitempty" validate:"omitempty,min=1,max=200"`
 	Participants *map[string]string `json:"participants,omitempty" validate:"omitempty,participants_map"`
 	Status       string             `json:"status,omitempty" validate:"omitempty,oneof=pending confirmed cancelled completed"`
-	ManagedBy    map[string]string  `json:"managed_by,omitempty" validate:"omitempty,e164,participants_map"`
+	ManagedBy    map[string]string  `json:"managed_by,omitempty" validate:"omitempty,participants_map"`
 }
