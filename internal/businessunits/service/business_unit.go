@@ -196,7 +196,13 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 		}
 		return apperrors.Internal("Failed to check business unit existence", err)
 	}
-
+	if err = s.validator.ValidateUpdate(updates); err != nil {
+		s.cfg.Log.Warn("Business unit update validation failed",
+			"id", id,
+			"error", err,
+		)
+		return apperrors.Validation("Invalid update input", map[string]any{"error": err.Error()})
+	}
 	s.sanitizeUpdate(updates)
 	merged := s.mergeBusinessUnitUpdates(existing, updates)
 	err = s.validator.Validate(merged)
@@ -233,7 +239,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 			}
 		}
 
-		if _, err = s.repo.Update(ctx, id, merged); err != nil {
+		if _, err = s.repo.Update(sessCtx, id, merged); err != nil {
 			s.cfg.Log.Error("Failed to update business unit",
 				"id", id,
 				"error", err,
@@ -371,9 +377,6 @@ func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) 
 	}
 	if updates.AdminPhone != "" {
 		updates.AdminPhone = sanitizer.NormalizePhone(updates.AdminPhone)
-		if updates.AdminPhone == "" {
-			updates.AdminPhone = "invalid_result"
-		}
 	}
 	if updates.Maintainers != nil {
 		normalized := sanitizer.NormalizeMaintainers(*updates.Maintainers)

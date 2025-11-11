@@ -120,6 +120,7 @@ func testPost(t *testing.T) {
 	testPostWithUSPhoneNumber(t)
 	testPostWithSpecialCharacters(t)
 	testPostDuplicateDetection(t)
+	testPostAdminPhoneValidation(t)
 }
 
 func testUpdate(t *testing.T) {
@@ -135,6 +136,7 @@ func testUpdate(t *testing.T) {
 	testUpdatePriorityEdgeCases(t)
 	testUpdateClearOptionalFields(t)
 	testUpdateMalformedJSON(t)
+	testUpdateAdminPhoneValidation(t)
 }
 
 func testDelete(t *testing.T) {
@@ -1150,7 +1152,9 @@ func testUpdatePriorityEdgeCases(t *testing.T) {
 		"priority": -5,
 	}
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error (400 or 422) for negative prioriyty, got %d", resp.StatusCode)
+	}
 	getResp = httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	fetched = decodeBusinessUnit(t, getResp)
 	if fetched.Priority < 0 {
@@ -1219,6 +1223,84 @@ func testUpdateMalformedJSON(t *testing.T) {
 
 	resp = httpClient.PATCHRaw(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), []byte(`not json`))
 	common.AssertStatusCode(t, resp, 400)
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testPostAdminPhoneValidation(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	payload := map[string]any{
+		"name":   "Business Without Phone",
+		"cities": []string{"Tel Aviv"},
+		"labels": []string{"Haircut"},
+	}
+	resp := httpClient.POST(t, "/api/v1/business-units", payload)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error (400 or 422) for missing admin_phone, got %d", resp.StatusCode)
+	}
+	common.AssertContains(t, resp, "AdminPhone")
+
+	payload2 := map[string]any{
+		"name":        "Business With Empty Phone",
+		"cities":      []string{"Tel Aviv"},
+		"labels":      []string{"Haircut"},
+		"admin_phone": "",
+	}
+	resp = httpClient.POST(t, "/api/v1/business-units", payload2)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error (400 or 422) for empty admin_phone, got %d", resp.StatusCode)
+	}
+
+	payload3 := map[string]any{
+		"name":        "Business With Whitespace Phone",
+		"cities":      []string{"Tel Aviv"},
+		"labels":      []string{"Haircut"},
+		"admin_phone": "   ",
+	}
+	resp = httpClient.POST(t, "/api/v1/business-units", payload3)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error (400 or 422) for whitespace-only admin_phone, got %d", resp.StatusCode)
+	}
+}
+
+func testUpdateAdminPhoneValidation(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	bu := createValidBusinessUnit("Admin Phone Update Test", "+972523371")
+	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeBusinessUnit(t, createResp)
+
+	updates3 := map[string]any{
+		"admin_phone": "invalid-phone",
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates3)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error (400 or 422) when updating admin_phone to invalid format, got %d", resp.StatusCode)
+	}
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	common.AssertStatusCode(t, getResp, 200)
+	fetched := decodeBusinessUnit(t, getResp)
+
+	if fetched.AdminPhone != "+972523371" {
+		t.Errorf("expected admin_phone to remain unchanged at '+972523371', got %s", fetched.AdminPhone)
+	}
+
+	updates4 := map[string]any{
+		"admin_phone": "+972501234567",
+	}
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates4)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp = httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	common.AssertStatusCode(t, getResp, 200)
+	fetched = decodeBusinessUnit(t, getResp)
+
+	if fetched.AdminPhone != "+972501234567" {
+		t.Errorf("expected admin_phone to be updated to '+972501234567', got %s", fetched.AdminPhone)
+	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }

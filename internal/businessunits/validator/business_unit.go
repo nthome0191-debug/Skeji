@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"regexp"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
 )
+
+var phoneRegex = regexp.MustCompile(`^(?:|\+[1-9]\d{7,14})$`)
 
 type ValidationError struct {
 	Field   string `json:"field"`
@@ -53,6 +56,12 @@ func NewBusinessUnitValidator(log *logger.Logger) *BusinessUnitValidator {
 		)
 	}
 
+	if err := v.RegisterValidation("valid_phone", validPhoneNumber); err != nil {
+		log.Fatal("Failed to register 'valid_phone' validator",
+			"error", err,
+		)
+	}
+
 	log.Info("Business unit validator initialized successfully")
 
 	return &BusinessUnitValidator{
@@ -80,6 +89,10 @@ func validateSupportedCountry(fl validator.FieldLevel) bool {
 
 func validateUrl(fl validator.FieldLevel) bool {
 	input := strings.TrimSpace(fl.Field().String())
+
+	if input == "" {
+		return true
+	}
 
 	u, err := url.ParseRequestURI(input)
 	if err != nil {
@@ -111,8 +124,24 @@ func validateUrl(fl validator.FieldLevel) bool {
 	return true
 }
 
+func validPhoneNumber(fl validator.FieldLevel) bool {
+	phone := fl.Field().String()
+	return phoneRegex.MatchString(phone)
+}
+
 func (v *BusinessUnitValidator) Validate(bu *model.BusinessUnit) error {
 	if err := v.validate.Struct(bu); err != nil {
+		var validationErrs validator.ValidationErrors
+		if errors.As(err, &validationErrs) {
+			return v.translateValidationErrors(validationErrs)
+		}
+		return err
+	}
+	return nil
+}
+
+func (v *BusinessUnitValidator) ValidateUpdate(update *model.BusinessUnitUpdate) error {
+	if err := v.validate.Struct(update); err != nil {
 		var validationErrs validator.ValidationErrors
 		if errors.As(err, &validationErrs) {
 			return v.translateValidationErrors(validationErrs)

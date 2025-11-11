@@ -1,14 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="${1:-}"
-if [[ -z "$APP_NAME" ]]; then
-  echo "Usage: $0 <app-name> [-v|--verbose]"
-  exit 1
-fi
-
+APP_NAME=""
 VERBOSE=false
-[[ "${2:-}" == "-v" || "${2:-}" == "--verbose" ]] && VERBOSE=true
+TEST_TARGET=""
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            -v|--verbose)
+                VERBOSE=true
+                shift
+                ;;
+            -t|--test)
+                TEST_TARGET="$2"
+                shift 2
+                ;;
+            -*)
+                echo "Unknown flag: $1"
+                echo "Usage: $0 <app-name> [-v|--verbose] [-t|--test <test-target>]"
+                exit 1
+                ;;
+            *)
+                APP_NAME="$1"
+                shift
+                ;;
+        esac
+    done
+
+    if [[ -z "$APP_NAME" ]]; then
+        echo "Usage: $0 <app-name> [-v|--verbose] [-t|--test <test-target>]"
+        exit 1
+    fi
+}
 
 set_colors() {
     RED='\033[0;31m'
@@ -22,7 +46,6 @@ set_vars() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-    # Load .env.test if it exists
     if [[ -f "$PROJECT_ROOT/.env.test" ]]; then
         echo -e "${YELLOW}Loading environment from .env.test${NC}"
         set -a
@@ -51,14 +74,12 @@ start_app() {
     echo -e "${BLUE}=== Starting $APP_NAME ===${NC}"
     local LOG_FILE="/tmp/${APP_NAME}-test.log"
 
-    # Ensure port is free
     if lsof -ti:$TEST_SERVER_PORT &>/dev/null; then
         echo -e "${YELLOW}Port $TEST_SERVER_PORT in use, freeing it...${NC}"
         lsof -ti:$TEST_SERVER_PORT | xargs kill -9 2>/dev/null || true
         sleep 1
     fi
 
-    # Force local Mongo URI to avoid cluster DNS
     export MONGO_URI="mongodb://root:rootpassword@localhost:27017/?directConnection=true&authSource=admin"
     export MONGO_DATABASE_NAME="$TEST_DB_NAME"
     export PORT="$TEST_SERVER_PORT"
@@ -75,9 +96,7 @@ start_app() {
     for _ in {1..30}; do
         if curl -fs "http://localhost:$TEST_SERVER_PORT/health" >/dev/null 2>&1; then
             echo -e "${GREEN}✅ $APP_NAME ready${NC}"
-            # small grace period for listener to stabilize
             sleep 1
-            # verify port actually accepting connections
             for _ in {1..10}; do
                 if nc -z localhost "$TEST_SERVER_PORT" >/dev/null 2>&1; then
                     return
@@ -97,10 +116,18 @@ start_app() {
 run_tests() {
     echo -e "${BLUE}=== Running integration tests for $APP_NAME ===${NC}"
     cd "$PROJECT_ROOT"
+    local test_path="./test/integration/${APP_NAME}/..."
+    local test_cmd="go test -v \"$test_path\" -count=1"
+
+    if [[ -n "$TEST_TARGET" ]]; then
+        echo -e "${YELLOW}Running specific test target: ${TEST_TARGET}${NC}"
+        test_cmd="go test -v \"$test_path\" -run ${TEST_TARGET} -count=1"
+    fi
+
     TEST_SERVER_URL="http://localhost:$TEST_SERVER_PORT" \
     TEST_MONGO_URI="$TEST_MONGO_URI" \
     TEST_DB_NAME="$TEST_DB_NAME" \
-    go test -v "./test/integration/${APP_NAME}/..." -count=1
+    bash -c "$test_cmd"
 }
 
 show_results() {
@@ -130,6 +157,7 @@ cleanup_app() {
 
 main() {
     set_colors
+    parse_args "$@"
     set_vars
     trap cleanup_app EXIT INT TERM
     build_app
