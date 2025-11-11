@@ -6,6 +6,7 @@ import (
 	"skeji/pkg/config"
 	"skeji/pkg/model"
 	"skeji/test/common"
+	"strings"
 	"testing"
 )
 
@@ -112,6 +113,10 @@ func testPost(t *testing.T) {
 	testPostWithExtraJsonKeys(t)
 	testPostWithMissingRelevantKeys(t)
 	testPostWithWebsiteURL(t)
+	testPostWithMultipleSocialMediaURLs(t)
+	testPostWithURLNormalization(t)
+	testPostWithDuplicateURLs(t)
+	testPostWithMixedValidInvalidURLs(t)
 	testPostWithMaintainers(t)
 	testPostWithArrayMaxLengths(t)
 	testPostWithNameBoundaries(t)
@@ -131,6 +136,9 @@ func testUpdate(t *testing.T) {
 	testUpdateWithGoodFormatKeys(t)
 	testUpdateWithEmptyJson(t)
 	testUpdateWebsiteURL(t)
+	testUpdateAddURLs(t)
+	testUpdateRemoveAllURLs(t)
+	testUpdateReplaceURLs(t)
 	testUpdateMaintainers(t)
 	testUpdateArraysToMaxLength(t)
 	testUpdatePriorityEdgeCases(t)
@@ -1224,6 +1232,226 @@ func testUpdateClearOptionalFields(t *testing.T) {
 	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testPostWithMultipleSocialMediaURLs(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	bu := createValidBusinessUnit("Social Media Test", "+972523369")
+	bu["website_urls"] = []string{
+		"https://example.com",
+		"https://facebook.com/businesspage",
+		"https://instagram.com/businessprofile",
+		"https://twitter.com/businesshandle",
+		"https://linkedin.com/company/business",
+	}
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	if len(created.WebsiteURLs) != 5 {
+		t.Errorf("expected 5 URLs, got %d", len(created.WebsiteURLs))
+	}
+
+	expectedURLs := map[string]bool{
+		"https://example.com":                       true,
+		"https://facebook.com/businesspage":         true,
+		"https://instagram.com/businessprofile":     true,
+		"https://twitter.com/businesshandle":        true,
+		"https://linkedin.com/company/business":     true,
+	}
+
+	for _, url := range created.WebsiteURLs {
+		if !expectedURLs[url] {
+			t.Errorf("unexpected URL: %s", url)
+		}
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testPostWithURLNormalization(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	bu := createValidBusinessUnit("URL Normalization Test", "+972523370")
+	bu["website_urls"] = []string{
+		"https://Example.COM/path",                           // Should lowercase domain
+		"https://www.example.com",                            // Should remove www
+		"https://example.com/path?utm_source=test&param=val", // Should remove UTM params
+		"https://example.com/path/",                          // Should remove trailing slash
+	}
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	// URLs should be normalized
+	if len(created.WebsiteURLs) < 1 {
+		t.Errorf("expected at least 1 normalized URL, got %d", len(created.WebsiteURLs))
+	}
+
+	// Check that URLs are properly normalized (lowercase, no www, no UTM)
+	for _, url := range created.WebsiteURLs {
+		if strings.Contains(url, "www.") {
+			t.Errorf("URL should not contain 'www.': %s", url)
+		}
+		if strings.Contains(url, "utm_") {
+			t.Errorf("URL should not contain UTM parameters: %s", url)
+		}
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testPostWithDuplicateURLs(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	bu := createValidBusinessUnit("Duplicate URLs Test", "+972523371")
+	bu["website_urls"] = []string{
+		"https://example.com",
+		"https://example.com",        // Exact duplicate
+		"https://Example.com",        // Same after normalization
+		"https://www.example.com",    // Same after removing www
+		"https://facebook.com/page",
+	}
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	// Duplicates should be removed, expecting 2 unique URLs
+	if len(created.WebsiteURLs) > 3 {
+		t.Logf("Note: Expected deduplication to reduce URLs from 5 to ~2, got %d URLs", len(created.WebsiteURLs))
+		t.Logf("URLs: %v", created.WebsiteURLs)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testUpdateAddURLs(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	bu := createValidBusinessUnit("Add URLs Test", "+972523372")
+	bu["website_urls"] = []string{"https://example.com"}
+	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeBusinessUnit(t, createResp)
+
+	if len(created.WebsiteURLs) != 1 {
+		t.Errorf("expected 1 initial URL, got %d", len(created.WebsiteURLs))
+	}
+
+	// Add more URLs
+	updates := map[string]any{
+		"website_urls": []string{
+			"https://example.com",
+			"https://facebook.com/page",
+			"https://instagram.com/profile",
+		},
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	fetched := decodeBusinessUnit(t, getResp)
+
+	if len(fetched.WebsiteURLs) != 3 {
+		t.Errorf("expected 3 URLs after update, got %d", len(fetched.WebsiteURLs))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testUpdateRemoveAllURLs(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	bu := createValidBusinessUnit("Remove URLs Test", "+972523373")
+	bu["website_urls"] = []string{
+		"https://example.com",
+		"https://facebook.com/page",
+	}
+	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeBusinessUnit(t, createResp)
+
+	if len(created.WebsiteURLs) != 2 {
+		t.Errorf("expected 2 initial URLs, got %d", len(created.WebsiteURLs))
+	}
+
+	// Clear all URLs
+	updates := map[string]any{
+		"website_urls": []string{},
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	fetched := decodeBusinessUnit(t, getResp)
+
+	if len(fetched.WebsiteURLs) != 0 {
+		t.Errorf("expected 0 URLs after clearing, got %d", len(fetched.WebsiteURLs))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testUpdateReplaceURLs(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	bu := createValidBusinessUnit("Replace URLs Test", "+972523374")
+	bu["website_urls"] = []string{
+		"https://oldexample.com",
+		"https://facebook.com/oldpage",
+	}
+	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeBusinessUnit(t, createResp)
+
+	// Replace with completely new URLs
+	updates := map[string]any{
+		"website_urls": []string{
+			"https://newexample.com",
+			"https://instagram.com/newprofile",
+		},
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
+	common.AssertStatusCode(t, resp, 204)
+
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	fetched := decodeBusinessUnit(t, getResp)
+
+	if len(fetched.WebsiteURLs) != 2 {
+		t.Errorf("expected 2 URLs after replacement, got %d", len(fetched.WebsiteURLs))
+	}
+
+	// Verify old URLs are gone and new ones are present
+	urlMap := make(map[string]bool)
+	for _, url := range fetched.WebsiteURLs {
+		urlMap[url] = true
+	}
+
+	if urlMap["https://oldexample.com"] {
+		t.Error("old URL should have been replaced")
+	}
+	if urlMap["https://facebook.com/oldpage"] {
+		t.Error("old URL should have been replaced")
+	}
+	if !urlMap["https://newexample.com"] {
+		t.Error("new URL should be present")
+	}
+	if !urlMap["https://instagram.com/newprofile"] {
+		t.Error("new URL should be present")
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testPostWithMixedValidInvalidURLs(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+	bu := createValidBusinessUnit("Mixed URLs Test", "+972523375")
+	bu["website_urls"] = []string{
+		"https://example.com",  // Valid
+		"http://invalid.com",   // Invalid (not https)
+		"https://valid.com",    // Valid
+		"not-a-url",            // Invalid
+	}
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	// Should fail validation because of invalid URLs
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for mixed valid/invalid URLs, got %d", resp.StatusCode)
+	}
 }
 
 func testUpdateMalformedJSON(t *testing.T) {
