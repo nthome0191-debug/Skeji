@@ -487,26 +487,38 @@ func testPostWithMissingRelevantKeys(t *testing.T) {
 func testPostWithWebsiteURL(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Website Test", "+972523336")
-	bu["website_url"] = "https://example.com"
+	bu["website_urls"] = []string{"https://example.com", "https://facebook.com/page"}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
-	if created.WebsiteURL != "https://example.com" {
-		t.Errorf("expected website_url 'https://example.com', got %s", created.WebsiteURL)
+	if len(created.WebsiteURLs) != 2 {
+		t.Errorf("expected 2 website_urls, got %d", len(created.WebsiteURLs))
+	}
+	if created.WebsiteURLs[0] != "https://example.com" {
+		t.Errorf("expected first URL 'https://example.com', got %s", created.WebsiteURLs[0])
 	}
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
-	bu2 := createValidBusinessUnit("Invalid URL Test", "+972523337")
-	bu2["website_url"] = "http://example.com"
+	// Test with more than 5 URLs
+	bu2 := createValidBusinessUnit("Too Many URLs Test", "+972523337")
+	bu2["website_urls"] = []string{"https://example1.com", "https://example2.com", "https://example3.com", "https://example4.com", "https://example5.com", "https://example6.com"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for too many URLs, got %d", resp.StatusCode)
+	}
+
+	// Test with invalid URL
+	bu3 := createValidBusinessUnit("Invalid URL Test", "+972523338")
+	bu3["website_urls"] = []string{"http://example.com"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for non-https URL, got %d", resp.StatusCode)
 	}
 
-	bu3 := createValidBusinessUnit("Malformed URL Test", "+972523338")
-	bu3["website_url"] = "not-a-url"
-	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
+	bu4 := createValidBusinessUnit("Malformed URL Test", "+972523339")
+	bu4["website_urls"] = []string{"not-a-url"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu4)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for malformed URL, got %d", resp.StatusCode)
 	}
@@ -827,7 +839,7 @@ func testUpdateWebsiteURL(t *testing.T) {
 	created := decodeBusinessUnit(t, createResp)
 
 	updates := map[string]any{
-		"website_url": "https://newexample.com",
+		"website_urls": []string{"https://newexample.com", "https://instagram.com/profile"},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
 	common.AssertStatusCode(t, resp, 204)
@@ -836,12 +848,15 @@ func testUpdateWebsiteURL(t *testing.T) {
 	common.AssertStatusCode(t, getResp, 200)
 	fetched := decodeBusinessUnit(t, getResp)
 
-	if fetched.WebsiteURL != "https://newexample.com" {
-		t.Errorf("expected website_url 'https://newexample.com', got %s", fetched.WebsiteURL)
+	if len(fetched.WebsiteURLs) != 2 {
+		t.Errorf("expected 2 website_urls, got %d", len(fetched.WebsiteURLs))
+	}
+	if fetched.WebsiteURLs[0] != "https://newexample.com" {
+		t.Errorf("expected first URL 'https://newexample.com', got %s", fetched.WebsiteURLs[0])
 	}
 
 	updates = map[string]any{
-		"website_url": "http://invalid.com",
+		"website_urls": []string{"http://invalid.com"},
 	}
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
@@ -1178,22 +1193,22 @@ func testUpdatePriorityEdgeCases(t *testing.T) {
 func testUpdateClearOptionalFields(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Clear Fields Test", "+972523368")
-	bu["website_url"] = "https://example.com"
+	bu["website_urls"] = []string{"https://example.com"}
 	bu["maintainers"] = []string{"+972541111111"}
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
-	if created.WebsiteURL == "" {
-		t.Error("expected website_url to be set")
+	if len(created.WebsiteURLs) == 0 {
+		t.Error("expected website_urls to be set")
 	}
 	if len(created.Maintainers) == 0 {
 		t.Error("expected maintainers to be set")
 	}
 
 	updates := map[string]any{
-		"website_url": "",
-		"maintainers": []string{},
+		"website_urls": []string{},
+		"maintainers":  []string{},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
 	common.AssertStatusCode(t, resp, 204)
@@ -1201,8 +1216,8 @@ func testUpdateClearOptionalFields(t *testing.T) {
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	fetched := decodeBusinessUnit(t, getResp)
 
-	if fetched.WebsiteURL != "" {
-		t.Errorf("Note: website_url was '%s', expected empty after clearing with null", fetched.WebsiteURL)
+	if len(fetched.WebsiteURLs) != 0 {
+		t.Errorf("Note: website_urls has %d items, expected 0 after clearing", len(fetched.WebsiteURLs))
 	}
 	if len(fetched.Maintainers) != 0 {
 		t.Errorf("Note: maintainers has %d items, expected 0 after clearing with null", len(fetched.Maintainers))

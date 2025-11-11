@@ -351,7 +351,7 @@ func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
 	bu.Labels = sanitizer.NormalizeLabels(bu.Labels)
 	bu.AdminPhone = sanitizer.NormalizePhone(bu.AdminPhone)
 	bu.Maintainers = sanitizer.NormalizeMaintainers(bu.Maintainers)
-	bu.WebsiteURL = sanitizer.NormalizeURL(bu.WebsiteURL)
+	bu.WebsiteURLs = sanitizer.NormalizeURLs(bu.WebsiteURLs)
 	bu.Priority = sanitizer.NormalizePriority(s.cfg, bu.Priority)
 }
 
@@ -384,9 +384,9 @@ func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) 
 		normalized := sanitizer.NormalizePriority(s.cfg, *updates.Priority)
 		updates.Priority = &normalized
 	}
-	if updates.WebsiteURL != nil {
-		normalized := sanitizer.NormalizeURL(*updates.WebsiteURL)
-		updates.WebsiteURL = &normalized
+	if updates.WebsiteURLs != nil {
+		normalized := sanitizer.NormalizeURLs(*updates.WebsiteURLs)
+		updates.WebsiteURLs = &normalized
 	}
 	if updates.TimeZone != "" {
 		updates.TimeZone = sanitizer.TrimAndNormalize(updates.TimeZone)
@@ -433,8 +433,8 @@ func (s *businessUnitService) mergeBusinessUnitUpdates(existing *model.BusinessU
 		merged.TimeZone = updates.TimeZone
 	}
 
-	if updates.WebsiteURL != nil {
-		merged.WebsiteURL = *updates.WebsiteURL
+	if updates.WebsiteURLs != nil {
+		merged.WebsiteURLs = *updates.WebsiteURLs
 	}
 
 	merged.ID = existing.ID

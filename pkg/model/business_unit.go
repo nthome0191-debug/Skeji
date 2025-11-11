@@ -11,7 +11,7 @@ type BusinessUnit struct {
 	Maintainers []string  `json:"maintainers,omitempty" bson:"maintainers" validate:"omitempty,dive,required"`
 	Priority    int64     `json:"priority,omitempty" bson:"priority" validate:"omitempty,min=0"`
 	TimeZone    string    `json:"time_zone,omitempty" bson:"time_zone" validate:"omitempty,timezone"`
-	WebsiteURL  string    `json:"website_url,omitempty" bson:"website_url,omitempty" validate:"omitempty,valid_url"`
+	WebsiteURLs []string  `json:"website_urls,omitempty" bson:"website_urls,omitempty" validate:"omitempty,max=5,dive,valid_url"`
 	CreatedAt   time.Time `json:"created_at" bson:"created_at" validate:"omitempty"`
 }
 
@@ -23,5 +23,5 @@ type BusinessUnitUpdate struct {
 	Maintainers *[]string `json:"maintainers,omitempty" validate:"omitempty,dive,required"`
 	Priority    *int64    `json:"priority,omitempty" validate:"omitempty,min=0"`
 	TimeZone    string    `json:"time_zone,omitempty" validate:"omitempty,timezone"`
-	WebsiteURL  *string   `json:"website_url,omitempty" validate:"omitempty,valid_url"` //todo: support list (multiple)
+	WebsiteURLs *[]string `json:"website_urls,omitempty" validate:"omitempty,max=5,dive,valid_url"`
 }

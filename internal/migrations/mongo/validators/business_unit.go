@@ -16,7 +16,11 @@ var BusinessUnitValidator = bson.M{
 			"maintainers": bson.M{"bsonType": "array"},
 			"priority":    bson.M{"bsonType": "long"},
 			"time_zone":   bson.M{"bsonType": "string"},
-			"website_url": bson.M{"bsonType": "string"},
+			"website_urls": bson.M{
+				"bsonType": "array",
+				"maxItems": 5,
+				"items":    bson.M{"bsonType": "string"},
+			},
 			"created_at":  bson.M{"bsonType": "date"},
 		},
 	},

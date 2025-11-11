@@ -83,59 +83,84 @@ func TestValidateURL(t *testing.T) {
 	validator := NewBusinessUnitValidator(log)
 
 	tests := []struct {
-		name       string
-		websiteURL string
-		wantError  bool
+		name        string
+		websiteURLs []string
+		wantError   bool
 	}{
 		{
-			name:       "valid https URL",
-			websiteURL: "https://example.com",
-			wantError:  false,
+			name:        "valid https URL",
+			websiteURLs: []string{"https://example.com"},
+			wantError:   false,
 		},
 		{
-			name:       "valid https with path",
-			websiteURL: "https://example.com/path/to/page",
-			wantError:  false,
+			name:        "valid https with path",
+			websiteURLs: []string{"https://example.com/path/to/page"},
+			wantError:   false,
 		},
 		{
-			name:       "http not allowed",
-			websiteURL: "http://example.com",
-			wantError:  true,
+			name:        "multiple valid URLs",
+			websiteURLs: []string{"https://example.com", "https://facebook.com/page", "https://instagram.com/profile"},
+			wantError:   false,
 		},
 		{
-			name:       "no scheme",
-			websiteURL: "example.com",
-			wantError:  true,
+			name:        "exactly 5 URLs (max allowed)",
+			websiteURLs: []string{"https://example.com", "https://facebook.com", "https://instagram.com", "https://twitter.com", "https://linkedin.com"},
+			wantError:   false,
 		},
 		{
-			name:       "localhost not allowed",
-			websiteURL: "https://localhost:8080",
-			wantError:  true,
+			name:        "more than 5 URLs",
+			websiteURLs: []string{"https://example.com", "https://facebook.com", "https://instagram.com", "https://twitter.com", "https://linkedin.com", "https://youtube.com"},
+			wantError:   true,
 		},
 		{
-			name:       "private IP not allowed",
-			websiteURL: "https://192.168.1.1",
-			wantError:  true,
+			name:        "empty array allowed",
+			websiteURLs: []string{},
+			wantError:   false,
 		},
 		{
-			name:       "path traversal not allowed",
-			websiteURL: "https://example.com/../etc/passwd",
-			wantError:  true,
+			name:        "http not allowed",
+			websiteURLs: []string{"http://example.com"},
+			wantError:   true,
+		},
+		{
+			name:        "no scheme",
+			websiteURLs: []string{"example.com"},
+			wantError:   true,
+		},
+		{
+			name:        "localhost not allowed",
+			websiteURLs: []string{"https://localhost:8080"},
+			wantError:   true,
+		},
+		{
+			name:        "private IP not allowed",
+			websiteURLs: []string{"https://192.168.1.1"},
+			wantError:   true,
+		},
+		{
+			name:        "path traversal not allowed",
+			websiteURLs: []string{"https://example.com/../etc/passwd"},
+			wantError:   true,
+		},
+		{
+			name:        "one valid and one invalid",
+			websiteURLs: []string{"https://example.com", "http://invalid.com"},
+			wantError:   true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bu := &model.BusinessUnit{
-				Name:       "Test Business",
-				Cities:     []string{"Tel Aviv"},
-				Labels:     []string{"Haircut"},
-				AdminPhone: "+972541234567",
-				WebsiteURL: tt.websiteURL,
+				Name:        "Test Business",
+				Cities:      []string{"Tel Aviv"},
+				Labels:      []string{"Haircut"},
+				AdminPhone:  "+972541234567",
+				WebsiteURLs: tt.websiteURLs,
 			}
 			err := validator.Validate(bu)
 			if (err != nil) != tt.wantError {
-				t.Errorf("Validate() with URL %q error = %v, wantError %v", tt.websiteURL, err, tt.wantError)
+				t.Errorf("Validate() with URLs %v error = %v, wantError %v", tt.websiteURLs, err, tt.wantError)
 			}
 		})
 	}

@@ -38,3 +38,29 @@ func NormalizeURL(input string) string {
 	}
 	return normalized
 }
+
+// NormalizeURLs normalizes a slice of URLs, filtering out empty strings and invalid URLs
+func NormalizeURLs(urls []string) []string {
+	if len(urls) == 0 {
+		return []string{}
+	}
+
+	var normalized []string
+	seen := make(map[string]bool) // Deduplicate URLs
+
+	for _, rawURL := range urls {
+		normalizedURL := NormalizeURL(rawURL)
+		// Skip empty strings and invalid URLs
+		if normalizedURL == "" || normalizedURL == "invalid_url" {
+			continue
+		}
+		// Skip duplicates
+		if seen[normalizedURL] {
+			continue
+		}
+		seen[normalizedURL] = true
+		normalized = append(normalized, normalizedURL)
+	}
+
+	return normalized
+}
