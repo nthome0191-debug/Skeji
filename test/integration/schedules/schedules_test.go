@@ -265,7 +265,7 @@ func testGetValidPaginationExistingRecords(t *testing.T) {
 func testGetInvalidPaginationExistingRecords(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/schedules?limit=abc&offset=xyz")
-	common.AssertStatusCode(t, resp, 200)
+	common.AssertStatusCode(t, resp, 400)
 
 	resp = httpClient.GET(t, "/api/v1/schedules?limit=10&offset=-1")
 	common.AssertStatusCode(t, resp, 200)
