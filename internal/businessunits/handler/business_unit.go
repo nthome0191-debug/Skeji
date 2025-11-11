@@ -76,7 +76,9 @@ func (h *BusinessUnitHandler) GetAll(w http.ResponseWriter, r *http.Request, _ h
 		var err error
 		limit, err = strconv.Atoi(limitStr)
 		if err != nil {
-			httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid limit parameter: %s", limitStr)))
+			if writeErr := httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid limit parameter: %s", limitStr))); writeErr != nil {
+				h.log.Error("failed to write error response", "handler", "GetAll", "operation", "WriteError", "error", writeErr)
+			}
 			return
 		}
 	}
@@ -87,7 +89,9 @@ func (h *BusinessUnitHandler) GetAll(w http.ResponseWriter, r *http.Request, _ h
 		var err error
 		offset, err = strconv.Atoi(offsetStr)
 		if err != nil {
-			httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid offset parameter: %s", offsetStr)))
+			if writeErr := httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid offset parameter: %s", offsetStr))); writeErr != nil {
+				h.log.Error("failed to write error response", "handler", "GetAll", "operation", "WriteError", "error", writeErr)
+			}
 			return
 		}
 	}
