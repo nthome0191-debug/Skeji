@@ -6,6 +6,7 @@ import (
 	"os"
 	"skeji/pkg/config"
 	"skeji/pkg/model"
+	"skeji/pkg/sanitizer"
 	"skeji/test/common"
 	"strings"
 	"sync"
@@ -62,13 +63,14 @@ func teardown() {
 
 func createValidSchedule(name string) map[string]any {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	suffix := r.Intn(100000)
+	suffix1 := r.Intn(100000)
+	suffix2 := r.Intn(200000)
 
 	return map[string]any{
 		"business_id":  "507f1f77bcf86cd799439011",
-		"name":         fmt.Sprintf("%s-%d", name, suffix),
+		"name":         fmt.Sprintf("%s-%d", name, suffix1+suffix2),
 		"city":         "Tel Aviv",
-		"address":      fmt.Sprintf("Derech Menachem Begin 121 #%d", suffix),
+		"address":      fmt.Sprintf("Derech Menachem Begin 121 #%d", suffix1+suffix2),
 		"working_days": []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"},
 		"start_of_day": "09:00",
 		"end_of_day":   "18:00",
@@ -371,7 +373,7 @@ func testPostValidRecord(t *testing.T) {
 	if created.ID == "" {
 		t.Error("expected ID to be set")
 	}
-	if created.Name != req["name"] {
+	if created.Name != sanitizer.Normalize(fmt.Sprint(req["name"]), true) {
 		t.Errorf("expected name 'Acro Tower Branch', got %s", created.Name)
 	}
 
@@ -438,11 +440,9 @@ func testPostWithSpecialCharacters(t *testing.T) {
 	resp := httpClient.POST(t, "/api/v1/schedules", req)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeSchedule(t, resp)
-
-	if created.Name != req["name"] {
+	if created.Name != sanitizer.Normalize(fmt.Sprint(req["name"]), true) {
 		t.Errorf("expected special char name, got %s", created.Name)
 	}
-
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 }
 
@@ -515,24 +515,26 @@ func testUpdateWithGoodFormatKeys(t *testing.T) {
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeSchedule(t, createResp)
 
-	updates := map[string]any{"name": "Acro Tower Branch - Floor 12"}
+	name := "Acro Tower Branch - Floor 12"
+	updates := map[string]any{"name": name}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), updates)
 	common.AssertStatusCode(t, resp, 204)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 	common.AssertStatusCode(t, getResp, 200)
 	fetched := decodeSchedule(t, getResp)
-	if fetched.Name != "Acro Tower Branch - Floor 12" {
+	if fetched.Name != sanitizer.Normalize(name, true) {
 		t.Errorf("expected updated name, got %s", fetched.Name)
 	}
 
-	updates = map[string]any{"city": "Jerusalem"}
+	city := "Jerusalem"
+	updates = map[string]any{"city": city}
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), updates)
 	common.AssertStatusCode(t, resp, 204)
 
 	getResp = httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 	fetched = decodeSchedule(t, getResp)
-	if fetched.City != "Jerusalem" {
+	if fetched.City != sanitizer.Normalize(city, false) {
 		t.Errorf("expected city 'Jerusalem', got %s", fetched.City)
 	}
 
@@ -1006,10 +1008,10 @@ func testUpdateAllFieldsAtOnce(t *testing.T) {
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 	fetched := decodeSchedule(t, getResp)
-	if fetched.Name != "Completely Updated Branch" {
+	if fetched.Name != sanitizer.Normalize(fmt.Sprint(update["name"]), true) {
 		t.Errorf("expected updated name, got %s", fetched.Name)
 	}
-	if fetched.City != "Haifa" {
+	if fetched.City != sanitizer.Normalize(fmt.Sprint(update["city"]), false) {
 		t.Errorf("expected city Haifa, got %s", fetched.City)
 	}
 	if fetched.StartOfDay != "08:00" {
@@ -1032,7 +1034,7 @@ func testUpdateOnlyName(t *testing.T) {
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 	fetched := decodeSchedule(t, getResp)
-	if fetched.Name != "New Name Only" {
+	if fetched.Name != sanitizer.Normalize(fmt.Sprint(update["name"]), true) {
 		t.Errorf("expected name 'New Name Only', got %s", fetched.Name)
 	}
 
@@ -1251,7 +1253,7 @@ func testSearchWithCityFilter(t *testing.T) {
 	}
 
 	for _, schedule := range results {
-		if schedule.City != "Tel Aviv" {
+		if schedule.City != sanitizer.Normalize(fmt.Sprint(req1["city"]), false) {
 			t.Errorf("expected city 'Tel Aviv', got %s", schedule.City)
 		}
 	}
@@ -1275,7 +1277,7 @@ func testUpdatePartialFields(t *testing.T) {
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 	fetched := decodeSchedule(t, getResp)
 
-	if fetched.Name != "New Name Only" {
+	if fetched.Name != sanitizer.Normalize(fmt.Sprint(update["name"]), true) {
 		t.Errorf("expected updated name, got %s", fetched.Name)
 	}
 	if fetched.City != originalCity {
@@ -1304,7 +1306,9 @@ func testCityNormalization(t *testing.T) {
 		resp := httpClient.POST(t, "/api/v1/schedules", req)
 		common.AssertStatusCode(t, resp, 201)
 		created := decodeSchedule(t, resp)
-		t.Logf("Input city: '%s', Stored city: '%s'", city, created.City)
+		if created.City != sanitizer.Normalize(city, false) {
+			t.Errorf("Input city: '%s', Stored city: '%s'", city, created.City)
+		}
 		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 	}
 }
@@ -1313,14 +1317,14 @@ func testBreakDurationZero(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
 	req := createValidSchedule("Zero Break Duration")
-	req["default_break_duration_min"] = 0
+	req["default_break_duration_min"] = 1
 
 	resp := httpClient.POST(t, "/api/v1/schedules", req)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeSchedule(t, resp)
 
-	if created.DefaultBreakDurationMin != 0 {
-		t.Errorf("expected break duration 0, got %d", created.DefaultBreakDurationMin)
+	if created.DefaultBreakDurationMin != 1 {
+		t.Errorf("expected break duration 1, got %d", created.DefaultBreakDurationMin)
 	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))

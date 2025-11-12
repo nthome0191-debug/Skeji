@@ -6,7 +6,10 @@ import (
 	"unicode"
 )
 
-var nonLetterRegex = regexp.MustCompile(`[^a-zA-Z]+`)
+var (
+	nonLetterRegex      = regexp.MustCompile(`[^a-zA-Z]+`)
+	nonLetterDigitRegex = regexp.MustCompile(`[^a-zA-Z0-9]+`)
+)
 
 func TrimAndNormalize(s string) string {
 	s = strings.TrimSpace(s)
@@ -33,13 +36,18 @@ func TrimAndNormalize(s string) string {
 	return result.String()
 }
 
-func Normalize(s string) string {
+func Normalize(s string, keepDigits bool) string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return ""
 	}
 	s = strings.ToLower(s)
-	s = nonLetterRegex.ReplaceAllString(s, "_")
+	if keepDigits {
+		s = nonLetterDigitRegex.ReplaceAllString(s, "_")
+	} else {
+		s = nonLetterRegex.ReplaceAllString(s, "_")
+	}
+
 	s = strings.Trim(s, "_")
 	return s
 }

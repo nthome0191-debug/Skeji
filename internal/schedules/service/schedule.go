@@ -66,11 +66,11 @@ func (s *scheduleService) Create(ctx context.Context, sc *model.Schedule) error 
 		}
 
 		for _, e := range existing {
-			if strings.EqualFold(e.Address, sc.Address) {
+			if e.Address == sc.Address {
 				return apperrors.Conflict("Schedule with the same address already exists for this business")
 			}
 
-			if strings.EqualFold(e.Name, sc.Name) {
+			if e.Name == sc.Name {
 				return apperrors.Conflict("Schedule with the same name and city already exists for this business")
 			}
 		}
@@ -255,7 +255,7 @@ func (s *scheduleService) Search(ctx context.Context, businessID string, city st
 		return nil, apperrors.InvalidInput("Business_id must be provided, city is optional")
 	}
 
-	city = sanitizer.Normalize(city)
+	city = sanitizer.Normalize(city, false)
 	businessID = sanitizer.TrimAndNormalize(businessID)
 
 	schedules, err := s.repo.Search(ctx, businessID, city)
@@ -278,22 +278,22 @@ func (s *scheduleService) Search(ctx context.Context, businessID string, city st
 }
 
 func (s *scheduleService) sanitize(sc *model.Schedule) {
-	sc.Name = sanitizer.Normalize(sc.Name)
-	sc.City = sanitizer.Normalize(sc.City)
-	sc.Address = sanitizer.Normalize(sc.Address)
+	sc.Name = sanitizer.Normalize(sc.Name, true)
+	sc.City = sanitizer.Normalize(sc.City, false)
+	sc.Address = sanitizer.Normalize(sc.Address, true)
 	sc.WorkingDays = sanitizer.NormalizeWorkingDays(sc.WorkingDays)
 	sc.Exceptions = sanitizer.NormalizeExceptions(sc.Exceptions)
 }
 
 func (s *scheduleService) sanitizeUpdate(updates *model.ScheduleUpdate) {
 	if updates.Name != "" {
-		updates.Name = sanitizer.Normalize(updates.Name)
+		updates.Name = sanitizer.Normalize(updates.Name, true)
 	}
 	if updates.City != "" {
-		updates.City = sanitizer.Normalize(updates.City)
+		updates.City = sanitizer.Normalize(updates.City, false)
 	}
 	if updates.Address != "" {
-		updates.Address = sanitizer.Normalize(updates.Address)
+		updates.Address = sanitizer.Normalize(updates.Address, true)
 	}
 	if len(updates.WorkingDays) > 0 {
 		updates.WorkingDays = sanitizer.NormalizeWorkingDays(updates.WorkingDays)

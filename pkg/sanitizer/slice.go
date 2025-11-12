@@ -1,6 +1,6 @@
 package sanitizer
 
-func NormalizeStringSlice(items []string, normalizer func(string) string) []string {
+func NormalizeStringSlice(items []string, normalizer func(string, bool) string, keepDigits bool) []string {
 	if len(items) == 0 {
 		return []string{}
 	}
@@ -9,7 +9,7 @@ func NormalizeStringSlice(items []string, normalizer func(string) string) []stri
 	result := make([]string, 0, len(items))
 
 	for _, item := range items {
-		normalized := normalizer(item)
+		normalized := normalizer(item, keepDigits)
 
 		if normalized == "" {
 			continue
@@ -27,18 +27,18 @@ func NormalizeStringSlice(items []string, normalizer func(string) string) []stri
 }
 
 func NormalizeCities(cities []string) []string {
-	return NormalizeStringSlice(cities, Normalize)
+	return NormalizeStringSlice(cities, Normalize, false)
 }
 
 func NormalizeLabels(labels []string) []string {
-	return NormalizeStringSlice(labels, Normalize)
+	return NormalizeStringSlice(labels, Normalize, false)
 }
 
 func NormalizeExceptions(exp []string) []string {
-	return NormalizeStringSlice(exp, Normalize)
+	return NormalizeStringSlice(exp, Normalize, true)
 }
 
 // todo: maintainers should be changed to struct
-func NormalizeMaintainers(maintainers []string) []string {
-	return NormalizeStringSlice(maintainers, NormalizePhone)
-}
+// func NormalizeMaintainers(maintainers []string) []string {
+// 	return NormalizeStringSlice(maintainers, NormalizePhone)
+// }

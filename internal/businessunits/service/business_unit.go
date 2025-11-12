@@ -347,18 +347,18 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 }
 
 func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
-	bu.Name = sanitizer.Normalize(bu.Name)
+	bu.Name = sanitizer.Normalize(bu.Name, true)
 	bu.Cities = sanitizer.NormalizeCities(bu.Cities)
 	bu.Labels = sanitizer.NormalizeLabels(bu.Labels)
 	bu.AdminPhone = sanitizer.NormalizePhone(bu.AdminPhone)
-	bu.Maintainers = sanitizer.NormalizeMaintainers(bu.Maintainers)
+	// bu.Maintainers = sanitizer.NormalizeMaintainers(bu.Maintainers)
 	bu.WebsiteURLs = sanitizer.NormalizeURLs(bu.WebsiteURLs)
 	bu.Priority = sanitizer.NormalizePriority(s.cfg, bu.Priority)
 }
 
 func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) {
 	if updates.Name != "" {
-		updates.Name = sanitizer.Normalize(updates.Name)
+		updates.Name = sanitizer.Normalize(updates.Name, true)
 	}
 	if updates.Cities != nil {
 		if len(updates.Cities) == 0 {
@@ -377,10 +377,10 @@ func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) 
 	if updates.AdminPhone != "" {
 		updates.AdminPhone = sanitizer.NormalizePhone(updates.AdminPhone)
 	}
-	if updates.Maintainers != nil {
-		normalized := sanitizer.NormalizeMaintainers(*updates.Maintainers)
-		updates.Maintainers = &normalized
-	}
+	// if updates.Maintainers != nil {
+	// 	normalized := sanitizer.NormalizeMaintainers(*updates.Maintainers)
+	// 	updates.Maintainers = &normalized
+	// }
 	if updates.Priority != nil {
 		normalized := sanitizer.NormalizePriority(s.cfg, *updates.Priority)
 		updates.Priority = &normalized

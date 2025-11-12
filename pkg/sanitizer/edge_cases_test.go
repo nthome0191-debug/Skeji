@@ -64,38 +64,38 @@ func TestNormalizePhone_EdgeCases(t *testing.T) {
 	}
 }
 
-func TestNormalizeMaintainers_EmptyResults(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    []string
-		expected []string
-	}{
-		{
-			name:     "all invalid phones filtered out",
-			input:    []string{"invalid1", "invalid2", "invalid3"},
-			expected: []string{},
-		},
-		{
-			name:     "mixed valid and many invalid",
-			input:    []string{"invalid1", "+972541234567", "invalid2", "invalid3"},
-			expected: []string{"+972541234567"},
-		},
-		{
-			name:     "empty strings filtered",
-			input:    []string{"", "", ""},
-			expected: []string{},
-		},
-	}
+// func TestNormalizeMaintainers_EmptyResults(t *testing.T) {
+// 	tests := []struct {
+// 		name     string
+// 		input    []string
+// 		expected []string
+// 	}{
+// 		{
+// 			name:     "all invalid phones filtered out",
+// 			input:    []string{"invalid1", "invalid2", "invalid3"},
+// 			expected: []string{},
+// 		},
+// 		{
+// 			name:     "mixed valid and many invalid",
+// 			input:    []string{"invalid1", "+972541234567", "invalid2", "invalid3"},
+// 			expected: []string{"+972541234567"},
+// 		},
+// 		{
+// 			name:     "empty strings filtered",
+// 			input:    []string{"", "", ""},
+// 			expected: []string{},
+// 		},
+// 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := NormalizeMaintainers(tt.input)
-			if len(result) != len(tt.expected) {
-				t.Errorf("expected %d results, got %d", len(tt.expected), len(result))
-			}
-		})
-	}
-}
+// 	// for _, tt := range tests {
+// 	// 	t.Run(tt.name, func(t *testing.T) {
+// 	// 		result := NormalizeMaintainers(tt.input)
+// 	// 		if len(result) != len(tt.expected) {
+// 	// 			t.Errorf("expected %d results, got %d", len(tt.expected), len(result))
+// 	// 		}
+// 	// 	})
+// 	// }
+// }
 
 func TestNormalizePriority_ConfigEdgeCases(t *testing.T) {
 	tests := []struct {
@@ -249,7 +249,7 @@ func TestNormalizeName_ExtremelyLongInput(t *testing.T) {
 		longName += "a "
 	}
 
-	result := Normalize(longName)
+	result := Normalize(longName, true)
 
 	// Should not panic
 	if result == "" {
