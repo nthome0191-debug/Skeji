@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	scheduleerrors "skeji/internal/schedules/errors"
 	"skeji/internal/schedules/repository"
 	"skeji/internal/schedules/validator"
@@ -46,11 +45,8 @@ func NewScheduleService(
 }
 
 func (s *scheduleService) Create(ctx context.Context, sc *model.Schedule) error {
-	fmt.Printf("\n\nnatali print - %s\n", sc.Name)
 	s.sanitize(sc)
-	fmt.Printf("\n\nnatali print sanitized - %s\n", sc.Name)
 	s.applyDefaults(sc)
-	fmt.Printf("\n\nnatali print - apply defaults %s\n", sc.Name)
 
 	if err := s.validator.Validate(sc); err != nil {
 		s.cfg.Log.Warn("Schedule validation failed",
@@ -178,7 +174,6 @@ func (s *scheduleService) Update(ctx context.Context, id string, updates *model.
 		}
 		return apperrors.Internal("Failed to check schedule existence", err)
 	}
-
 	s.sanitizeUpdate(updates)
 	merged := s.mergeScheduleUpdates(existing, updates)
 	if err := s.validator.Validate(merged); err != nil {
@@ -286,6 +281,7 @@ func (s *scheduleService) sanitize(sc *model.Schedule) {
 	sc.Name = sanitizer.NormalizeName(sc.Name)
 	sc.City = sanitizer.TrimAndNormalize(sc.City)
 	sc.Address = sanitizer.TrimAndNormalize(sc.Address)
+	sc.WorkingDays = sanitizer.NormalizeWorkingDays(sc.WorkingDays)
 }
 
 func (s *scheduleService) sanitizeUpdate(updates *model.ScheduleUpdate) {
@@ -297,6 +293,9 @@ func (s *scheduleService) sanitizeUpdate(updates *model.ScheduleUpdate) {
 	}
 	if updates.Address != "" {
 		updates.Address = sanitizer.TrimAndNormalize(updates.Address)
+	}
+	if len(updates.WorkingDays) > 0 {
+		updates.WorkingDays = sanitizer.NormalizeWorkingDays(updates.WorkingDays)
 	}
 }
 
@@ -325,6 +324,9 @@ func (s *scheduleService) applyDefaults(sc *model.Schedule) {
 		default:
 			sc.WorkingDays = s.cfg.DefaultWorkingDaysIsrael
 		}
+	}
+	if sc.Exceptions == nil {
+		sc.Exceptions = []string{}
 	}
 }
 
@@ -359,46 +361,7 @@ func (s *scheduleService) mergeScheduleUpdates(existing *model.Schedule, updates
 		merged.MaxParticipantsPerSlot = *updates.MaxParticipantsPerSlot
 	}
 	if updates.Exceptions != nil {
-		// Validate and filter exception dates - only keep valid ones
-		var validExceptions []string
-		for _, date := range *updates.Exceptions {
-			// Check basic format
-			if len(date) != 10 || date[4] != '-' || date[7] != '-' {
-				s.cfg.Log.Warn("Invalid exception date format, skipping",
-					"date", date,
-					"expected_format", "YYYY-MM-DD",
-				)
-				continue
-			}
-
-			// Validate date components
-			year := date[0:4]
-			month := date[5:7]
-			day := date[8:10]
-
-			// Check if components are numeric and within valid ranges
-			if year < "1900" || year > "2100" {
-				s.cfg.Log.Warn("Exception date year out of range, skipping",
-					"date", date,
-				)
-				continue
-			}
-			if month < "01" || month > "12" {
-				s.cfg.Log.Warn("Exception date month invalid, skipping",
-					"date", date,
-				)
-				continue
-			}
-			if day < "01" || day > "31" {
-				s.cfg.Log.Warn("Exception date day invalid, skipping",
-					"date", date,
-				)
-				continue
-			}
-
-			validExceptions = append(validExceptions, date)
-		}
-		merged.Exceptions = validExceptions
+		merged.Exceptions = append([]string{}, *updates.Exceptions...)
 	}
 	if updates.TimeZone != "" {
 		merged.TimeZone = updates.TimeZone

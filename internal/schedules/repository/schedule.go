@@ -151,6 +151,7 @@ func (r *mongoScheduleRepository) Update(ctx context.Context, id string, sc *mod
 			"default_break_duration_min":   sc.DefaultBreakDurationMin,
 			"max_participants_per_slot":    sc.MaxParticipantsPerSlot,
 			"exceptions":                   sc.Exceptions,
+			"time_zone":                    sc.TimeZone,
 		},
 	}
 

@@ -3,12 +3,20 @@ package validator
 import (
 	"errors"
 	"fmt"
+	"skeji/pkg/config"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
+)
+
+var (
+	validDays = map[string]struct{}{
+		config.Sunday: {}, config.Monday: {}, config.Tuesday: {},
+		config.Wednesday: {}, config.Thursday: {}, config.Friday: {}, config.Saturday: {},
+	}
 )
 
 type ValidationError struct {
@@ -43,6 +51,9 @@ func NewScheduleValidator(log *logger.Logger) *ScheduleValidator {
 	if err := v.RegisterValidation("valid_time_range", validateTimeRange); err != nil {
 		log.Fatal("Failed to register 'valid_time_range' validator", "error", err)
 	}
+	if err := v.RegisterValidation("valid_week_days", validWeekDays); err != nil {
+		log.Fatal("Failed to register 'valid_week_days' validator", "error", err)
+	}
 	log.Info("Schedule validator initialized successfully")
 	return &ScheduleValidator{validate: v, logger: log}
 }
@@ -58,6 +69,19 @@ func validateTimeRange(fl validator.FieldLevel) bool {
 	}
 	h, m := t.Hour(), t.Minute()
 	return h >= 0 && h <= 23 && m >= 0 && m <= 59
+}
+
+func validWeekDays(fl validator.FieldLevel) bool {
+	day, ok := fl.Field().Interface().(string)
+	if !ok {
+		return false
+	}
+	day = strings.ToLower(strings.TrimSpace(day))
+	if _, exists := validDays[day]; !exists {
+		return false
+	}
+
+	return true
 }
 
 func (v *ScheduleValidator) Validate(sc *model.Schedule) error {
@@ -81,6 +105,12 @@ func (v *ScheduleValidator) Validate(sc *model.Schedule) error {
 		return ValidationErrors{{
 			Field:   "end_of_day",
 			Message: "end_of_day must be after start_of_day",
+		}}
+	}
+	if len(sc.WorkingDays) == 0 || len(sc.WorkingDays) > 7 {
+		return ValidationErrors{{
+			Field:   "working_days",
+			Message: "working_days lenght must be between 1 to 7",
 		}}
 	}
 	return nil

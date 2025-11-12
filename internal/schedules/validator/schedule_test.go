@@ -1,7 +1,6 @@
 package validator
 
 import (
-	"skeji/pkg/config"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"strings"
@@ -84,7 +83,7 @@ func TestValidateTimeRange(t *testing.T) {
 				Address:                   "123 Main St",
 				StartOfDay:                tt.startOfDay,
 				EndOfDay:                  tt.endOfDay,
-				WorkingDays:               []config.Weekday{"Monday", "Tuesday"},
+				WorkingDays:               []string{"Monday", "Tuesday"},
 				DefaultMeetingDurationMin: 30,
 				DefaultBreakDurationMin:   10,
 				MaxParticipantsPerSlot:    5,
@@ -109,37 +108,37 @@ func TestValidateWorkingDays(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		workingDays []config.Weekday
+		workingDays []string
 		wantError   bool
 		description string
 	}{
 		{
 			name:        "valid weekdays",
-			workingDays: []config.Weekday{"Sunday", "Monday", "Tuesday"},
+			workingDays: []string{"Sunday", "Monday", "Tuesday"},
 			wantError:   false,
 			description: "standard weekdays",
 		},
 		{
 			name:        "all weekdays",
-			workingDays: []config.Weekday{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"},
+			workingDays: []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"},
 			wantError:   false,
 			description: "7 days a week",
 		},
 		{
 			name:        "invalid day",
-			workingDays: []config.Weekday{"Sunday", "Funday"},
+			workingDays: []string{"Sunday", "Funday"},
 			wantError:   true,
 			description: "invalid day name",
 		},
 		{
 			name:        "empty working days",
-			workingDays: []config.Weekday{},
+			workingDays: []string{},
 			wantError:   true,
 			description: "no working days",
 		},
 		{
 			name:        "too many days",
-			workingDays: []config.Weekday{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"},
+			workingDays: []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"},
 			wantError:   true,
 			description: "more than 7 days",
 		},
@@ -191,7 +190,7 @@ func TestValidateRequiredFields(t *testing.T) {
 				Address:                   "123 Main St",
 				StartOfDay:                "09:00",
 				EndOfDay:                  "18:00",
-				WorkingDays:               []config.Weekday{"Monday"},
+				WorkingDays:               []string{"Monday"},
 				DefaultMeetingDurationMin: 30,
 				DefaultBreakDurationMin:   10,
 				MaxParticipantsPerSlot:    5,
@@ -208,7 +207,7 @@ func TestValidateRequiredFields(t *testing.T) {
 				Address:                   "123 Main St",
 				StartOfDay:                "09:00",
 				EndOfDay:                  "18:00",
-				WorkingDays:               []config.Weekday{"Monday"},
+				WorkingDays:               []string{"Monday"},
 				DefaultMeetingDurationMin: 30,
 				DefaultBreakDurationMin:   10,
 				MaxParticipantsPerSlot:    5,
@@ -225,7 +224,7 @@ func TestValidateRequiredFields(t *testing.T) {
 				Address:                   "123 Main St",
 				StartOfDay:                "09:00",
 				EndOfDay:                  "18:00",
-				WorkingDays:               []config.Weekday{"Monday"},
+				WorkingDays:               []string{"Monday"},
 				DefaultMeetingDurationMin: 30,
 				DefaultBreakDurationMin:   10,
 				MaxParticipantsPerSlot:    5,
@@ -242,7 +241,7 @@ func TestValidateRequiredFields(t *testing.T) {
 				City:                      "Tel Aviv",
 				StartOfDay:                "09:00",
 				EndOfDay:                  "18:00",
-				WorkingDays:               []config.Weekday{"Monday"},
+				WorkingDays:               []string{"Monday"},
 				DefaultMeetingDurationMin: 30,
 				DefaultBreakDurationMin:   10,
 				MaxParticipantsPerSlot:    5,
@@ -354,7 +353,7 @@ func TestValidateDurationBoundaries(t *testing.T) {
 				Address:                   "123 Main St",
 				StartOfDay:                "09:00",
 				EndOfDay:                  "18:00",
-				WorkingDays:               []config.Weekday{"Monday"},
+				WorkingDays:               []string{"Monday"},
 				DefaultMeetingDurationMin: tt.defaultMeetingDurationMin,
 				DefaultBreakDurationMin:   tt.defaultBreakDurationMin,
 				MaxParticipantsPerSlot:    tt.maxParticipantsPerSlot,

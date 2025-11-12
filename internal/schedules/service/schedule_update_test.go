@@ -15,9 +15,9 @@ import (
 
 // Mock repository for update tests
 type mockScheduleRepositoryForUpdate struct {
-	findByIDFunc         func(ctx context.Context, id string) (*model.Schedule, error)
-	searchFunc           func(ctx context.Context, businessID string, city string) ([]*model.Schedule, error)
-	capturedSchedule     *model.Schedule // Capture updated schedule
+	findByIDFunc           func(ctx context.Context, id string) (*model.Schedule, error)
+	searchFunc             func(ctx context.Context, businessID string, city string) ([]*model.Schedule, error)
+	capturedSchedule       *model.Schedule // Capture updated schedule
 	executeTransactionFunc func(ctx context.Context, fn mongotx.TransactionFunc) error
 }
 
@@ -77,14 +77,14 @@ func TestUpdate_ExceptionDatesValidation(t *testing.T) {
 	})
 
 	cfg := &config.Config{
-		Log:                     log,
-		DefaultMeetingDurationMin: 30,
-		DefaultBreakDurationMin:   10,
+		Log:                           log,
+		DefaultMeetingDurationMin:     30,
+		DefaultBreakDurationMin:       10,
 		DefaultMaxParticipantsPerSlot: 5,
-		DefaultStartOfDay:       "09:00",
-		DefaultEndOfDay:         "17:00",
-		DefaultWorkingDaysIsrael: []config.Weekday{"Sunday", "Monday"},
-		DefaultWorkingDaysUs:    []config.Weekday{"Monday", "Tuesday"},
+		DefaultStartOfDay:             "09:00",
+		DefaultEndOfDay:               "17:00",
+		DefaultWorkingDaysIsrael:      []string{"Sunday", "Monday"},
+		DefaultWorkingDaysUs:          []string{"Monday", "Tuesday"},
 	}
 
 	v := validator.NewScheduleValidator(log)
@@ -97,7 +97,7 @@ func TestUpdate_ExceptionDatesValidation(t *testing.T) {
 		Address:                   "123 Main St",
 		StartOfDay:                "09:00",
 		EndOfDay:                  "17:00",
-		WorkingDays:               []config.Weekday{"Sunday", "Monday"},
+		WorkingDays:               []string{"Sunday", "Monday"},
 		DefaultMeetingDurationMin: 30,
 		DefaultBreakDurationMin:   10,
 		MaxParticipantsPerSlot:    5,
@@ -119,13 +119,13 @@ func TestUpdate_ExceptionDatesValidation(t *testing.T) {
 
 	// Test with mixed valid and invalid exception dates
 	invalidExceptions := []string{
-		"2024-12-25",    // Valid
-		"invalid-date",  // Invalid format
-		"2024-13-01",    // Invalid month
-		"2025-01-15",    // Valid
-		"1800-01-01",    // Out of range (too old)
-		"2200-01-01",    // Out of range (too new)
-		"2024/12/31",    // Invalid format (slash instead of dash)
+		"2024-12-25",   // Valid
+		"invalid-date", // Invalid format
+		"2024-13-01",   // Invalid month
+		"2025-01-15",   // Valid
+		"1800-01-01",   // Out of range (too old)
+		"2200-01-01",   // Out of range (too new)
+		"2024/12/31",   // Invalid format (slash instead of dash)
 	}
 
 	updates := &model.ScheduleUpdate{

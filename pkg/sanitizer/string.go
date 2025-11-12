@@ -90,3 +90,11 @@ func NormalizeLabel(label string) string {
 
 	return result.String()
 }
+
+func NormalizeWorkingDays(workingDays []string) []string {
+	normalized := []string{}
+	for _, wd := range workingDays {
+		normalized = append(normalized, strings.TrimSpace(strings.ToLower(wd)))
+	}
+	return normalized
+}

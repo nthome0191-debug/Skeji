@@ -49,7 +49,7 @@ func NewBusinessUnitService(
 
 func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit) error {
 	s.sanitize(bu)
-	s.applyDefaultsForNewCreatedBusiness(bu)
+	s.applyDefaults(bu)
 
 	if err := s.validator.Validate(bu); err != nil {
 		s.cfg.Log.Warn("Business unit validation failed",
@@ -129,9 +129,6 @@ func (s *businessUnitService) GetByID(ctx context.Context, id string) (*model.Bu
 }
 
 func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error) {
-
-	fmt.Printf("\n\nnatali test: limit: %v\n\n", limit)
-
 	var count int64
 	var units []*model.BusinessUnit
 	var errCount, errFind error
@@ -397,7 +394,7 @@ func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) 
 	}
 }
 
-func (s *businessUnitService) applyDefaultsForNewCreatedBusiness(bu *model.BusinessUnit) {
+func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
 	if bu.TimeZone == "" {
 		bu.TimeZone = locale.InferTimezoneFromPhone(bu.AdminPhone)
 	}

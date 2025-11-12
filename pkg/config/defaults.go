@@ -2,21 +2,18 @@ package config
 
 import "time"
 
-type Weekday string
-type BookingStatus string
-
 const (
-	Sunday    Weekday = "sunday"
-	Monday    Weekday = "monday"
-	Tuesday   Weekday = "tuesday"
-	Wednesday Weekday = "wednesday"
-	Thursday  Weekday = "thursday"
-	Friday    Weekday = "friday"
-	Saturday  Weekday = "saturday"
+	Sunday    string = "sunday"
+	Monday    string = "monday"
+	Tuesday   string = "tuesday"
+	Wednesday string = "wednesday"
+	Thursday  string = "thursday"
+	Friday    string = "friday"
+	Saturday  string = "saturday"
 
-	Pending   BookingStatus = "pending"
-	Confirmed BookingStatus = "confirmed"
-	Cancelled BookingStatus = "canceled"
+	Pending   string = "pending"
+	Confirmed string = "confirmed"
+	Cancelled string = "canceled"
 )
 
 const (
@@ -54,6 +51,6 @@ const (
 )
 
 var (
-	DefaultWorkingDaysIsrael = []Weekday{Sunday, Monday, Tuesday, Wednesday, Thursday}
-	DefaultWorkingDaysUs     = []Weekday{Monday, Tuesday, Wednesday, Thursday, Friday}
+	DefaultWorkingDaysIsrael = []string{Sunday, Monday, Tuesday, Wednesday, Thursday}
+	DefaultWorkingDaysUs     = []string{Monday, Tuesday, Wednesday, Thursday, Friday}
 )

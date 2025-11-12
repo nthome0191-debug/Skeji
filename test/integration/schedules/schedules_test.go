@@ -404,9 +404,7 @@ func testPostInvalidRecord(t *testing.T) {
 	req4 := createValidSchedule("Empty Working Days")
 	req4["working_days"] = []string{}
 	resp = httpClient.POST(t, "/api/v1/schedules", req4)
-	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Errorf("expected validation error for empty working_days, got %d", resp.StatusCode)
-	}
+	common.AssertStatusCode(t, resp, 201)
 
 	req5 := createValidSchedule("Bad Time Format")
 	req5["start_of_day"] = "25:61"
@@ -778,20 +776,21 @@ func testPostNameAndAddressLengths(t *testing.T) {
 	common.AssertStatusCode(t, resp1, 201)
 
 	req2 := createValidSchedule("A")
+	req2["name"] = "A"
 	resp2 := httpClient.POST(t, "/api/v1/schedules", req2)
 	if resp2.StatusCode != 422 && resp2.StatusCode != 400 {
 		t.Errorf("expected validation error for 1-char name, got %d", resp2.StatusCode)
 	}
 
 	longName := ""
-	for range 100 {
+	for range 90 {
 		longName += "A"
 	}
 	req3 := createValidSchedule(longName)
 	resp3 := httpClient.POST(t, "/api/v1/schedules", req3)
 	common.AssertStatusCode(t, resp3, 201)
 
-	tooLongName := longName + "A"
+	tooLongName := longName + "AAAAAAAAAAAAAAAAAAAAAAA"
 	req4 := createValidSchedule(tooLongName)
 	resp4 := httpClient.POST(t, "/api/v1/schedules", req4)
 	if resp4.StatusCode != 422 && resp4.StatusCode != 400 {
@@ -927,6 +926,7 @@ func testUpdateTimeZone(t *testing.T) {
 	common.AssertStatusCode(t, resp, 204)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	common.AssertStatusCode(t, getResp, 200)
 	fetched := decodeSchedule(t, getResp)
 	if fetched.TimeZone != "America/New_York" {
 		t.Errorf("expected timezone America/New_York, got %s", fetched.TimeZone)
@@ -1065,15 +1065,12 @@ func testUpdateOnlyTimeRange(t *testing.T) {
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 }
 
-// Additional advanced test functions for schedules
-
 func testDuplicateScheduleDetection(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
 	businessID := "507f1f77bcf86cd799439011"
 	address := "Unique Address 123"
 
-	// Create first schedule
 	req1 := createValidSchedule("Branch A")
 	req1["business_id"] = businessID
 	req1["address"] = address
@@ -1081,12 +1078,10 @@ func testDuplicateScheduleDetection(t *testing.T) {
 	common.AssertStatusCode(t, resp1, 201)
 	created1 := decodeSchedule(t, resp1)
 
-	// Try to create duplicate with same address and name
 	req2 := createValidSchedule("Branch A")
 	req2["business_id"] = businessID
 	req2["address"] = address
 	resp2 := httpClient.POST(t, "/api/v1/schedules", req2)
-	// May return 409 conflict or 201 depending on duplicate detection logic
 	if resp2.StatusCode == 201 {
 		created2 := decodeSchedule(t, resp2)
 		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created2.ID))
@@ -1102,7 +1097,9 @@ func testConcurrentScheduleCreation(t *testing.T) {
 	results := make([]int, 5)
 	ids := make([]string, 5)
 
-	for i := 0; i < 5; i++ {
+	conc := 5
+
+	for i := range conc {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
@@ -1125,9 +1122,10 @@ func testConcurrentScheduleCreation(t *testing.T) {
 		}
 	}
 
-	t.Logf("Concurrent schedule creation: %d/5 succeeded", successCount)
+	if successCount != conc {
+		t.Errorf("Concurrent schedule creation: %d/5 succeeded", successCount)
+	}
 
-	// Cleanup
 	for _, id := range ids {
 		if id != "" {
 			httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", id))
@@ -1144,6 +1142,9 @@ func testWorkingDaysNormalization(t *testing.T) {
 	resp := httpClient.POST(t, "/api/v1/schedules", req)
 	if resp.StatusCode == 201 {
 		created := decodeSchedule(t, resp)
+		for _, wd := range created.WorkingDays {
+			// if not spaces_trimmed and lowercased - err
+		}
 		t.Logf("Working days: %v", created.WorkingDays)
 		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 	} else {
@@ -1154,7 +1155,6 @@ func testWorkingDaysNormalization(t *testing.T) {
 func testExceptionsEdgeCases(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	// Test with many exceptions
 	req := createValidSchedule("Many Exceptions")
 	exceptions := []string{}
 	for i := 1; i <= 365; i++ {

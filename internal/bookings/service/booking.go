@@ -46,7 +46,7 @@ func NewBookingService(
 
 func (s *bookingService) Create(ctx context.Context, booking *model.Booking) error {
 	s.sanitize(booking)
-	s.applyDefaultsForNewCreatedBooking(booking)
+	s.applyDefaults(booking)
 
 	if err := s.validator.Validate(booking); err != nil {
 		s.cfg.Log.Warn("Booking validation failed", "error", err)
@@ -265,7 +265,7 @@ func (s *bookingService) sanitize(b *model.Booking) {
 	}
 }
 
-func (s *bookingService) applyDefaultsForNewCreatedBooking(b *model.Booking) {
+func (s *bookingService) applyDefaults(b *model.Booking) {
 	if b.Status == "" {
 		b.Status = config.Pending
 	}

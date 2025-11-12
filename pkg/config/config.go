@@ -39,8 +39,8 @@ type Config struct {
 	DefaultMaxParticipantsPerSlot int
 	DefaultStartOfDay             string
 	DefaultEndOfDay               string
-	DefaultWorkingDaysIsrael      []Weekday
-	DefaultWorkingDaysUs          []Weekday
+	DefaultWorkingDaysIsrael      []string
+	DefaultWorkingDaysUs          []string
 
 	Log    *logger.Logger
 	Client *client.Client

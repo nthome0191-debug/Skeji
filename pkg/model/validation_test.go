@@ -96,7 +96,7 @@ func TestSchedule_TimeValidation(t *testing.T) {
 				Address:                   "123 Main St",
 				StartOfDay:                "09:00",
 				EndOfDay:                  "18:00",
-				WorkingDays:               []config.Weekday{"Monday", "Tuesday"},
+				WorkingDays:               []string{"Monday", "Tuesday"},
 				DefaultMeetingDurationMin: 30,
 				DefaultBreakDurationMin:   10,
 				MaxParticipantsPerSlot:    5,
@@ -114,7 +114,7 @@ func TestSchedule_TimeValidation(t *testing.T) {
 				Address:                   "123 Main St",
 				StartOfDay:                "18:00",
 				EndOfDay:                  "09:00",
-				WorkingDays:               []config.Weekday{"Monday"},
+				WorkingDays:               []string{"Monday"},
 				DefaultMeetingDurationMin: 30,
 				DefaultBreakDurationMin:   10,
 				MaxParticipantsPerSlot:    5,
@@ -132,7 +132,7 @@ func TestSchedule_TimeValidation(t *testing.T) {
 				Address:                   "123 Main St",
 				StartOfDay:                "25:00",
 				EndOfDay:                  "18:00",
-				WorkingDays:               []config.Weekday{"Monday"},
+				WorkingDays:               []string{"Monday"},
 				DefaultMeetingDurationMin: 30,
 				DefaultBreakDurationMin:   10,
 				MaxParticipantsPerSlot:    5,
@@ -150,7 +150,7 @@ func TestSchedule_TimeValidation(t *testing.T) {
 				Address:                   "123 Main St",
 				StartOfDay:                "09:00",
 				EndOfDay:                  "18:00",
-				WorkingDays:               []config.Weekday{"Monday"},
+				WorkingDays:               []string{"Monday"},
 				DefaultMeetingDurationMin: 0,
 				DefaultBreakDurationMin:   10,
 				MaxParticipantsPerSlot:    5,
@@ -184,7 +184,7 @@ func TestBooking_StatusTransitions(t *testing.T) {
 		ManagedBy:    map[string]string{"b": "+972541234569"},
 	}
 
-	validStatuses := []config.BookingStatus{config.Pending, config.Cancelled, config.Confirmed}
+	validStatuses := []string{config.Pending, config.Cancelled, config.Confirmed}
 
 	for _, status := range validStatuses {
 		t.Run("status_"+string(status), func(t *testing.T) {
@@ -230,7 +230,7 @@ func TestScheduleUpdate_PartialUpdates(t *testing.T) {
 		{
 			name: "only working days update",
 			update: &ScheduleUpdate{
-				WorkingDays: []config.Weekday{"Monday", "Wednesday", "Friday"},
+				WorkingDays: []string{"Monday", "Wednesday", "Friday"},
 			},
 			description: "partial update with only working days",
 		},
