@@ -35,7 +35,7 @@ type BusinessUnitRepository interface {
 	Delete(ctx context.Context, id string) error
 
 	FindByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
-	Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error)
+	SearchByCityLabelPairs(ctx context.Context, pairs []string) ([]*model.BusinessUnit, error)
 	Count(ctx context.Context) (int64, error)
 
 	ExecuteTransaction(ctx context.Context, fn mongotx.TransactionFunc) error
@@ -142,13 +142,13 @@ func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu 
 	filter := bson.M{"_id": objectID}
 	update := bson.M{
 		"$set": bson.M{
-			"name":        bu.Name,
-			"cities":      bu.Cities,
-			"labels":      bu.Labels,
-			"admin_phone": bu.AdminPhone,
-			"maintainers": bu.Maintainers,
-			"priority":    bu.Priority,
-			"time_zone":   bu.TimeZone,
+			"name":         bu.Name,
+			"cities":       bu.Cities,
+			"labels":       bu.Labels,
+			"admin_phone":  bu.AdminPhone,
+			"maintainers":  bu.Maintainers,
+			"priority":     bu.Priority,
+			"time_zone":    bu.TimeZone,
 			"website_urls": bu.WebsiteURLs,
 		},
 	}
@@ -186,35 +186,23 @@ func (r *mongoBusinessUnitRepository) Delete(ctx context.Context, id string) err
 	return nil
 }
 
-func (r *mongoBusinessUnitRepository) Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error) {
+func (r *mongoBusinessUnitRepository) SearchByCityLabelPairs(ctx context.Context, pairs []string) ([]*model.BusinessUnit, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
-	filter := bson.M{}
-	if len(cities) > 0 {
-		filter["cities"] = bson.M{"$in": cities}
-	}
-	if len(labels) > 0 {
-		filter["labels"] = bson.M{"$in": labels}
-	}
+	filter := bson.M{"city_label_pairs": bson.M{"$in": pairs}}
 
-	const maxSearchResults = 1000
-	opts := options.Find().
-		SetSort(bson.D{{Key: "priority", Value: -1}}).
-		SetLimit(maxSearchResults)
-
-	cursor, err := r.collection.Find(ctx, filter, opts)
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search business units: %w", err)
+		return nil, fmt.Errorf("failed to find business units by city_label_pairs: %w", err)
 	}
 	defer cursor.Close(ctx)
 
-	var businessUnits []*model.BusinessUnit
-	if err = cursor.All(ctx, &businessUnits); err != nil {
-		return nil, fmt.Errorf("failed to decode search results: %w", err)
+	var results []*model.BusinessUnit
+	if err := cursor.All(ctx, &results); err != nil {
+		return nil, fmt.Errorf("failed to decode business units: %w", err)
 	}
-
-	return businessUnits, nil
+	return results, nil
 }
 
 func (r *mongoBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"skeji/pkg/config"
 	mongotx "skeji/pkg/db/mongo"
 	"skeji/pkg/logger"
@@ -14,8 +15,9 @@ import (
 
 // Mock repository for testing
 type mockBusinessUnitRepository struct {
-	findAllFunc   func(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, error)
-	countFunc     func(ctx context.Context) (int64, error)
+	findAllFunc            func(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, error)
+	countFunc              func(ctx context.Context) (int64, error)
+	searchByCityLabelPairs func(ctx context.Context, pairs []string) ([]*model.BusinessUnit, error)
 }
 
 func (m *mockBusinessUnitRepository) Create(ctx context.Context, bu *model.BusinessUnit) error {
@@ -45,8 +47,12 @@ func (m *mockBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phone
 	return nil, nil
 }
 
-func (m *mockBusinessUnitRepository) Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error) {
-	return nil, nil
+// New repository search method for city_label_pairs
+func (m *mockBusinessUnitRepository) SearchByCityLabelPairs(ctx context.Context, pairs []string) ([]*model.BusinessUnit, error) {
+	if m.searchByCityLabelPairs != nil {
+		return m.searchByCityLabelPairs(ctx, pairs)
+	}
+	return []*model.BusinessUnit{}, nil
 }
 
 func (m *mockBusinessUnitRepository) Count(ctx context.Context) (int64, error) {
@@ -59,6 +65,12 @@ func (m *mockBusinessUnitRepository) Count(ctx context.Context) (int64, error) {
 func (m *mockBusinessUnitRepository) ExecuteTransaction(ctx context.Context, fn mongotx.TransactionFunc) error {
 	return nil
 }
+
+//
+// ──────────────────────────────────────────────────────────────
+//   TESTS
+// ──────────────────────────────────────────────────────────────
+//
 
 func TestGetAll_ConcurrentAccess(t *testing.T) {
 	log := logger.New(logger.Config{
@@ -73,14 +85,13 @@ func TestGetAll_ConcurrentAccess(t *testing.T) {
 		ReadTimeout: 5 * time.Second,
 	}
 
-	// This test would catch race conditions if run with -race flag
 	mockRepo := &mockBusinessUnitRepository{
 		countFunc: func(ctx context.Context) (int64, error) {
-			time.Sleep(10 * time.Millisecond) // Simulate DB delay
+			time.Sleep(10 * time.Millisecond)
 			return 100, nil
 		},
 		findAllFunc: func(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, error) {
-			time.Sleep(10 * time.Millisecond) // Simulate DB delay
+			time.Sleep(10 * time.Millisecond)
 			return []*model.BusinessUnit{
 				{ID: "1", Name: "Business 1"},
 				{ID: "2", Name: "Business 2"},
@@ -90,7 +101,6 @@ func TestGetAll_ConcurrentAccess(t *testing.T) {
 
 	service := NewBusinessUnitService(mockRepo, nil, cfg)
 
-	// Run multiple times to increase chance of catching race condition
 	for i := 0; i < 10; i++ {
 		ctx := context.Background()
 		units, count, err := service.GetAll(ctx, 10, 0)
@@ -127,7 +137,6 @@ func TestGetAll_LimitNormalization(t *testing.T) {
 			return 0, nil
 		},
 		findAllFunc: func(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, error) {
-			// Test validates that limit is properly normalized
 			if limit <= 0 {
 				t.Error("limit should not be <= 0 after normalization")
 			}
@@ -141,9 +150,9 @@ func TestGetAll_LimitNormalization(t *testing.T) {
 	service := NewBusinessUnitService(mockRepo, nil, cfg)
 
 	tests := []struct {
-		name          string
-		inputLimit    int
-		inputOffset   int
+		name        string
+		inputLimit  int
+		inputOffset int
 	}{
 		{"zero limit", 0, 0},
 		{"negative limit", -1, 0},
@@ -172,15 +181,12 @@ func TestGetAll_ContextTimeout(t *testing.T) {
 
 	cfg := &config.Config{
 		Log:         log,
-		ReadTimeout: 50 * time.Millisecond, // Short timeout
+		ReadTimeout: 50 * time.Millisecond,
 	}
 
 	mockRepo := &mockBusinessUnitRepository{
 		countFunc: func(ctx context.Context) (int64, error) {
-			// Simulate slow DB query
 			time.Sleep(200 * time.Millisecond)
-
-			// Check if context was cancelled
 			select {
 			case <-ctx.Done():
 				return 0, ctx.Err()
@@ -195,31 +201,97 @@ func TestGetAll_ContextTimeout(t *testing.T) {
 
 	service := NewBusinessUnitService(mockRepo, nil, cfg)
 
-	// Create context with short timeout to simulate timeout scenario
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
 	_, _, err := service.GetAll(ctx, 10, 0)
-
-	// Should return error due to timeout
 	if err == nil {
 		t.Error("expected timeout error, got nil")
 	}
 }
 
-// TestSanitizeUpdates_InvalidPhone documents the "invalid_result" bug
-// NOTE: This test is commented out because it requires access to the unexported sanitizeUpdate method
-// The bug is documented in CODE_REVIEW_REPORT_2.md Issue #3
 //
-// The bug: When AdminPhone normalization fails, it's set to "invalid_result" instead of returning an error
-// Location: internal/businessunits/service/business_unit.go:372-376
+// ──────────────────────────────────────────────────────────────
+//   NEW TESTS: SearchByCityLabelPairs
+// ──────────────────────────────────────────────────────────────
 //
-// func TestSanitizeUpdates_InvalidPhone(t *testing.T) {
-// 	updates := &model.BusinessUnitUpdate{
-// 		AdminPhone: "invalid-phone-123",
-// 	}
-// 	service.sanitizeUpdate(updates)
-// 	if updates.AdminPhone == "invalid_result" {
-// 		t.Error("BUG: invalid phone normalized to 'invalid_result' instead of returning error")
-// 	}
-// }
+
+func TestSearchByCityLabelPairs(t *testing.T) {
+	log := logger.New(logger.Config{
+		Level:     "debug",
+		Format:    logger.JSON,
+		AddSource: false,
+		Service:   "test",
+	})
+
+	cfg := &config.Config{
+		Log:         log,
+		ReadTimeout: 5 * time.Second,
+	}
+
+	expectedUnits := []*model.BusinessUnit{
+		{ID: "1", Name: "Spa Tel Aviv"},
+		{ID: "2", Name: "Massage Haifa"},
+	}
+
+	mockRepo := &mockBusinessUnitRepository{
+		searchByCityLabelPairs: func(ctx context.Context, pairs []string) ([]*model.BusinessUnit, error) {
+			expectedPairs := []string{"tel aviv|massage", "tel aviv|spa", "haifa|massage", "haifa|spa"}
+
+			for _, exp := range expectedPairs {
+				found := false
+				for _, given := range pairs {
+					if given == exp {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("expected pair %s not found in pairs: %v", exp, pairs)
+				}
+			}
+			return expectedUnits, nil
+		},
+	}
+
+	service := NewBusinessUnitService(mockRepo, nil, cfg)
+
+	cities := []string{"Tel Aviv", "Haifa"}
+	labels := []string{"Massage", "Spa"}
+
+	units, err := service.Search(context.Background(), cities, labels)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(units) != len(expectedUnits) {
+		t.Errorf("expected %d results, got %d", len(expectedUnits), len(units))
+	}
+}
+
+func TestSearchByCityLabelPairs_RepoError(t *testing.T) {
+	log := logger.New(logger.Config{
+		Level:     "debug",
+		Format:    logger.JSON,
+		AddSource: false,
+		Service:   "test",
+	})
+
+	cfg := &config.Config{
+		Log:         log,
+		ReadTimeout: 5 * time.Second,
+	}
+
+	mockRepo := &mockBusinessUnitRepository{
+		searchByCityLabelPairs: func(ctx context.Context, pairs []string) ([]*model.BusinessUnit, error) {
+			return nil, fmt.Errorf("DB failure")
+		},
+	}
+
+	service := NewBusinessUnitService(mockRepo, nil, cfg)
+
+	_, err := service.Search(context.Background(), []string{"Tel Aviv"}, []string{"Spa"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}

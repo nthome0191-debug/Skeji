@@ -125,15 +125,13 @@ func (s *scheduleService) GetAll(ctx context.Context, limit int, offset int) ([]
 	if limit <= 0 {
 		limit = 10
 	}
-	if limit > 100 {
+	if limit > config.DefaultPaginationLimit {
 		limit = config.DefaultPaginationLimit
 	}
 	if offset < 0 {
 		offset = 0
 	}
 
-	// Execute Count and FindAll concurrently
-	// Repository layer handles timeouts for each operation
 	var count int64
 	var schedules []*model.Schedule
 	var errCount, errFind error

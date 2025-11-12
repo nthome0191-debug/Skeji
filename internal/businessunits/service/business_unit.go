@@ -62,6 +62,8 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 		})
 	}
 
+	s.populateCityLabelPairs(bu)
+
 	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
 		existing, err := s.repo.FindByAdminPhone(sessCtx, bu.AdminPhone)
 		if err != nil {
@@ -130,15 +132,15 @@ func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int)
 	if limit <= 0 {
 		limit = 10
 	}
-	if limit > 100 {
+	if limit > config.DefaultPaginationLimit {
 		limit = config.DefaultPaginationLimit
 	}
 	if offset < 0 {
 		offset = 0
 	}
 
-	// Execute Count and FindAll concurrently
-	// Repository layer handles timeouts for each operation
+	fmt.Printf("\n\nnatali test: limit: %v\n\n", limit)
+
 	var count int64
 	var units []*model.BusinessUnit
 	var errCount, errFind error
@@ -215,6 +217,8 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 			"error": err.Error(),
 		})
 	}
+
+	s.populateCityLabelPairs(merged)
 
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
 		existingUnits, err := s.repo.FindByAdminPhone(sessCtx, merged.AdminPhone)
@@ -326,11 +330,19 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 		return nil, apperrors.InvalidInput("Search criteria resulted in no valid items after normalization")
 	}
 
-	units, err := s.repo.Search(ctx, cities, labels)
+	pairs := make([]string, 0, len(cities)*len(labels))
+	for _, city := range cities {
+		for _, label := range labels {
+			pairs = append(pairs, fmt.Sprintf("%s|%s", city, label))
+		}
+	}
+
+	units, err := s.repo.SearchByCityLabelPairs(ctx, pairs)
 	if err != nil {
-		s.cfg.Log.Error("Failed to search business units",
+		s.cfg.Log.Error("Failed to search business units by city_label_pairs",
 			"cities", cities,
 			"labels", labels,
+			"pairs", pairs,
 			"error", err,
 		)
 		return nil, apperrors.Internal("Failed to search business units", err)
@@ -339,6 +351,7 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 	s.cfg.Log.Debug("Business units search completed",
 		"cities", cities,
 		"labels", labels,
+		"pairs_count", len(pairs),
 		"results_count", len(units),
 	)
 
@@ -476,4 +489,14 @@ func (s *businessUnitService) isSubset(subset, superset []string) bool {
 	}
 
 	return true
+}
+
+func (s *businessUnitService) populateCityLabelPairs(bu *model.BusinessUnit) {
+	pairs := make([]string, 0, len(bu.Cities)*len(bu.Labels))
+	for _, city := range bu.Cities {
+		for _, label := range bu.Labels {
+			pairs = append(pairs, fmt.Sprintf("%s|%s", city, label))
+		}
+	}
+	bu.CityLabelPairs = pairs
 }

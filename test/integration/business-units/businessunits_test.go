@@ -1555,26 +1555,25 @@ func testUpdateAdminPhoneValidation(t *testing.T) {
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }
 
-// Additional advanced test functions
-
 func testPhoneNumberEdgeCases(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	// Test phone with spaces (should be rejected)
 	bu := createValidBusinessUnit("Phone With Spaces", "+972 50 1234567")
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Logf("Phone with spaces returned status %d", resp.StatusCode)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+	if strings.Contains(created.AdminPhone, " ") {
+		t.Logf("Admin phone wasn't sanitized/normalized: %s", created.AdminPhone)
 	}
 
-	// Test phone with dashes (should be rejected)
 	bu2 := createValidBusinessUnit("Phone With Dashes", "+972-50-1234567")
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
-	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Logf("Phone with dashes returned status %d", resp.StatusCode)
+	common.AssertStatusCode(t, resp, 201)
+	created = decodeBusinessUnit(t, resp)
+	if strings.Contains(created.AdminPhone, "-") {
+		t.Logf("Admin phone wasn't sanitized/normalized: %s", created.AdminPhone)
 	}
 
-	// Test minimum length valid phone
 	bu3 := createValidBusinessUnit("Min Phone", "+9728")
 	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
 	if resp.StatusCode == 201 {
@@ -1582,7 +1581,6 @@ func testPhoneNumberEdgeCases(t *testing.T) {
 		httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	}
 
-	// Test maximum length valid phone (15 digits total)
 	bu4 := createValidBusinessUnit("Max Phone", "+123456789012345")
 	resp = httpClient.POST(t, "/api/v1/business-units", bu4)
 	if resp.StatusCode == 201 {
@@ -1682,7 +1680,6 @@ func testSearchPartialMatches(t *testing.T) {
 	bu1["labels"] = []string{"Haircut", "Hairstyling"}
 	httpClient.POST(t, "/api/v1/business-units", bu1)
 
-	// Search should find by normalized city
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=telaviv&labels=haircut")
 	common.AssertStatusCode(t, resp, 200)
 	results := decodeBusinessUnits(t, resp)
@@ -1690,7 +1687,6 @@ func testSearchPartialMatches(t *testing.T) {
 		t.Error("Expected to find business unit with city match")
 	}
 
-	// Search with one matching city and one matching label should work
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=telaviv,jerusalem&labels=haircut,massage")
 	common.AssertStatusCode(t, resp, 200)
 	results = decodeBusinessUnits(t, resp)
@@ -1702,7 +1698,6 @@ func testSearchPartialMatches(t *testing.T) {
 func testMaintainersEdgeCases(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	// Test with duplicate maintainers
 	bu2 := createValidBusinessUnit("Duplicate Maintainers", "+972502000011")
 	bu2["maintainers"] = []string{"+972541111111", "+972541111111", "+972542222222"}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu2)
@@ -1713,7 +1708,6 @@ func testMaintainersEdgeCases(t *testing.T) {
 	}
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created2.ID))
 
-	// Test with admin_phone in maintainers
 	bu3 := createValidBusinessUnit("Admin As Maintainer", "+972502000012")
 	bu3["maintainers"] = []string{"+972502000012", "+972541111111"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
@@ -1733,8 +1727,8 @@ func testInternationalPhoneNumbers(t *testing.T) {
 		{"US Number", "+12125551234", true},
 		{"Canada Number", "+14165551234", true},
 		{"Israel Number", "+972501234567", true},
-		{"UK Number", "+447700900123", false},    // Not supported
-		{"France Number", "+33612345678", false},  // Not supported
+		{"UK Number", "+447700900123", false},
+		{"France Number", "+33612345678", false},
 		{"Invalid Prefix", "+999123456789", false},
 	}
 
@@ -1760,7 +1754,6 @@ func testInternationalPhoneNumbers(t *testing.T) {
 func testCityLabelNormalizationEdgeCases(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	// Cities with special characters
 	bu := createValidBusinessUnit("Special Chars", "+972502000030")
 	bu["cities"] = []string{"Tel-Aviv", "Tel Aviv", "TEL_AVIV"}
 	bu["labels"] = []string{"Hair-Cut", "Hair Cut", "HAIR_CUT"}
@@ -1768,9 +1761,12 @@ func testCityLabelNormalizationEdgeCases(t *testing.T) {
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
-	// Verify normalization
-	t.Logf("Normalized cities: %v", created.Cities)
-	t.Logf("Normalized labels: %v", created.Labels)
+	if len(created.Cities) != 1 || created.Cities[0] != "telaviv" {
+		t.Errorf("Cities are not normalized: %v", created.Cities)
+	}
+	if len(created.Labels) != 1 || created.Labels[0] != "haircut" {
+		t.Errorf("Labels are not normalized: %v", created.Labels)
+	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }
@@ -1778,18 +1774,16 @@ func testCityLabelNormalizationEdgeCases(t *testing.T) {
 func testMaxLimitPagination(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	// Create some test data
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		bu := createValidBusinessUnit(fmt.Sprintf("Pagination Test %d", i), fmt.Sprintf("+97250%07d", 3000000+i))
 		httpClient.POST(t, "/api/v1/business-units", bu)
 	}
 
-	// Test with limit exceeding max
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=10000&offset=0")
 	common.AssertStatusCode(t, resp, 200)
 	data, _, limit, _ := decodePaginated(t, resp)
 
-	if limit > 100 {
+	if limit > config.DefaultPaginationLimit {
 		t.Errorf("Expected limit to be capped at 100, got %d", limit)
 	}
 
@@ -1799,7 +1793,6 @@ func testMaxLimitPagination(t *testing.T) {
 func testPriorityRangeValidation(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	// Test with priority at boundaries
 	testPriorities := []int64{0, 1, 50, 100, 1000, 10000}
 	for _, priority := range testPriorities {
 		bu := createValidBusinessUnit(fmt.Sprintf("Priority %d", priority), fmt.Sprintf("+97250%07d", 5000000+int(priority)))

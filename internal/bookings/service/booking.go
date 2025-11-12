@@ -112,7 +112,7 @@ func (s *bookingService) GetAll(ctx context.Context, limit int, offset int) ([]*
 	if limit <= 0 {
 		limit = 10
 	}
-	if limit > 100 {
+	if limit > config.DefaultPaginationLimit {
 		limit = config.DefaultPaginationLimit
 	}
 	if offset < 0 {
