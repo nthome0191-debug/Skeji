@@ -27,13 +27,18 @@ func NormalizeStringSlice(items []string, normalizer func(string) string) []stri
 }
 
 func NormalizeCities(cities []string) []string {
-	return NormalizeStringSlice(cities, NormalizeCity)
+	return NormalizeStringSlice(cities, Normalize)
 }
 
 func NormalizeLabels(labels []string) []string {
-	return NormalizeStringSlice(labels, NormalizeLabel)
+	return NormalizeStringSlice(labels, Normalize)
 }
 
+func NormalizeExceptions(exp []string) []string {
+	return NormalizeStringSlice(exp, Normalize)
+}
+
+// todo: maintainers should be changed to struct
 func NormalizeMaintainers(maintainers []string) []string {
 	return NormalizeStringSlice(maintainers, NormalizePhone)
 }

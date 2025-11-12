@@ -7,11 +7,11 @@ import (
 
 func TestNormalizePhone_EdgeCases(t *testing.T) {
 	tests := []struct {
-		name           string
-		input          string
-		actualResult   string // What NormalizePhone actually returns
-		idealBehavior  string // What it SHOULD return
-		documentsBug   bool
+		name          string
+		input         string
+		actualResult  string // What NormalizePhone actually returns
+		idealBehavior string // What it SHOULD return
+		documentsBug  bool
 	}{
 		{
 			name:          "invalid phone with letters becomes israeli number",
@@ -99,11 +99,11 @@ func TestNormalizeMaintainers_EmptyResults(t *testing.T) {
 
 func TestNormalizePriority_ConfigEdgeCases(t *testing.T) {
 	tests := []struct {
-		name               string
-		minPriority        int
-		maxPriority        int
-		inputPriority      int64
-		expectedPriority   int64
+		name                 string
+		minPriority          int
+		maxPriority          int
+		inputPriority        int64
+		expectedPriority     int64
 		expectsNormalization bool
 	}{
 		{
@@ -249,7 +249,7 @@ func TestNormalizeName_ExtremelyLongInput(t *testing.T) {
 		longName += "a "
 	}
 
-	result := NormalizeName(longName)
+	result := Normalize(longName)
 
 	// Should not panic
 	if result == "" {

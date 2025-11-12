@@ -255,7 +255,7 @@ func (s *scheduleService) Search(ctx context.Context, businessID string, city st
 		return nil, apperrors.InvalidInput("Business_id must be provided, city is optional")
 	}
 
-	city = sanitizer.TrimAndNormalize(city)
+	city = sanitizer.Normalize(city)
 	businessID = sanitizer.TrimAndNormalize(businessID)
 
 	schedules, err := s.repo.Search(ctx, businessID, city)
@@ -278,24 +278,28 @@ func (s *scheduleService) Search(ctx context.Context, businessID string, city st
 }
 
 func (s *scheduleService) sanitize(sc *model.Schedule) {
-	sc.Name = sanitizer.NormalizeName(sc.Name)
-	sc.City = sanitizer.TrimAndNormalize(sc.City)
-	sc.Address = sanitizer.TrimAndNormalize(sc.Address)
+	sc.Name = sanitizer.Normalize(sc.Name)
+	sc.City = sanitizer.Normalize(sc.City)
+	sc.Address = sanitizer.Normalize(sc.Address)
 	sc.WorkingDays = sanitizer.NormalizeWorkingDays(sc.WorkingDays)
+	sc.Exceptions = sanitizer.NormalizeExceptions(sc.Exceptions)
 }
 
 func (s *scheduleService) sanitizeUpdate(updates *model.ScheduleUpdate) {
 	if updates.Name != "" {
-		updates.Name = sanitizer.NormalizeName(updates.Name)
+		updates.Name = sanitizer.Normalize(updates.Name)
 	}
 	if updates.City != "" {
-		updates.City = sanitizer.TrimAndNormalize(updates.City)
+		updates.City = sanitizer.Normalize(updates.City)
 	}
 	if updates.Address != "" {
-		updates.Address = sanitizer.TrimAndNormalize(updates.Address)
+		updates.Address = sanitizer.Normalize(updates.Address)
 	}
 	if len(updates.WorkingDays) > 0 {
 		updates.WorkingDays = sanitizer.NormalizeWorkingDays(updates.WorkingDays)
+	}
+	if updates.Exceptions != nil {
+		*updates.Exceptions = sanitizer.NormalizeExceptions(*updates.Exceptions)
 	}
 }
 

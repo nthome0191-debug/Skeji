@@ -256,12 +256,12 @@ func overlaps(start1, end1, start2, end2 time.Time) bool {
 }
 
 func (s *bookingService) sanitize(b *model.Booking) {
-	b.ServiceLabel = sanitizer.TrimAndNormalize(b.ServiceLabel)
+	b.ServiceLabel = sanitizer.Normalize(b.ServiceLabel)
 	for k, v := range b.Participants {
-		b.Participants[sanitizer.NormalizePhone(k)] = sanitizer.TrimAndNormalize(v)
+		b.Participants[sanitizer.NormalizePhone(k)] = sanitizer.Normalize(v)
 	}
 	for k, v := range b.ManagedBy {
-		b.ManagedBy[sanitizer.NormalizePhone(k)] = sanitizer.TrimAndNormalize(v)
+		b.ManagedBy[sanitizer.NormalizePhone(k)] = sanitizer.Normalize(v)
 	}
 }
 

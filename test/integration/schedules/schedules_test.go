@@ -7,6 +7,7 @@ import (
 	"skeji/pkg/config"
 	"skeji/pkg/model"
 	"skeji/test/common"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1143,12 +1144,13 @@ func testWorkingDaysNormalization(t *testing.T) {
 	if resp.StatusCode == 201 {
 		created := decodeSchedule(t, resp)
 		for _, wd := range created.WorkingDays {
-			// if not spaces_trimmed and lowercased - err
+			if wd != strings.ToLower(strings.TrimSpace(wd)) {
+				t.Errorf("Working days: %v", created.WorkingDays)
+			}
 		}
-		t.Logf("Working days: %v", created.WorkingDays)
 		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 	} else {
-		t.Logf("Mixed case working days returned status %d", resp.StatusCode)
+		t.Errorf("Mixed case working days returned status %d", resp.StatusCode)
 	}
 }
 
@@ -1163,19 +1165,18 @@ func testExceptionsEdgeCases(t *testing.T) {
 	req["exceptions"] = exceptions
 
 	resp := httpClient.POST(t, "/api/v1/schedules", req)
-	if resp.StatusCode == 201 {
-		created := decodeSchedule(t, resp)
-		t.Logf("Created schedule with %d exceptions", len(created.Exceptions))
-		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for num of exceptions is too big, got %d", resp.StatusCode)
 	}
 
-	// Test with duplicate exceptions
 	req2 := createValidSchedule("Duplicate Exceptions")
 	req2["exceptions"] = []string{"2025-12-25", "2025-12-25", "2025-12-26"}
 	resp = httpClient.POST(t, "/api/v1/schedules", req2)
 	if resp.StatusCode == 201 {
 		created := decodeSchedule(t, resp)
-		t.Logf("Duplicate exceptions test: got %d exceptions", len(created.Exceptions))
+		if len(created.Exceptions) != 2 {
+			t.Errorf("Duplicate exceptions test: got %d exceptions", len(created.Exceptions))
+		}
 		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 	}
 }
@@ -1183,7 +1184,6 @@ func testExceptionsEdgeCases(t *testing.T) {
 func testOptionalFieldsDefaults(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	// Create schedule without optional fields
 	req := createValidSchedule("Defaults Test")
 	delete(req, "default_meeting_duration_min")
 	delete(req, "default_break_duration_min")
@@ -1194,10 +1194,15 @@ func testOptionalFieldsDefaults(t *testing.T) {
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeSchedule(t, resp)
 
-	t.Logf("Default meeting duration: %d", created.DefaultMeetingDurationMin)
-	t.Logf("Default break duration: %d", created.DefaultBreakDurationMin)
-	t.Logf("Max participants: %d", created.MaxParticipantsPerSlot)
-
+	if created.DefaultMeetingDurationMin != config.DefaultDefaultMeetingDurationMin {
+		t.Errorf("Default meeting duration: %d", created.DefaultMeetingDurationMin)
+	}
+	if created.DefaultBreakDurationMin != config.DefaultDefaultBreakDurationMin {
+		t.Errorf("Default break duration: %d", created.DefaultBreakDurationMin)
+	}
+	if created.MaxParticipantsPerSlot != config.DefaultDefaultMaxParticipantsPerSlot {
+		t.Errorf("Max participants: %d", created.MaxParticipantsPerSlot)
+	}
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 }
 
@@ -1206,15 +1211,13 @@ func testSearchWithOnlyBusinessID(t *testing.T) {
 
 	businessID := "507f1f77bcf86cd799439011"
 
-	// Create multiple schedules for same business
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		req := createValidSchedule(fmt.Sprintf("Search Test %d", i))
 		req["business_id"] = businessID
 		req["city"] = fmt.Sprintf("City%d", i)
 		httpClient.POST(t, "/api/v1/schedules", req)
 	}
 
-	// Search by business_id only (no city filter)
 	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/search?business_id=%s", businessID))
 	common.AssertStatusCode(t, resp, 200)
 	results := decodeSchedules(t, resp)
@@ -1229,7 +1232,6 @@ func testSearchWithCityFilter(t *testing.T) {
 
 	businessID := "507f1f77bcf86cd799439011"
 
-	// Create schedules in different cities
 	req1 := createValidSchedule("Tel Aviv Branch")
 	req1["business_id"] = businessID
 	req1["city"] = "Tel Aviv"
@@ -1240,7 +1242,6 @@ func testSearchWithCityFilter(t *testing.T) {
 	req2["city"] = "Jerusalem"
 	httpClient.POST(t, "/api/v1/schedules", req2)
 
-	// Search with city filter
 	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/search?business_id=%s&city=Tel%%20Aviv", businessID))
 	common.AssertStatusCode(t, resp, 200)
 	results := decodeSchedules(t, resp)
@@ -1267,12 +1268,10 @@ func testUpdatePartialFields(t *testing.T) {
 	originalCity := created.City
 	originalAddress := created.Address
 
-	// Update only name
 	update := map[string]any{"name": "New Name Only"}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), update)
 	common.AssertStatusCode(t, resp, 204)
 
-	// Verify other fields unchanged
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
 	fetched := decodeSchedule(t, getResp)
 
@@ -1292,7 +1291,6 @@ func testUpdatePartialFields(t *testing.T) {
 func testCityNormalization(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	// Test various city formats
 	cities := []string{
 		"Tel Aviv",
 		"TEL AVIV",

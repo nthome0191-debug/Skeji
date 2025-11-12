@@ -113,6 +113,12 @@ func (v *ScheduleValidator) Validate(sc *model.Schedule) error {
 			Message: "working_days lenght must be between 1 to 7",
 		}}
 	}
+	if len(sc.Exceptions) > 10 {
+		return ValidationErrors{{
+			Field:   "exceptions",
+			Message: "excpetions lenght must be no more than 10 distinct items",
+		}}
+	}
 	return nil
 }
 

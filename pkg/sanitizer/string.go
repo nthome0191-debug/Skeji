@@ -1,9 +1,12 @@
 package sanitizer
 
 import (
+	"regexp"
 	"strings"
 	"unicode"
 )
+
+var nonLetterRegex = regexp.MustCompile(`[^a-zA-Z]+`)
 
 func TrimAndNormalize(s string) string {
 	s = strings.TrimSpace(s)
@@ -30,8 +33,15 @@ func TrimAndNormalize(s string) string {
 	return result.String()
 }
 
-func NormalizeName(name string) string {
-	return TrimAndNormalize(name)
+func Normalize(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	s = strings.ToLower(s)
+	s = nonLetterRegex.ReplaceAllString(s, "_")
+	s = strings.Trim(s, "_")
+	return s
 }
 
 func NormalizeNameForComparison(name string) string {

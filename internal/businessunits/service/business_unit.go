@@ -347,7 +347,7 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 }
 
 func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
-	bu.Name = sanitizer.NormalizeName(bu.Name)
+	bu.Name = sanitizer.Normalize(bu.Name)
 	bu.Cities = sanitizer.NormalizeCities(bu.Cities)
 	bu.Labels = sanitizer.NormalizeLabels(bu.Labels)
 	bu.AdminPhone = sanitizer.NormalizePhone(bu.AdminPhone)
@@ -358,7 +358,7 @@ func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
 
 func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) {
 	if updates.Name != "" {
-		updates.Name = sanitizer.NormalizeName(updates.Name)
+		updates.Name = sanitizer.Normalize(updates.Name)
 	}
 	if updates.Cities != nil {
 		if len(updates.Cities) == 0 {

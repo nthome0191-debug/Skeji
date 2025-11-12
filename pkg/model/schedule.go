@@ -16,7 +16,7 @@ type Schedule struct {
 	DefaultMeetingDurationMin int       `json:"default_meeting_duration_min" bson:"default_meeting_duration_min" validate:"required,min=5,max=480"`
 	DefaultBreakDurationMin   int       `json:"default_break_duration_min" bson:"default_break_duration_min" validate:"required,min=0,max=480"`
 	MaxParticipantsPerSlot    int       `json:"max_participants_per_slot" bson:"max_participants_per_slot" validate:"required,min=1,max=200"`
-	Exceptions                []string  `json:"exceptions,omitempty" bson:"exceptions" validate:"omitempty"`
+	Exceptions                []string  `json:"exceptions,omitempty" bson:"exceptions" validate:"omitempty,max=10"`
 	CreatedAt                 time.Time `json:"created_at" bson:"created_at" validate:"omitempty"`
 	TimeZone                  string    `json:"time_zone" bson:"time_zone" validate:"required,timezone"`
 }
@@ -31,6 +31,6 @@ type ScheduleUpdate struct {
 	DefaultMeetingDurationMin *int      `json:"default_meeting_duration_min,omitempty" validate:"omitempty,min=5,max=480"`
 	DefaultBreakDurationMin   *int      `json:"default_break_duration_min,omitempty" validate:"omitempty,min=0,max=480"`
 	MaxParticipantsPerSlot    *int      `json:"max_participants_per_slot,omitempty" validate:"omitempty,min=1,max=200"`
-	Exceptions                *[]string `json:"exceptions,omitempty" validate:"omitempty"`
+	Exceptions                *[]string `json:"exceptions,omitempty" validate:"omitempty,max=10"`
 	TimeZone                  string    `json:"time_zone,omitempty" bson:"time_zone,omitempty" validate:"omitempty,timezone"`
 }
