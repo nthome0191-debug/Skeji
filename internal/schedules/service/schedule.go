@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	scheduleerrors "skeji/internal/schedules/errors"
 	"skeji/internal/schedules/repository"
 	"skeji/internal/schedules/validator"
@@ -45,8 +46,11 @@ func NewScheduleService(
 }
 
 func (s *scheduleService) Create(ctx context.Context, sc *model.Schedule) error {
+	fmt.Printf("\n\nnatali print - %s\n", sc.Name)
 	s.sanitize(sc)
+	fmt.Printf("\n\nnatali print sanitized - %s\n", sc.Name)
 	s.applyDefaults(sc)
+	fmt.Printf("\n\nnatali print - apply defaults %s\n", sc.Name)
 
 	if err := s.validator.Validate(sc); err != nil {
 		s.cfg.Log.Warn("Schedule validation failed",

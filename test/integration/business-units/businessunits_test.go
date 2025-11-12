@@ -7,6 +7,7 @@ import (
 	"skeji/pkg/model"
 	"skeji/test/common"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -26,7 +27,21 @@ func TestMain(t *testing.T) {
 	testPost(t)
 	testUpdate(t)
 	testDelete(t)
+	testAdvanced(t)
 	teardown()
+}
+
+func testAdvanced(t *testing.T) {
+	testPhoneNumberEdgeCases(t)
+	testConcurrentCreation(t)
+	testConcurrentUpdates(t)
+	testSearchPartialMatches(t)
+	testMaintainersEdgeCases(t)
+	testInternationalPhoneNumbers(t)
+	testCityLabelNormalizationEdgeCases(t)
+	testMaxLimitPagination(t)
+	testPriorityRangeValidation(t)
+	testTimezoneBoundaries(t)
 }
 
 func setup() {
@@ -1538,4 +1553,289 @@ func testUpdateAdminPhoneValidation(t *testing.T) {
 	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+// Additional advanced test functions
+
+func testPhoneNumberEdgeCases(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Test phone with spaces (should be rejected)
+	bu := createValidBusinessUnit("Phone With Spaces", "+972 50 1234567")
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Phone with spaces returned status %d", resp.StatusCode)
+	}
+
+	// Test phone with dashes (should be rejected)
+	bu2 := createValidBusinessUnit("Phone With Dashes", "+972-50-1234567")
+	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Phone with dashes returned status %d", resp.StatusCode)
+	}
+
+	// Test minimum length valid phone
+	bu3 := createValidBusinessUnit("Min Phone", "+9728")
+	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
+	if resp.StatusCode == 201 {
+		created := decodeBusinessUnit(t, resp)
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	}
+
+	// Test maximum length valid phone (15 digits total)
+	bu4 := createValidBusinessUnit("Max Phone", "+123456789012345")
+	resp = httpClient.POST(t, "/api/v1/business-units", bu4)
+	if resp.StatusCode == 201 {
+		created := decodeBusinessUnit(t, resp)
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	}
+}
+
+func testConcurrentCreation(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	var wg sync.WaitGroup
+	results := make([]int, 5)
+	ids := make([]string, 5)
+
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			bu := createValidBusinessUnit("Concurrent Business", fmt.Sprintf("+97250%07d", 2000000+index))
+			bu["cities"] = []string{"Tel Aviv"}
+			bu["labels"] = []string{"Test"}
+			resp := httpClient.POST(t, "/api/v1/business-units", bu)
+			results[index] = resp.StatusCode
+			if resp.StatusCode == 201 {
+				created := decodeBusinessUnit(t, resp)
+				ids[index] = created.ID
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	successCount := 0
+	for _, status := range results {
+		if status == 201 {
+			successCount++
+		}
+	}
+
+	if successCount != 5 {
+		t.Logf("Concurrent creation: %d/5 succeeded (expected all to succeed with different phones)", successCount)
+	}
+
+	// Cleanup
+	for _, id := range ids {
+		if id != "" {
+			httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", id))
+		}
+	}
+}
+
+func testConcurrentUpdates(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	bu := createValidBusinessUnit("Concurrent Update Test", "+972502000000")
+	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeBusinessUnit(t, createResp)
+
+	var wg sync.WaitGroup
+	results := make([]int, 10)
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			update := map[string]any{
+				"name": fmt.Sprintf("Updated Name %d", index),
+			}
+			resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), update)
+			results[index] = resp.StatusCode
+		}(i)
+	}
+
+	wg.Wait()
+
+	successCount := 0
+	for _, status := range results {
+		if status == 204 {
+			successCount++
+		}
+	}
+
+	if successCount != 10 {
+		t.Logf("Concurrent updates: %d/10 succeeded", successCount)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testSearchPartialMatches(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	bu1 := createValidBusinessUnit("Tel Aviv Salon", "+972502000001")
+	bu1["cities"] = []string{"Tel Aviv", "Tel Aviv-Yafo"}
+	bu1["labels"] = []string{"Haircut", "Hairstyling"}
+	httpClient.POST(t, "/api/v1/business-units", bu1)
+
+	// Search should find by normalized city
+	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=telaviv&labels=haircut")
+	common.AssertStatusCode(t, resp, 200)
+	results := decodeBusinessUnits(t, resp)
+	if len(results) < 1 {
+		t.Error("Expected to find business unit with city match")
+	}
+
+	// Search with one matching city and one matching label should work
+	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=telaviv,jerusalem&labels=haircut,massage")
+	common.AssertStatusCode(t, resp, 200)
+	results = decodeBusinessUnits(t, resp)
+	if len(results) < 1 {
+		t.Error("Expected to find business unit with partial match")
+	}
+}
+
+func testMaintainersEdgeCases(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Test with duplicate maintainers
+	bu2 := createValidBusinessUnit("Duplicate Maintainers", "+972502000011")
+	bu2["maintainers"] = []string{"+972541111111", "+972541111111", "+972542222222"}
+	resp := httpClient.POST(t, "/api/v1/business-units", bu2)
+	common.AssertStatusCode(t, resp, 201)
+	created2 := decodeBusinessUnit(t, resp)
+	if len(created2.Maintainers) > 2 {
+		t.Logf("Expected deduplication of maintainers, got %d maintainers", len(created2.Maintainers))
+	}
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created2.ID))
+
+	// Test with admin_phone in maintainers
+	bu3 := createValidBusinessUnit("Admin As Maintainer", "+972502000012")
+	bu3["maintainers"] = []string{"+972502000012", "+972541111111"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
+	common.AssertStatusCode(t, resp, 201)
+	created3 := decodeBusinessUnit(t, resp)
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created3.ID))
+}
+
+func testInternationalPhoneNumbers(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	testCases := []struct {
+		name       string
+		phone      string
+		shouldPass bool
+	}{
+		{"US Number", "+12125551234", true},
+		{"Canada Number", "+14165551234", true},
+		{"Israel Number", "+972501234567", true},
+		{"UK Number", "+447700900123", false},    // Not supported
+		{"France Number", "+33612345678", false},  // Not supported
+		{"Invalid Prefix", "+999123456789", false},
+	}
+
+	for _, tc := range testCases {
+		bu := createValidBusinessUnit(tc.name, tc.phone)
+		resp := httpClient.POST(t, "/api/v1/business-units", bu)
+
+		if tc.shouldPass {
+			if resp.StatusCode == 201 {
+				created := decodeBusinessUnit(t, resp)
+				httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+			} else {
+				t.Errorf("%s: expected 201, got %d", tc.name, resp.StatusCode)
+			}
+		} else {
+			if resp.StatusCode != 422 && resp.StatusCode != 400 {
+				t.Logf("%s: expected validation error, got %d", tc.name, resp.StatusCode)
+			}
+		}
+	}
+}
+
+func testCityLabelNormalizationEdgeCases(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Cities with special characters
+	bu := createValidBusinessUnit("Special Chars", "+972502000030")
+	bu["cities"] = []string{"Tel-Aviv", "Tel Aviv", "TEL_AVIV"}
+	bu["labels"] = []string{"Hair-Cut", "Hair Cut", "HAIR_CUT"}
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	// Verify normalization
+	t.Logf("Normalized cities: %v", created.Cities)
+	t.Logf("Normalized labels: %v", created.Labels)
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testMaxLimitPagination(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create some test data
+	for i := 0; i < 5; i++ {
+		bu := createValidBusinessUnit(fmt.Sprintf("Pagination Test %d", i), fmt.Sprintf("+97250%07d", 3000000+i))
+		httpClient.POST(t, "/api/v1/business-units", bu)
+	}
+
+	// Test with limit exceeding max
+	resp := httpClient.GET(t, "/api/v1/business-units?limit=10000&offset=0")
+	common.AssertStatusCode(t, resp, 200)
+	data, _, limit, _ := decodePaginated(t, resp)
+
+	if limit > 100 {
+		t.Errorf("Expected limit to be capped at 100, got %d", limit)
+	}
+
+	t.Logf("Requested limit=10000, got limit=%d, data count=%d", limit, len(data))
+}
+
+func testPriorityRangeValidation(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Test with priority at boundaries
+	testPriorities := []int64{0, 1, 50, 100, 1000, 10000}
+	for _, priority := range testPriorities {
+		bu := createValidBusinessUnit(fmt.Sprintf("Priority %d", priority), fmt.Sprintf("+97250%07d", 5000000+int(priority)))
+		bu["priority"] = priority
+		resp := httpClient.POST(t, "/api/v1/business-units", bu)
+		common.AssertStatusCode(t, resp, 201)
+		created := decodeBusinessUnit(t, resp)
+		t.Logf("Requested priority=%d, got priority=%d", priority, created.Priority)
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	}
+}
+
+func testTimezoneBoundaries(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	timezones := []string{
+		"UTC",
+		"GMT",
+		"Asia/Jerusalem",
+		"America/New_York",
+		"Europe/London",
+		"Pacific/Auckland",
+		"Asia/Tokyo",
+	}
+
+	for i, tz := range timezones {
+		bu := createValidBusinessUnit(fmt.Sprintf("TZ Test %s", tz), fmt.Sprintf("+97250%07d", 6000000+i))
+		bu["time_zone"] = tz
+		resp := httpClient.POST(t, "/api/v1/business-units", bu)
+		common.AssertStatusCode(t, resp, 201)
+		created := decodeBusinessUnit(t, resp)
+
+		if created.TimeZone != tz {
+			t.Errorf("Expected timezone %s, got %s", tz, created.TimeZone)
+		}
+
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	}
 }

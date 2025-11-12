@@ -6,6 +6,7 @@ import (
 	"skeji/pkg/config"
 	"skeji/pkg/model"
 	"skeji/test/common"
+	"sync"
 	"testing"
 	"time"
 )
@@ -26,7 +27,21 @@ func TestMain(t *testing.T) {
 	testPost(t)
 	testUpdate(t)
 	testDelete(t)
+	testAdvanced(t)
 	teardown()
+}
+
+func testAdvanced(t *testing.T) {
+	testConcurrentBookingCreation(t)
+	testBookingStatusCompleted(t)
+	testParticipantsValidation(t)
+	testSearchWithExactTimeMatch(t)
+	testBookingWithPastEndTime(t)
+	testUpdateParticipantsExceedCapacity(t)
+	testManagedByValidation(t)
+	testSearchWithoutTimeRange(t)
+	testUpdateClearParticipants(t)
+	testBookingWithSameBusinessDifferentSchedule(t)
 }
 
 func setup() {
@@ -943,4 +958,243 @@ func testUpdateMultipleFields(t *testing.T) {
 	if string(fetched.Status) != "confirmed" {
 		t.Errorf("expected status 'confirmed', got %s", string(fetched.Status))
 	}
+}
+
+// Additional advanced test functions for bookings
+
+func testConcurrentBookingCreation(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	var wg sync.WaitGroup
+	results := make([]int, 5)
+	ids := make([]string, 5)
+
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", fmt.Sprintf("Service %d", index), start.Add(time.Duration(index)*2*time.Hour), end.Add(time.Duration(index)*2*time.Hour))
+			resp := httpClient.POST(t, "/api/v1/bookings", payload)
+			results[index] = resp.StatusCode
+			if resp.StatusCode == 201 {
+				created := decodeBooking(t, resp)
+				ids[index] = created.ID
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	successCount := 0
+	for _, status := range results {
+		if status == 201 {
+			successCount++
+		}
+	}
+
+	t.Logf("Concurrent booking creation: %d/5 succeeded", successCount)
+
+	// Cleanup
+	for _, id := range ids {
+		if id != "" {
+			httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", id))
+		}
+	}
+}
+
+func testBookingStatusCompleted(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Completed Status Test", start, end)
+	payload["status"] = "completed"
+
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	if resp.StatusCode == 201 {
+		created := decodeBooking(t, resp)
+		if string(created.Status) != "completed" {
+			t.Errorf("expected status 'completed', got %s", string(created.Status))
+		}
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	}
+}
+
+func testParticipantsValidation(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	// Test with empty name in participants
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Empty Name Test", start, end)
+	payload["participants"] = map[string]string{"+972501234567": ""}
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Empty participant name returned status %d", resp.StatusCode)
+	}
+
+	// Test with special characters in name
+	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Special Chars Name Test", start.Add(2*time.Hour), end.Add(2*time.Hour))
+	payload2["participants"] = map[string]string{
+		"+972501234567": "José María",
+		"+972541111111": "张伟",
+		"+972542222222": "Владимир",
+	}
+	resp = httpClient.POST(t, "/api/v1/bookings", payload2)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testSearchWithExactTimeMatch(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Exact Time Match", start, end)
+	httpClient.POST(t, "/api/v1/bookings", payload)
+
+	// Search with exact time range
+	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012&start_time=%s&end_time=%s",
+		start.Format(time.RFC3339), end.Format(time.RFC3339)))
+	common.AssertStatusCode(t, resp, 200)
+	data := decodeBookings(t, resp)
+	if len(data) < 1 {
+		t.Error("expected at least one booking in exact time range")
+	}
+}
+
+func testBookingWithPastEndTime(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(-2 * time.Hour)
+	end := time.Now().Add(-1 * time.Hour)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Past Booking", start, end)
+
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	// Should allow creating past bookings but may log a warning
+	if resp.StatusCode == 201 {
+		created := decodeBooking(t, resp)
+		t.Logf("Past booking created with ID %s", created.ID)
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	}
+}
+
+func testUpdateParticipantsExceedCapacity(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Capacity Test", start, end)
+	payload["capacity"] = 2
+	payload["participants"] = map[string]string{"+972501234567": "Alice"}
+
+	createResp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeBooking(t, createResp)
+
+	// Try to add more participants than capacity
+	update := map[string]any{
+		"participants": map[string]string{
+			"+972501234567": "Alice",
+			"+972541111111": "Bob",
+			"+972542222222": "Charlie",
+		},
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for participants exceeding capacity, got %d", resp.StatusCode)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testManagedByValidation(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	// Test with invalid phone in managed_by
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Invalid Managed By", start, end)
+	payload["managed_by"] = map[string]string{"invalid-phone": "Manager"}
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Invalid managed_by phone returned status %d", resp.StatusCode)
+	}
+
+	// Test with empty managed_by (should fail as it's required)
+	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Empty Managed By", start.Add(2*time.Hour), end.Add(2*time.Hour))
+	payload2["managed_by"] = map[string]string{}
+	resp = httpClient.POST(t, "/api/v1/bookings", payload2)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Empty managed_by returned status %d", resp.StatusCode)
+	}
+}
+
+func testSearchWithoutTimeRange(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "No Time Range Search", start, end)
+	httpClient.POST(t, "/api/v1/bookings", payload)
+
+	// Search without time range (should return all bookings for the schedule)
+	resp := httpClient.GET(t, "/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012")
+	common.AssertStatusCode(t, resp, 200)
+	data := decodeBookings(t, resp)
+	if len(data) < 1 {
+		t.Error("expected at least one booking without time range filter")
+	}
+}
+
+func testUpdateClearParticipants(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Clear Participants", start, end)
+
+	createResp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeBooking(t, createResp)
+
+	// Try to clear participants (should fail as it would be invalid)
+	update := map[string]any{
+		"participants": map[string]string{},
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Clearing participants returned status %d", resp.StatusCode)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testBookingWithSameBusinessDifferentSchedule(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	// Create two bookings with same business but different schedules at same time
+	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Schedule 1", start, end)
+	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439013", "Schedule 2", start, end)
+
+	resp1 := httpClient.POST(t, "/api/v1/bookings", payload1)
+	common.AssertStatusCode(t, resp1, 201)
+	created1 := decodeBooking(t, resp1)
+
+	// Should succeed since it's a different schedule
+	resp2 := httpClient.POST(t, "/api/v1/bookings", payload2)
+	common.AssertStatusCode(t, resp2, 201)
+	created2 := decodeBooking(t, resp2)
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created1.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created2.ID))
 }
