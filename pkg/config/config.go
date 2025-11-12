@@ -128,3 +128,16 @@ func (cfg *Config) GracefulShutdown() {
 		cfg.Log.Info("MongoDB client disconnected successfully")
 	}
 }
+
+func NormalizePaginationLimit(limit int) int {
+	if limit <= 0 {
+		limit = 10
+	} else if limit > DefaultPaginationLimit {
+		limit = DefaultPaginationLimit
+	}
+	return limit
+}
+
+func NormalizeOffset(offset int) int {
+	return max(0, offset)
+}

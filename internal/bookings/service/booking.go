@@ -109,15 +109,6 @@ func (s *bookingService) GetByID(ctx context.Context, id string) (*model.Booking
 }
 
 func (s *bookingService) GetAll(ctx context.Context, limit int, offset int) ([]*model.Booking, int64, error) {
-	if limit <= 0 {
-		limit = 10
-	}
-	if limit > config.DefaultPaginationLimit {
-		limit = config.DefaultPaginationLimit
-	}
-	if offset < 0 {
-		offset = 0
-	}
 
 	var count int64
 	var bookings []*model.Booking

@@ -192,7 +192,9 @@ func (r *mongoBusinessUnitRepository) SearchByCityLabelPairs(ctx context.Context
 
 	filter := bson.M{"city_label_pairs": bson.M{"$in": pairs}}
 
-	cursor, err := r.collection.Find(ctx, filter)
+	opts := options.Find().SetSort(bson.D{{Key: "priority", Value: -1}}).SetLimit(config.DefaultPaginationLimit)
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find business units by city_label_pairs: %w", err)
 	}
@@ -202,6 +204,7 @@ func (r *mongoBusinessUnitRepository) SearchByCityLabelPairs(ctx context.Context
 	if err := cursor.All(ctx, &results); err != nil {
 		return nil, fmt.Errorf("failed to decode business units: %w", err)
 	}
+
 	return results, nil
 }
 

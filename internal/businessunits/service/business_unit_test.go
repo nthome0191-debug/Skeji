@@ -7,13 +7,17 @@ import (
 	mongotx "skeji/pkg/db/mongo"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
+	"sort"
 	"testing"
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
+// ────────────────────────────────────────────────
 // Mock repository for testing
+// ────────────────────────────────────────────────
+
 type mockBusinessUnitRepository struct {
 	findAllFunc            func(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, error)
 	countFunc              func(ctx context.Context) (int64, error)
@@ -47,7 +51,6 @@ func (m *mockBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phone
 	return nil, nil
 }
 
-// New repository search method for city_label_pairs
 func (m *mockBusinessUnitRepository) SearchByCityLabelPairs(ctx context.Context, pairs []string) ([]*model.BusinessUnit, error) {
 	if m.searchByCityLabelPairs != nil {
 		return m.searchByCityLabelPairs(ctx, pairs)
@@ -66,11 +69,9 @@ func (m *mockBusinessUnitRepository) ExecuteTransaction(ctx context.Context, fn 
 	return nil
 }
 
-//
-// ──────────────────────────────────────────────────────────────
-//   TESTS
-// ──────────────────────────────────────────────────────────────
-//
+// ────────────────────────────────────────────────
+// Tests for GetAll()
+// ────────────────────────────────────────────────
 
 func TestGetAll_ConcurrentAccess(t *testing.T) {
 	log := logger.New(logger.Config{
@@ -79,7 +80,6 @@ func TestGetAll_ConcurrentAccess(t *testing.T) {
 		AddSource: false,
 		Service:   "test",
 	})
-
 	cfg := &config.Config{
 		Log:         log,
 		ReadTimeout: 5 * time.Second,
@@ -104,15 +104,12 @@ func TestGetAll_ConcurrentAccess(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		ctx := context.Background()
 		units, count, err := service.GetAll(ctx, 10, 0)
-
 		if err != nil {
 			t.Fatalf("iteration %d: unexpected error: %v", i, err)
 		}
-
 		if count != 100 {
 			t.Errorf("iteration %d: expected count 100, got %d", i, count)
 		}
-
 		if len(units) != 2 {
 			t.Errorf("iteration %d: expected 2 units, got %d", i, len(units))
 		}
@@ -126,7 +123,6 @@ func TestGetAll_LimitNormalization(t *testing.T) {
 		AddSource: false,
 		Service:   "test",
 	})
-
 	cfg := &config.Config{
 		Log:         log,
 		ReadTimeout: 5 * time.Second,
@@ -178,7 +174,6 @@ func TestGetAll_ContextTimeout(t *testing.T) {
 		AddSource: false,
 		Service:   "test",
 	})
-
 	cfg := &config.Config{
 		Log:         log,
 		ReadTimeout: 50 * time.Millisecond,
@@ -210,11 +205,9 @@ func TestGetAll_ContextTimeout(t *testing.T) {
 	}
 }
 
-//
-// ──────────────────────────────────────────────────────────────
-//   NEW TESTS: SearchByCityLabelPairs
-// ──────────────────────────────────────────────────────────────
-//
+// ────────────────────────────────────────────────
+// Tests for SearchByCityLabelPairs()
+// ────────────────────────────────────────────────
 
 func TestSearchByCityLabelPairs(t *testing.T) {
 	log := logger.New(logger.Config{
@@ -223,7 +216,6 @@ func TestSearchByCityLabelPairs(t *testing.T) {
 		AddSource: false,
 		Service:   "test",
 	})
-
 	cfg := &config.Config{
 		Log:         log,
 		ReadTimeout: 5 * time.Second,
@@ -237,7 +229,6 @@ func TestSearchByCityLabelPairs(t *testing.T) {
 	mockRepo := &mockBusinessUnitRepository{
 		searchByCityLabelPairs: func(ctx context.Context, pairs []string) ([]*model.BusinessUnit, error) {
 			expectedPairs := []string{"tel aviv|massage", "tel aviv|spa", "haifa|massage", "haifa|spa"}
-
 			for _, exp := range expectedPairs {
 				found := false
 				for _, given := range pairs {
@@ -276,7 +267,6 @@ func TestSearchByCityLabelPairs_RepoError(t *testing.T) {
 		AddSource: false,
 		Service:   "test",
 	})
-
 	cfg := &config.Config{
 		Log:         log,
 		ReadTimeout: 5 * time.Second,
@@ -293,5 +283,44 @@ func TestSearchByCityLabelPairs_RepoError(t *testing.T) {
 	_, err := service.Search(context.Background(), []string{"Tel Aviv"}, []string{"Spa"})
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestSearchByCityLabelPairs_SortedByPriority(t *testing.T) {
+	log := logger.New(logger.Config{
+		Level:     "debug",
+		Format:    logger.JSON,
+		AddSource: false,
+		Service:   "test",
+	})
+	cfg := &config.Config{
+		Log:         log,
+		ReadTimeout: 5 * time.Second,
+	}
+
+	mockRepo := &mockBusinessUnitRepository{
+		searchByCityLabelPairs: func(ctx context.Context, pairs []string) ([]*model.BusinessUnit, error) {
+			return []*model.BusinessUnit{
+				{ID: "1", Name: "Low", Priority: 1},
+				{ID: "2", Name: "Medium", Priority: 5},
+				{ID: "3", Name: "High", Priority: 9},
+			}, nil
+		},
+	}
+
+	service := NewBusinessUnitService(mockRepo, nil, cfg)
+
+	units, err := service.Search(context.Background(), []string{"Tel Aviv"}, []string{"Spa"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(units) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(units))
+	}
+
+	if !sort.SliceIsSorted(units, func(i, j int) bool { return units[i].Priority > units[j].Priority }) {
+		t.Errorf("expected results sorted by descending priority, got: [%d, %d, %d]",
+			units[0].Priority, units[1].Priority, units[2].Priority)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"skeji/internal/schedules/service"
+	"skeji/pkg/config"
 	apperrors "skeji/pkg/errors"
 	httputil "skeji/pkg/http"
 	"skeji/pkg/logger"
@@ -78,7 +79,6 @@ func (h *ScheduleHandler) GetByID(w http.ResponseWriter, r *http.Request, ps htt
 func (h *ScheduleHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
 
-	// Validate limit parameter
 	limit := 0
 	if limitStr := query.Get("limit"); limitStr != "" {
 		var err error
@@ -91,7 +91,6 @@ func (h *ScheduleHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httpr
 		}
 	}
 
-	// Validate offset parameter
 	offset := 0
 	if offsetStr := query.Get("offset"); offsetStr != "" {
 		var err error
@@ -103,6 +102,9 @@ func (h *ScheduleHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httpr
 			return
 		}
 	}
+
+	limit = config.NormalizePaginationLimit(limit)
+	offset = config.NormalizeOffset(offset)
 
 	schedules, totalCount, err := h.service.GetAll(r.Context(), limit, offset)
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"skeji/internal/bookings/service"
+	"skeji/pkg/config"
 	apperrors "skeji/pkg/errors"
 	httputil "skeji/pkg/http"
 	"skeji/pkg/logger"
@@ -94,6 +95,9 @@ func (h *BookingHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httpro
 			return
 		}
 	}
+
+	limit = config.NormalizePaginationLimit(limit)
+	offset = config.NormalizeOffset(offset)
 
 	bookings, total, err := h.service.GetAll(r.Context(), limit, offset)
 	if err != nil {

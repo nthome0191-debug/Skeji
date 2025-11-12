@@ -122,15 +122,6 @@ func (s *scheduleService) GetByID(ctx context.Context, id string) (*model.Schedu
 }
 
 func (s *scheduleService) GetAll(ctx context.Context, limit int, offset int) ([]*model.Schedule, int64, error) {
-	if limit <= 0 {
-		limit = 10
-	}
-	if limit > config.DefaultPaginationLimit {
-		limit = config.DefaultPaginationLimit
-	}
-	if offset < 0 {
-		offset = 0
-	}
 
 	var count int64
 	var schedules []*model.Schedule

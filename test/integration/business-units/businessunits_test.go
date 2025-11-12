@@ -91,7 +91,7 @@ func decodeBusinessUnits(t *testing.T, resp *common.Response) []model.BusinessUn
 	return result.Data
 }
 
-func decodePaginated(t *testing.T, resp *common.Response) ([]model.BusinessUnit, int, int, int) {
+func decodePaginated(t *testing.T, resp *common.Response) (bu_model []model.BusinessUnit, count int, limit int, offset int) {
 	t.Helper()
 	var result struct {
 		Data       []model.BusinessUnit `json:"data"`
@@ -1781,13 +1781,15 @@ func testMaxLimitPagination(t *testing.T) {
 
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=10000&offset=0")
 	common.AssertStatusCode(t, resp, 200)
-	data, _, limit, _ := decodePaginated(t, resp)
+	data, count, limit, _ := decodePaginated(t, resp)
 
 	if limit > config.DefaultPaginationLimit {
 		t.Errorf("Expected limit to be capped at 100, got %d", limit)
 	}
 
-	t.Logf("Requested limit=10000, got limit=%d, data count=%d", limit, len(data))
+	if len(data) != count {
+		t.Errorf("Requested count=%d, data count=%d", count, len(data))
+	}
 }
 
 func testPriorityRangeValidation(t *testing.T) {
@@ -1800,7 +1802,11 @@ func testPriorityRangeValidation(t *testing.T) {
 		resp := httpClient.POST(t, "/api/v1/business-units", bu)
 		common.AssertStatusCode(t, resp, 201)
 		created := decodeBusinessUnit(t, resp)
-		t.Logf("Requested priority=%d, got priority=%d", priority, created.Priority)
+		if (priority <= 0 && created.Priority != config.DefaultDefaultBusinessPriority) ||
+			(priority > config.DefaultMaxBusinessPriority && created.Priority != config.DefaultMaxBusinessPriority) ||
+			(priority > 0 && priority < config.DefaultMaxBusinessPriority && created.Priority != priority) {
+			t.Errorf("Requested priority=%d, got priority=%d", priority, created.Priority)
+		}
 		httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	}
 }

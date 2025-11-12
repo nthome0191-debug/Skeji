@@ -129,15 +129,6 @@ func (s *businessUnitService) GetByID(ctx context.Context, id string) (*model.Bu
 }
 
 func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error) {
-	if limit <= 0 {
-		limit = 10
-	}
-	if limit > config.DefaultPaginationLimit {
-		limit = config.DefaultPaginationLimit
-	}
-	if offset < 0 {
-		offset = 0
-	}
 
 	fmt.Printf("\n\nnatali test: limit: %v\n\n", limit)
 
