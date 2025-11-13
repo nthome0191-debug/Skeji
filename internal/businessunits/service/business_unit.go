@@ -12,7 +12,6 @@ import (
 	"skeji/pkg/locale"
 	"skeji/pkg/model"
 	"skeji/pkg/sanitizer"
-	"strings"
 	"sync"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -47,6 +46,26 @@ func NewBusinessUnitService(
 	}
 }
 
+func (s *businessUnitService) verifyDuplication(ctx context.Context, bu *model.BusinessUnit) error {
+	existing, err := s.repo.FindByAdminPhone(ctx, bu.AdminPhone)
+	if err != nil {
+		return fmt.Errorf("failed to check for duplicates: %w", err)
+	}
+
+	for _, existingBU := range existing {
+		if existingBU.ID == bu.ID {
+			continue
+		}
+		if s.isDuplicate(bu, existingBU) {
+			return apperrors.Conflict(fmt.Sprintf(
+				"Business unit with similar details already exists (id: %s)",
+				existingBU.ID,
+			))
+		}
+	}
+	return nil
+}
+
 func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit) error {
 	s.applyDefaults(bu)
 	s.sanitize(bu)
@@ -55,26 +74,14 @@ func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit
 		return err
 	}
 	s.populateCityLabelPairs(bu)
-
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-		existing, err := s.repo.FindByAdminPhone(sessCtx, bu.AdminPhone)
+		err = s.verifyDuplication(sessCtx, bu)
 		if err != nil {
-			return fmt.Errorf("failed to check for duplicates: %w", err)
+			return err
 		}
-
-		for _, existingBU := range existing {
-			if s.isDuplicate(bu, existingBU) {
-				return apperrors.Conflict(fmt.Sprintf(
-					"Business unit with similar details already exists (id: %s)",
-					existingBU.ID,
-				))
-			}
-		}
-
 		if err := s.repo.Create(sessCtx, bu); err != nil {
 			return fmt.Errorf("failed to create business unit: %w", err)
 		}
-
 		return nil
 	})
 
@@ -183,25 +190,7 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 	}
 	s.populateCityLabelPairs(merged)
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-		existingUnits, err := s.repo.FindByAdminPhone(sessCtx, merged.AdminPhone)
-		if err != nil {
-			return apperrors.Internal("Failed to check for duplicate business units", err)
-		}
-
-		for _, other := range existingUnits {
-			if other.ID == merged.ID {
-				continue
-			}
-
-			if strings.EqualFold(other.Name, merged.Name) &&
-				s.setsOverlap(other.Cities, merged.Cities) &&
-				s.setsOverlap(other.Labels, merged.Labels) {
-				return apperrors.Conflict(fmt.Sprintf(
-					"Another business unit with name '%s' already serves overlapping cities (%v) and labels (%v)",
-					other.Name, other.Cities, other.Labels,
-				))
-			}
-		}
+		err = s.verifyDuplication(sessCtx, merged)
 
 		if _, err = s.repo.Update(sessCtx, id, merged); err != nil {
 			s.cfg.Log.Error("Failed to update business unit",
@@ -409,15 +398,12 @@ func (s *businessUnitService) isDuplicate(newBU, existingBU *model.BusinessUnit)
 	if sanitizer.SanitizeNameOrAddress(newBU.Name) != sanitizer.SanitizeNameOrAddress(existingBU.Name) {
 		return false
 	}
-
 	if !s.setsOverlap(newBU.Cities, existingBU.Cities) {
 		return false
 	}
-
 	if !s.setsOverlap(newBU.Labels, existingBU.Labels) {
 		return false
 	}
-
 	return true
 }
 

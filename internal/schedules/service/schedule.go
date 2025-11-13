@@ -45,34 +45,16 @@ func NewScheduleService(
 }
 
 func (s *scheduleService) Create(ctx context.Context, sc *model.Schedule) error {
-	s.sanitize(sc)
 	s.applyDefaults(sc)
-
-	if err := s.validator.Validate(sc); err != nil {
-		s.cfg.Log.Warn("Schedule validation failed",
-			"name", sc.Name,
-			"business_id", sc.BusinessID,
-			"error", err,
-		)
-		return apperrors.Validation("Schedule validation failed", map[string]any{
-			"error": err.Error(),
-		})
+	s.sanitize(sc)
+	err := s.validate(sc)
+	if err != nil {
+		return err
 	}
-
-	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-		existing, err := s.repo.Search(sessCtx, sc.BusinessID, sc.City)
+	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
+		err = s.verifyDeplication(sessCtx, sc)
 		if err != nil {
-			return apperrors.Internal("Failed to check for existing schedules", err)
-		}
-
-		for _, e := range existing {
-			if e.Address == sc.Address {
-				return apperrors.Conflict("Schedule with the same address already exists for this business")
-			}
-
-			if e.Name == sc.Name {
-				return apperrors.Conflict("Schedule with the same name and city already exists for this business")
-			}
+			return err
 		}
 		return s.repo.Create(sessCtx, sc)
 	})
@@ -174,48 +156,27 @@ func (s *scheduleService) Update(ctx context.Context, id string, updates *model.
 		}
 		return apperrors.Internal("Failed to check schedule existence", err)
 	}
-	s.sanitizeUpdate(updates)
 	merged := s.mergeScheduleUpdates(existing, updates)
-	if err := s.validator.Validate(merged); err != nil {
-		s.cfg.Log.Warn("Schedule validation failed",
-			"name", merged.Name,
-			"business_id", merged.BusinessID,
-			"id", id,
-			"error", err,
-		)
-		return apperrors.Validation("Schedule validation failed", map[string]any{
-			"error": err.Error(),
-		})
+	s.sanitize(merged)
+	err = s.validate(merged)
+	if err != nil {
+		return err
 	}
 
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-		existingSchedules, err := s.repo.Search(sessCtx, merged.BusinessID, merged.City)
+		err = s.verifyDeplication(sessCtx, merged)
 		if err != nil {
-			return apperrors.Internal("Failed to check for duplicate schedules", err)
+			return err
 		}
-		for _, e := range existingSchedules {
-			if e.ID == merged.ID {
-				continue
-			}
-			if strings.EqualFold(e.Address, merged.Address) {
-				return apperrors.Conflict("Another schedule with the same address already exists for this business")
-			}
-			if strings.EqualFold(e.Name, merged.Name) && strings.EqualFold(e.City, merged.City) {
-				return apperrors.Conflict("Another schedule with the same name and city already exists for this business")
-			}
-		}
-		if _, err := s.repo.Update(sessCtx, id, merged); err != nil {
-			s.cfg.Log.Error("Failed to update schedule",
-				"id", id,
-				"error", err,
-			)
-			return apperrors.Internal("Failed to update schedule", err)
-		}
-		return nil
-	})
-
-	if err != nil {
+		_, err := s.repo.Update(sessCtx, id, merged)
 		return err
+	})
+	if err != nil {
+		s.cfg.Log.Error("Failed to update schedule",
+			"id", id,
+			"error", err,
+		)
+		return apperrors.Internal("Failed to update schedule", err)
 	}
 
 	s.cfg.Log.Info("Schedule updated successfully", "id", id, "name", merged.Name)
@@ -282,24 +243,6 @@ func (s *scheduleService) sanitize(sc *model.Schedule) {
 	sc.Address = sanitizer.SanitizeNameOrAddress(sc.Address)
 	sc.WorkingDays = sanitizer.SanitizeSlice(sc.WorkingDays, sanitizer.SanitizeCityOrLabel)
 	sc.Exceptions = sanitizer.SanitizeSlice(sc.Exceptions, sanitizer.SanitizeNameOrAddress)
-}
-
-func (s *scheduleService) sanitizeUpdate(updates *model.ScheduleUpdate) {
-	if updates.Name != "" {
-		updates.Name = sanitizer.SanitizeNameOrAddress(updates.Name)
-	}
-	if updates.City != "" {
-		updates.City = sanitizer.SanitizeCityOrLabel(updates.City)
-	}
-	if updates.Address != "" {
-		updates.Address = sanitizer.SanitizeNameOrAddress(updates.Address)
-	}
-	if len(updates.WorkingDays) > 0 {
-		updates.WorkingDays = sanitizer.SanitizeSlice(updates.WorkingDays, sanitizer.SanitizeCityOrLabel)
-	}
-	if updates.Exceptions != nil {
-		*updates.Exceptions = sanitizer.SanitizeSlice(*updates.Exceptions, sanitizer.SanitizeNameOrAddress)
-	}
 }
 
 func (s *scheduleService) applyDefaults(sc *model.Schedule) {
@@ -373,4 +316,37 @@ func (s *scheduleService) mergeScheduleUpdates(existing *model.Schedule, updates
 	merged.ID = existing.ID
 	merged.CreatedAt = existing.CreatedAt
 	return &merged
+}
+
+func (s *scheduleService) validate(sc *model.Schedule) error {
+	if err := s.validator.Validate(sc); err != nil {
+		s.cfg.Log.Warn("Schedule validation failed",
+			"name", sc.Name,
+			"business_id", sc.BusinessID,
+			"error", err,
+		)
+		return apperrors.Validation("Schedule validation failed", map[string]any{
+			"error": err.Error(),
+		})
+	}
+	return nil
+}
+
+func (s *scheduleService) verifyDeplication(ctx context.Context, sc *model.Schedule) error {
+	existingSchedules, err := s.repo.Search(ctx, sc.BusinessID, sc.City)
+	if err != nil {
+		return apperrors.Internal("Failed to check for duplicate schedules", err)
+	}
+	for _, e := range existingSchedules {
+		if e.ID == sc.ID {
+			continue
+		}
+		if strings.EqualFold(e.Address, sc.Address) {
+			return apperrors.Conflict("Another schedule with the same address already exists for this business")
+		}
+		if strings.EqualFold(e.Name, sc.Name) && strings.EqualFold(e.City, sc.City) {
+			return apperrors.Conflict("Another schedule with the same name and city already exists for this business")
+		}
+	}
+	return nil
 }
