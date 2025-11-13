@@ -246,8 +246,6 @@ func (s *businessUnitService) GetByAdminPhone(ctx context.Context, phone string)
 		return nil, apperrors.InvalidInput("Admin phone number cannot be empty")
 	}
 
-	phone = sanitizer.SanitizePhone(phone)
-
 	units, err := s.repo.FindByAdminPhone(ctx, phone)
 	if err != nil {
 		s.cfg.Log.Error("Failed to get business units by admin phone",
@@ -327,7 +325,6 @@ func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
 	bu.Name = sanitizer.SanitizeNameOrAddress(bu.Name)
 	bu.Cities = sanitizer.SanitizeSlice(bu.Cities, sanitizer.SanitizeCityOrLabel)
 	bu.Labels = sanitizer.SanitizeSlice(bu.Labels, sanitizer.SanitizeCityOrLabel)
-	bu.AdminPhone = sanitizer.SanitizePhone(bu.AdminPhone)
 	bu.Maintainers = sanitizer.SanitizeParticipantsMap(bu.Maintainers)
 	bu.WebsiteURLs = sanitizer.SanitizeSlice(bu.WebsiteURLs, sanitizer.SanitizeURL)
 	bu.Priority = sanitizer.SanitizePriority(s.cfg, bu.Priority)

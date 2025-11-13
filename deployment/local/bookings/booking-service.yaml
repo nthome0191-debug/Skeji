@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bookings
+  namespace: apps
+  labels:
+    app: bookings
+spec:
+  type: ClusterIP
+  selector:
+    app: bookings
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http

@@ -7,7 +7,7 @@ KIND_CLUSTER="skeji-local"
 print_usage() {
     echo "❌ Missing app names."
     echo "Usage: $0 <app1> [<app2> ...]"
-    echo "Example: $0 business-units schedules"
+    echo "Example: $0 business-units schedules bookings"
     exit 1
 }
 
