@@ -45,30 +45,17 @@ func NewBookingService(
 }
 
 func (s *bookingService) Create(ctx context.Context, booking *model.Booking) error {
-	s.sanitize(booking)
 	s.applyDefaults(booking)
-
-	if err := s.validator.Validate(booking); err != nil {
-		s.cfg.Log.Warn("Booking validation failed", "error", err)
-		return apperrors.Validation("Booking validation failed", map[string]any{"error": err.Error()})
+	s.sanitize(booking)
+	err := s.validate(booking)
+	if err != nil {
+		return err
 	}
-
-	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-		existing, err := s.repo.FindByBusinessAndSchedule(sessCtx, booking.BusinessID, booking.ScheduleID, &booking.StartTime, &booking.EndTime)
+	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
+		err = s.verifyDeplication(ctx, booking)
 		if err != nil {
-			return apperrors.Internal("Failed to check existing bookings", err)
+			return err
 		}
-
-		for _, b := range existing {
-			if overlaps(b.StartTime, b.EndTime, booking.StartTime, booking.EndTime) {
-				return apperrors.Conflict(fmt.Sprintf(
-					"Booking time overlaps with existing booking (%s - %s)",
-					b.StartTime.Format(time.RFC3339),
-					b.EndTime.Format(time.RFC3339),
-				))
-			}
-		}
-
 		if err := s.repo.Create(sessCtx, booking); err != nil {
 			return apperrors.Internal("Failed to create booking", err)
 		}
@@ -149,7 +136,6 @@ func (s *bookingService) Update(ctx context.Context, id string, updates *model.B
 	if id == "" {
 		return apperrors.InvalidInput("Booking ID cannot be empty")
 	}
-
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, bookingserrors.ErrNotFound) {
@@ -160,47 +146,30 @@ func (s *bookingService) Update(ctx context.Context, id string, updates *model.B
 		}
 		return apperrors.Internal("Failed to check booking existence", err)
 	}
-
 	if err := s.validator.ValidateUpdate(updates); err != nil {
 		s.cfg.Log.Warn("Booking update validation failed", "id", id, "error", err)
 		return apperrors.Validation("Invalid update input", map[string]any{"error": err.Error()})
 	}
-
 	merged := s.mergeBookingUpdates(existing, updates)
-
-	if err := s.validator.Validate(merged); err != nil {
-		s.cfg.Log.Warn("Merged booking validation failed", "id", id, "error", err)
-		return apperrors.Validation("Booking validation failed", map[string]any{"error": err.Error()})
+	s.sanitize(merged)
+	err = s.validate(merged)
+	if err != nil {
+		return err
 	}
-
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-
-		existingBookings, err := s.repo.FindByBusinessAndSchedule(sessCtx, merged.BusinessID, merged.ScheduleID, &merged.StartTime, &merged.EndTime)
+		err = s.verifyDeplication(sessCtx, merged)
 		if err != nil {
-			return apperrors.Internal("Failed to check for overlapping bookings", err)
+			return err
 		}
-
-		for _, b := range existingBookings {
-			if b.ID == merged.ID {
-				continue
-			}
-			if overlaps(b.StartTime, b.EndTime, merged.StartTime, merged.EndTime) {
-				return apperrors.Conflict("Updated booking overlaps with another booking")
-			}
-		}
-
 		if _, err := s.repo.Update(sessCtx, id, merged); err != nil {
 			return apperrors.Internal("Failed to update booking", err)
 		}
-
 		return nil
 	})
-
 	if err != nil {
 		s.cfg.Log.Error("Failed to update booking", "id", id, "error", err)
 		return err
 	}
-
 	s.cfg.Log.Info("Booking updated successfully", "id", id)
 	return nil
 }
@@ -258,10 +227,10 @@ func overlaps(start1, end1, start2, end2 time.Time) bool {
 func (s *bookingService) sanitize(b *model.Booking) {
 	b.ServiceLabel = sanitizer.SanitizeCityOrLabel(b.ServiceLabel)
 	for k, v := range b.Participants {
-		b.Participants[sanitizer.SanitizePhone(k)] = sanitizer.SanitizeNameOrAddress(v)
+		b.Participants[sanitizer.SanitizeNameOrAddress(v)] = sanitizer.SanitizePhone(k)
 	}
 	for k, v := range b.ManagedBy {
-		b.ManagedBy[sanitizer.SanitizePhone(k)] = sanitizer.SanitizeNameOrAddress(v)
+		b.ManagedBy[sanitizer.SanitizeNameOrAddress(v)] = sanitizer.SanitizePhone(k)
 	}
 }
 
@@ -269,7 +238,7 @@ func (s *bookingService) applyDefaults(b *model.Booking) {
 	if b.Status == "" {
 		b.Status = config.Pending
 	}
-	if b.Capacity == 0 {
+	if b.Capacity <= 0 {
 		b.Capacity = max(len(b.Participants), 1)
 	}
 }
@@ -300,4 +269,33 @@ func (s *bookingService) mergeBookingUpdates(existing *model.Booking, updates *m
 	}
 
 	return &merged
+}
+
+func (s *bookingService) validate(booking *model.Booking) error {
+	if err := s.validator.Validate(booking); err != nil {
+		s.cfg.Log.Warn("Booking validation failed", "error", err)
+		return apperrors.Validation("Booking validation failed", map[string]any{"error": err.Error()})
+	}
+	return nil
+}
+
+func (s *bookingService) verifyDeplication(ctx context.Context, booking *model.Booking) error {
+	existing, err := s.repo.FindByBusinessAndSchedule(ctx, booking.BusinessID, booking.ScheduleID, &booking.StartTime, &booking.EndTime)
+	if err != nil {
+		return apperrors.Internal("Failed to check existing bookings", err)
+	}
+
+	for _, b := range existing {
+		if b.ID == booking.ID {
+			continue
+		}
+		if overlaps(b.StartTime, b.EndTime, booking.StartTime, booking.EndTime) {
+			return apperrors.Conflict(fmt.Sprintf(
+				"Booking time overlaps with existing booking (%s - %s)",
+				b.StartTime.Format(time.RFC3339),
+				b.EndTime.Format(time.RFC3339),
+			))
+		}
+	}
+	return nil
 }

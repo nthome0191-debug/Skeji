@@ -80,7 +80,7 @@ func validateParticipantsMap(fl validator.FieldLevel) bool {
 		return false
 	}
 
-	for phone, name := range participants {
+	for name, phone := range participants {
 		if phone == "" || name == "" || !phoneRegex.MatchString(phone) {
 			return false
 		}

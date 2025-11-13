@@ -5,6 +5,7 @@ import (
 	"os"
 	"skeji/pkg/config"
 	"skeji/pkg/model"
+	"skeji/pkg/sanitizer"
 	"skeji/test/common"
 	"sync"
 	"testing"
@@ -203,9 +204,45 @@ func testCreateValid(t *testing.T) {
 	if created.ID == "" {
 		t.Error("expected booking ID to be set")
 	}
-	if created.ServiceLabel != "Haircut" {
-		t.Errorf("expected service_label 'Haircut', got %s", created.ServiceLabel)
+	if created.ServiceLabel != sanitizer.SanitizeCityOrLabel(fmt.Sprint(payload["service_label"])) {
+		t.Errorf("expected service_label '%s', got %s",
+			sanitizer.SanitizeCityOrLabel(fmt.Sprint(payload["service_label"])),
+			created.ServiceLabel,
+		)
 	}
+	if string(created.Status) != "pending" {
+		t.Errorf("expected default status 'pending', got '%s'", string(created.Status))
+	}
+	if created.Capacity != 5 {
+		t.Errorf("expected capacity 5, got %d", created.Capacity)
+	}
+
+	if len(created.Participants) != 2 {
+		t.Errorf("expected 2 participants, got %d", len(created.Participants))
+	}
+	p1Phone := sanitizer.SanitizePhone("+972501234567")
+	p2Phone := sanitizer.SanitizePhone("+972541111111")
+	p1Name := sanitizer.SanitizeNameOrAddress("Alice")
+	p2Name := sanitizer.SanitizeNameOrAddress("Bob")
+	if created.Participants[p1Phone] != p1Name {
+		t.Errorf("expected participant %s -> %s, got %s",
+			p1Phone, p1Name, created.Participants[p1Phone])
+	}
+	if created.Participants[p2Phone] != p2Name {
+		t.Errorf("expected participant %s -> %s, got %s",
+			p2Phone, p2Name, created.Participants[p2Phone])
+	}
+
+	if len(created.ManagedBy) != 1 {
+		t.Errorf("expected 1 managed_by entry, got %d", len(created.ManagedBy))
+	}
+	mPhone := sanitizer.SanitizePhone("+972509999999")
+	mName := sanitizer.SanitizeNameOrAddress("Manager")
+	if created.ManagedBy[mPhone] != mName {
+		t.Errorf("expected managed_by %s -> %s, got %s",
+			mPhone, mName, created.ManagedBy[mPhone])
+	}
+
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 }
 
@@ -322,8 +359,9 @@ func testUpdateValid(t *testing.T) {
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 	fetched := decodeBooking(t, getResp)
-	if fetched.ServiceLabel != "Updated Label" {
-		t.Errorf("expected updated label, got %s", fetched.ServiceLabel)
+	expected := sanitizer.SanitizeCityOrLabel(fmt.Sprint(update["service_label"]))
+	if fetched.ServiceLabel != expected {
+		t.Errorf("expected updated label '%s', got '%s'", expected, fetched.ServiceLabel)
 	}
 }
 
@@ -418,11 +456,19 @@ func testCreateCapacityBoundaries(t *testing.T) {
 	payload["participants"] = map[string]string{"+972501234567": "Alice"}
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+	if created.Capacity != 1 {
+		t.Errorf("expected capacity 1, got %d", created.Capacity)
+	}
 
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Max Capacity", start.Add(2*time.Hour), end.Add(2*time.Hour))
 	payload2["capacity"] = 200
 	resp2 := httpClient.POST(t, "/api/v1/bookings", payload2)
 	common.AssertStatusCode(t, resp2, 201)
+	created2 := decodeBooking(t, resp2)
+	if created2.Capacity != 200 {
+		t.Errorf("expected capacity 200, got %d", created2.Capacity)
+	}
 
 	payload3 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Over Max", start.Add(4*time.Hour), end.Add(4*time.Hour))
 	payload3["capacity"] = 201
@@ -440,8 +486,10 @@ func testCreateZeroCapacity(t *testing.T) {
 	payload["capacity"] = 0
 
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
-	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Errorf("expected validation error for zero capacity, got %d", resp.StatusCode)
+	common.AssertStatusCode(t, resp, 201)
+	created2 := decodeBooking(t, resp)
+	if created2.Capacity != 2 {
+		t.Errorf("expected capacity 2, got %d", created2.Capacity)
 	}
 }
 
@@ -453,8 +501,9 @@ func testCreateNegativeCapacity(t *testing.T) {
 	payload["capacity"] = -5
 
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
-	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Errorf("expected validation error for negative capacity, got %d", resp.StatusCode)
+	created2 := decodeBooking(t, resp)
+	if created2.Capacity != 2 {
+		t.Errorf("expected capacity 2, got %d", created2.Capacity)
 	}
 }
 
@@ -472,7 +521,7 @@ func testCreateCapacityExceededByParticipants(t *testing.T) {
 
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Errorf("expected validation error for participants > capacity, got %d", resp.StatusCode)
+		t.Errorf("expected validation error for bad participants format")
 	}
 }
 
@@ -505,6 +554,10 @@ func testCreateMaxParticipants(t *testing.T) {
 
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+	if len(created.Participants) != 200 {
+		t.Errorf("expected 200 participants, got %d", len(created.Participants))
+	}
 }
 
 func testCreateTooManyParticipants(t *testing.T) {
@@ -546,16 +599,31 @@ func testCreateMultipleCountryPhones(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Multi Country", start, end)
-	payload["participants"] = map[string]string{
+	origParticipants := map[string]string{
 		"+972501234567": "Israel",
 		"+12125551234":  "USA",
 		"+447700900123": "UK",
 		"+33612345678":  "France",
 		"+81312345678":  "Japan",
 	}
+	payload["participants"] = origParticipants
 
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	if len(created.Participants) != len(origParticipants) {
+		t.Errorf("expected %d participants, got %d", len(origParticipants), len(created.Participants))
+	}
+
+	for phone, name := range origParticipants {
+		sPhone := sanitizer.SanitizePhone(phone)
+		sName := sanitizer.SanitizeNameOrAddress(name)
+		if created.Participants[sPhone] != sName {
+			t.Errorf("expected participant %s -> %s, got %s",
+				sPhone, sName, created.Participants[sPhone])
+		}
+	}
 }
 
 func testCreateServiceLabelBoundaries(t *testing.T) {
@@ -594,12 +662,15 @@ func testCreateServiceLabelSpecialChars(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 
-	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "תספורת ✂️ Hair Cut™", start, end)
+	rawLabel := "תספורת ✂️ Hair Cut™"
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", rawLabel, start, end)
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBooking(t, resp)
-	if created.ServiceLabel != "תספורת ✂️ Hair Cut™" {
-		t.Errorf("expected special chars in label, got %s", created.ServiceLabel)
+
+	expected := sanitizer.SanitizeCityOrLabel(rawLabel)
+	if created.ServiceLabel != expected {
+		t.Errorf("expected special chars label sanitized to '%s', got '%s'", expected, created.ServiceLabel)
 	}
 }
 
@@ -835,6 +906,19 @@ func testUpdateAddParticipants(t *testing.T) {
 	if len(fetched.Participants) != 3 {
 		t.Errorf("expected 3 participants, got %d", len(fetched.Participants))
 	}
+
+	p1 := sanitizer.SanitizePhone("+972501234567")
+	p2 := sanitizer.SanitizePhone("+972541111111")
+	p3 := sanitizer.SanitizePhone("+972542222222")
+	if fetched.Participants[p1] != sanitizer.SanitizeNameOrAddress("Alice") {
+		t.Errorf("expected Alice sanitized under %s, got %s", p1, fetched.Participants[p1])
+	}
+	if fetched.Participants[p2] != sanitizer.SanitizeNameOrAddress("Bob") {
+		t.Errorf("expected Bob sanitized under %s, got %s", p2, fetched.Participants[p2])
+	}
+	if fetched.Participants[p3] != sanitizer.SanitizeNameOrAddress("Charlie") {
+		t.Errorf("expected Charlie sanitized under %s, got %s", p3, fetched.Participants[p3])
+	}
 }
 
 func testUpdateRemoveParticipants(t *testing.T) {
@@ -858,6 +942,11 @@ func testUpdateRemoveParticipants(t *testing.T) {
 	if len(fetched.Participants) != 1 {
 		t.Errorf("expected 1 participant, got %d", len(fetched.Participants))
 	}
+
+	p1 := sanitizer.SanitizePhone("+972501234567")
+	if fetched.Participants[p1] != sanitizer.SanitizeNameOrAddress("Alice") {
+		t.Errorf("expected only Alice sanitized under %s, got %s", p1, fetched.Participants[p1])
+	}
 }
 
 func testUpdateManagedBy(t *testing.T) {
@@ -876,9 +965,11 @@ func testUpdateManagedBy(t *testing.T) {
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 	fetched := decodeBooking(t, getResp)
-	_, exists := fetched.ManagedBy["+972508888888"]
-	if !exists {
-		t.Errorf("expected managed_by to contain +972508888888")
+	newPhone := sanitizer.SanitizePhone("+972508888888")
+	newName := sanitizer.SanitizeNameOrAddress("New Manager")
+	if fetched.ManagedBy[newPhone] != newName {
+		t.Errorf("expected managed_by %s -> %s, got %s",
+			newPhone, newName, fetched.ManagedBy[newPhone])
 	}
 }
 
@@ -905,6 +996,9 @@ func testUpdateOnlyTime(t *testing.T) {
 	fetched := decodeBooking(t, getResp)
 	if fetched.StartTime.Unix() != newStart.Unix() {
 		t.Errorf("expected start time %v, got %v", newStart, fetched.StartTime)
+	}
+	if fetched.EndTime.Unix() != newEnd.Unix() {
+		t.Errorf("expected end time %v, got %v", newEnd, fetched.EndTime)
 	}
 }
 
@@ -949,8 +1043,10 @@ func testUpdateMultipleFields(t *testing.T) {
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 	fetched := decodeBooking(t, getResp)
-	if fetched.ServiceLabel != "Updated Service" {
-		t.Errorf("expected service_label 'Updated Service', got %s", fetched.ServiceLabel)
+
+	expectedLabel := sanitizer.SanitizeCityOrLabel(fmt.Sprint(update["service_label"]))
+	if fetched.ServiceLabel != expectedLabel {
+		t.Errorf("expected service_label '%s', got %s", expectedLabel, fetched.ServiceLabel)
 	}
 	if fetched.Capacity != 15 {
 		t.Errorf("expected capacity 15, got %d", fetched.Capacity)
@@ -976,7 +1072,13 @@ func testConcurrentBookingCreation(t *testing.T) {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", fmt.Sprintf("Service %d", index), start.Add(time.Duration(index)*2*time.Hour), end.Add(time.Duration(index)*2*time.Hour))
+			payload := createValidBooking(
+				"507f1f77bcf86cd799439011",
+				"507f1f77bcf86cd799439012",
+				fmt.Sprintf("Service %d", index),
+				start.Add(time.Duration(index)*2*time.Hour),
+				end.Add(time.Duration(index)*2*time.Hour),
+			)
 			resp := httpClient.POST(t, "/api/v1/bookings", payload)
 			results[index] = resp.StatusCode
 			if resp.StatusCode == 201 {
@@ -1047,6 +1149,22 @@ func testParticipantsValidation(t *testing.T) {
 	resp = httpClient.POST(t, "/api/v1/bookings", payload2)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBooking(t, resp)
+
+	expectedParticipants := map[string]string{
+		sanitizer.SanitizePhone("+972501234567"): sanitizer.SanitizeNameOrAddress("José María"),
+		sanitizer.SanitizePhone("+972541111111"): sanitizer.SanitizeNameOrAddress("张伟"),
+		sanitizer.SanitizePhone("+972542222222"): sanitizer.SanitizeNameOrAddress("Владимир"),
+	}
+	if len(created.Participants) != len(expectedParticipants) {
+		t.Errorf("expected %d participants, got %d", len(expectedParticipants), len(created.Participants))
+	}
+	for phone, name := range expectedParticipants {
+		if created.Participants[phone] != name {
+			t.Errorf("expected participant %s -> %s, got %s",
+				phone, name, created.Participants[phone])
+		}
+	}
+
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 }
 
