@@ -226,12 +226,16 @@ func overlaps(start1, end1, start2, end2 time.Time) bool {
 
 func (s *bookingService) sanitize(b *model.Booking) {
 	b.ServiceLabel = sanitizer.SanitizeCityOrLabel(b.ServiceLabel)
-	for k, v := range b.Participants {
-		b.Participants[sanitizer.SanitizeNameOrAddress(v)] = sanitizer.SanitizePhone(k)
+	sanitizedParticipants := map[string]string{}
+	for name, phone := range b.Participants {
+		sanitizedParticipants[sanitizer.SanitizeNameOrAddress(name)] = phone
 	}
-	for k, v := range b.ManagedBy {
-		b.ManagedBy[sanitizer.SanitizeNameOrAddress(v)] = sanitizer.SanitizePhone(k)
+	b.Participants = sanitizedParticipants
+	sanitizedManagedBy := map[string]string{}
+	for name, phone := range b.ManagedBy {
+		sanitizedManagedBy[sanitizer.SanitizeNameOrAddress(name)] = phone
 	}
+	b.ManagedBy = sanitizedManagedBy
 }
 
 func (s *bookingService) applyDefaults(b *model.Booking) {

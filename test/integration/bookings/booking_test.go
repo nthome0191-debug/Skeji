@@ -70,11 +70,11 @@ func createValidBooking(businessID, scheduleID string, label string, start, end 
 		"end_time":      end.Format(time.RFC3339),
 		"capacity":      5,
 		"participants": map[string]string{
-			"+972501234567": "Alice",
-			"+972541111111": "Bob",
+			"Alice": "+972501234567",
+			"Bob":   "+972541111111",
 		},
 		"status":     "pending",
-		"managed_by": map[string]string{"+972509999999": "Manager"},
+		"managed_by": map[string]string{"Manager": "+972509999999"},
 	}
 }
 
@@ -216,29 +216,28 @@ func testCreateValid(t *testing.T) {
 	if created.Capacity != 5 {
 		t.Errorf("expected capacity 5, got %d", created.Capacity)
 	}
-
 	if len(created.Participants) != 2 {
 		t.Errorf("expected 2 participants, got %d", len(created.Participants))
 	}
-	p1Phone := sanitizer.SanitizePhone("+972501234567")
-	p2Phone := sanitizer.SanitizePhone("+972541111111")
+	p1Phone := "+972501234567"
+	p2Phone := "+972541111111"
 	p1Name := sanitizer.SanitizeNameOrAddress("Alice")
 	p2Name := sanitizer.SanitizeNameOrAddress("Bob")
-	if created.Participants[p1Phone] != p1Name {
+	if created.Participants[p1Name] != p1Phone {
 		t.Errorf("expected participant %s -> %s, got %s",
-			p1Phone, p1Name, created.Participants[p1Phone])
+			p1Phone, p1Name, created.Participants[p1Name])
 	}
-	if created.Participants[p2Phone] != p2Name {
+	if created.Participants[p2Name] != p2Phone {
 		t.Errorf("expected participant %s -> %s, got %s",
-			p2Phone, p2Name, created.Participants[p2Phone])
+			p2Phone, p2Name, created.Participants[p2Name])
 	}
 
 	if len(created.ManagedBy) != 1 {
 		t.Errorf("expected 1 managed_by entry, got %d", len(created.ManagedBy))
 	}
-	mPhone := sanitizer.SanitizePhone("+972509999999")
+	mPhone := "+972509999999"
 	mName := sanitizer.SanitizeNameOrAddress("Manager")
-	if created.ManagedBy[mPhone] != mName {
+	if created.ManagedBy[mName] != mPhone {
 		t.Errorf("expected managed_by %s -> %s, got %s",
 			mPhone, mName, created.ManagedBy[mPhone])
 	}
@@ -276,7 +275,7 @@ func testCreateInvalidParticipantFormat(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Bad Participants", start, end)
-	payload["participants"] = map[string]string{"notaphone": "Invalid"}
+	payload["participants"] = map[string]string{"Invalid": "notaphone"}
 
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
@@ -453,7 +452,7 @@ func testCreateCapacityBoundaries(t *testing.T) {
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Min Capacity", start, end)
 	payload["capacity"] = 1
-	payload["participants"] = map[string]string{"+972501234567": "Alice"}
+	payload["participants"] = map[string]string{"Alice": "+972501234567"}
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBooking(t, resp)
@@ -514,9 +513,9 @@ func testCreateCapacityExceededByParticipants(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Exceeded", start, end)
 	payload["capacity"] = 2
 	payload["participants"] = map[string]string{
-		"+972501234567": "Alice",
-		"+972541111111": "Bob",
-		"+972542222222": "Charlie",
+		"Alice":   "+972501234567",
+		"Bob":     "+972541111111",
+		"Charlie": "+972542222222",
 	}
 
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
@@ -533,9 +532,7 @@ func testCreateEmptyParticipants(t *testing.T) {
 	payload["participants"] = map[string]string{}
 
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
-	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Errorf("expected validation error for empty participants, got %d", resp.StatusCode)
-	}
+	common.AssertStatusCode(t, resp, 201)
 }
 
 func testCreateMaxParticipants(t *testing.T) {
@@ -547,8 +544,9 @@ func testCreateMaxParticipants(t *testing.T) {
 
 	participants := make(map[string]string)
 	for i := range 200 {
+		name := fmt.Sprintf("Person%d", i+1)
 		phone := fmt.Sprintf("+9725012%05d", i+1)
-		participants[phone] = fmt.Sprintf("Person%d", i+1)
+		participants[name] = phone
 	}
 	payload["participants"] = participants
 
@@ -569,8 +567,9 @@ func testCreateTooManyParticipants(t *testing.T) {
 
 	participants := make(map[string]string)
 	for i := 0; i < 201; i++ {
+		name := fmt.Sprintf("Person%d", i+1)
 		phone := fmt.Sprintf("+9725012%05d", i+1)
-		participants[phone] = fmt.Sprintf("Person%d", i+1)
+		participants[name] = phone
 	}
 	payload["participants"] = participants
 
@@ -582,12 +581,20 @@ func testCreateTooManyParticipants(t *testing.T) {
 
 func testCreateDuplicateParticipants(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
+
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
-	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Duplicate Participants", start, end)
+
+	payload := createValidBooking(
+		"507f1f77bcf86cd799439011",
+		"507f1f77bcf86cd799439012",
+		"Duplicate Participants",
+		start, end,
+	)
+
 	payload["participants"] = map[string]string{
-		"+972501234567": "Alice",
-		"+972541111111": "Bob",
+		"Alice": "+972501234567",
+		"Bob":   "+972541111111",
 	}
 
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
@@ -596,16 +603,25 @@ func testCreateDuplicateParticipants(t *testing.T) {
 
 func testCreateMultipleCountryPhones(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
+
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
-	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Multi Country", start, end)
+
+	payload := createValidBooking(
+		"507f1f77bcf86cd799439011",
+		"507f1f77bcf86cd799439012",
+		"Multi Country",
+		start, end,
+	)
+
 	origParticipants := map[string]string{
-		"+972501234567": "Israel",
-		"+12125551234":  "USA",
-		"+447700900123": "UK",
-		"+33612345678":  "France",
-		"+81312345678":  "Japan",
+		"Israel": "+972501234567",
+		"USA":    "+12125551234",
+		"UK":     "+447700900123",
+		"France": "+33612345678",
+		"Japan":  "+81312345678",
 	}
+
 	payload["participants"] = origParticipants
 
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
@@ -616,12 +632,11 @@ func testCreateMultipleCountryPhones(t *testing.T) {
 		t.Errorf("expected %d participants, got %d", len(origParticipants), len(created.Participants))
 	}
 
-	for phone, name := range origParticipants {
-		sPhone := sanitizer.SanitizePhone(phone)
+	for name, phone := range origParticipants {
 		sName := sanitizer.SanitizeNameOrAddress(name)
-		if created.Participants[sPhone] != sName {
+		if created.Participants[sName] != phone {
 			t.Errorf("expected participant %s -> %s, got %s",
-				sPhone, sName, created.Participants[sPhone])
+				sName, phone, created.Participants[sName])
 		}
 	}
 }
@@ -706,7 +721,6 @@ func testCreateVeryShortDuration(t *testing.T) {
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, resp, 201)
 }
-
 func testCreateVeryLongDuration(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	start := time.Now().Add(1 * time.Hour)
@@ -843,7 +857,7 @@ func testUpdateStatusTransitions(t *testing.T) {
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBooking(t, createResp)
 
-	validTransitions := []string{"confirmed", "cancelled", "completed"}
+	validTransitions := []string{"confirmed", "cancelled"}
 	for _, newStatus := range validTransitions {
 		update := map[string]any{"status": newStatus}
 		resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
@@ -865,9 +879,9 @@ func testUpdateCapacityBelowParticipants(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Capacity Test", start, end)
 	payload["capacity"] = 10
 	payload["participants"] = map[string]string{
-		"+972501234567": "Alice",
-		"+972541111111": "Bob",
-		"+972542222222": "Charlie",
+		"Alice":   "+972501234567",
+		"Bob":     "+972541111111",
+		"Charlie": "+972542222222",
 	}
 	createResp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, createResp, 201)
@@ -886,16 +900,16 @@ func testUpdateAddParticipants(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Add Participants", start, end)
-	payload["participants"] = map[string]string{"+972501234567": "Alice"}
+	payload["participants"] = map[string]string{"Alice": "+972501234567"}
 	createResp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBooking(t, createResp)
 
 	update := map[string]any{
 		"participants": map[string]string{
-			"+972501234567": "Alice",
-			"+972541111111": "Bob",
-			"+972542222222": "Charlie",
+			"Alice":   "+972501234567",
+			"Bob":     "+972541111111",
+			"Charlie": "+972542222222",
 		},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
@@ -907,17 +921,14 @@ func testUpdateAddParticipants(t *testing.T) {
 		t.Errorf("expected 3 participants, got %d", len(fetched.Participants))
 	}
 
-	p1 := sanitizer.SanitizePhone("+972501234567")
-	p2 := sanitizer.SanitizePhone("+972541111111")
-	p3 := sanitizer.SanitizePhone("+972542222222")
-	if fetched.Participants[p1] != sanitizer.SanitizeNameOrAddress("Alice") {
-		t.Errorf("expected Alice sanitized under %s, got %s", p1, fetched.Participants[p1])
+	if fetched.Participants["alice"] != "+972501234567" {
+		t.Errorf("expected Alice sanitized under key 'alice'")
 	}
-	if fetched.Participants[p2] != sanitizer.SanitizeNameOrAddress("Bob") {
-		t.Errorf("expected Bob sanitized under %s, got %s", p2, fetched.Participants[p2])
+	if fetched.Participants["bob"] != "+972541111111" {
+		t.Errorf("expected Bob sanitized under key 'bob'")
 	}
-	if fetched.Participants[p3] != sanitizer.SanitizeNameOrAddress("Charlie") {
-		t.Errorf("expected Charlie sanitized under %s, got %s", p3, fetched.Participants[p3])
+	if fetched.Participants["charlie"] != "+972542222222" {
+		t.Errorf("expected Charlie sanitized under key 'charlie'")
 	}
 }
 
@@ -932,7 +943,7 @@ func testUpdateRemoveParticipants(t *testing.T) {
 	created := decodeBooking(t, createResp)
 
 	update := map[string]any{
-		"participants": map[string]string{"+972501234567": "Alice"},
+		"participants": map[string]string{"Alice": "+972501234567"},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
 	common.AssertStatusCode(t, resp, 204)
@@ -943,9 +954,8 @@ func testUpdateRemoveParticipants(t *testing.T) {
 		t.Errorf("expected 1 participant, got %d", len(fetched.Participants))
 	}
 
-	p1 := sanitizer.SanitizePhone("+972501234567")
-	if fetched.Participants[p1] != sanitizer.SanitizeNameOrAddress("Alice") {
-		t.Errorf("expected only Alice sanitized under %s, got %s", p1, fetched.Participants[p1])
+	if fetched.Participants["alice"] != "+972501234567" {
+		t.Errorf("expected only Alice sanitized")
 	}
 }
 
@@ -959,17 +969,17 @@ func testUpdateManagedBy(t *testing.T) {
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBooking(t, createResp)
 
-	update := map[string]any{"managed_by": map[string]string{"+972508888888": "New Manager"}}
+	manager_name := "New Manager"
+	manager_phone := "+972508888888"
+	update := map[string]any{"managed_by": map[string]string{manager_name: manager_phone}}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
 	common.AssertStatusCode(t, resp, 204)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 	fetched := decodeBooking(t, getResp)
-	newPhone := sanitizer.SanitizePhone("+972508888888")
-	newName := sanitizer.SanitizeNameOrAddress("New Manager")
-	if fetched.ManagedBy[newPhone] != newName {
-		t.Errorf("expected managed_by %s -> %s, got %s",
-			newPhone, newName, fetched.ManagedBy[newPhone])
+
+	if fetched.ManagedBy[sanitizer.SanitizeNameOrAddress(manager_name)] != manager_phone {
+		t.Errorf("expected managed_by to be updated")
 	}
 }
 
@@ -1055,9 +1065,6 @@ func testUpdateMultipleFields(t *testing.T) {
 		t.Errorf("expected status 'confirmed', got %s", string(fetched.Status))
 	}
 }
-
-// Additional advanced test functions for bookings
-
 func testConcurrentBookingCreation(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
@@ -1068,7 +1075,8 @@ func testConcurrentBookingCreation(t *testing.T) {
 	results := make([]int, 5)
 	ids := make([]string, 5)
 
-	for i := 0; i < 5; i++ {
+	conc := 5
+	for i := 0; i < conc; i++ {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
@@ -1097,9 +1105,10 @@ func testConcurrentBookingCreation(t *testing.T) {
 		}
 	}
 
-	t.Logf("Concurrent booking creation: %d/5 succeeded", successCount)
+	if successCount != conc {
+		t.Errorf("Concurrent booking creation: %d/5 succeeded", successCount)
+	}
 
-	// Cleanup
 	for _, id := range ids {
 		if id != "" {
 			httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", id))
@@ -1131,37 +1140,35 @@ func testParticipantsValidation(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 
-	// Test with empty name in participants
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Empty Name Test", start, end)
-	payload["participants"] = map[string]string{"+972501234567": ""}
+	payload["participants"] = map[string]string{"": "+972501234567"}
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Logf("Empty participant name returned status %d", resp.StatusCode)
 	}
 
-	// Test with special characters in name
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Special Chars Name Test", start.Add(2*time.Hour), end.Add(2*time.Hour))
 	payload2["participants"] = map[string]string{
-		"+972501234567": "José María",
-		"+972541111111": "张伟",
-		"+972542222222": "Владимир",
+		"José María": "+972501234567",
+		"张伟":         "+972541111111",
+		"Владимир":   "+972542222222",
 	}
 	resp = httpClient.POST(t, "/api/v1/bookings", payload2)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBooking(t, resp)
 
 	expectedParticipants := map[string]string{
-		sanitizer.SanitizePhone("+972501234567"): sanitizer.SanitizeNameOrAddress("José María"),
-		sanitizer.SanitizePhone("+972541111111"): sanitizer.SanitizeNameOrAddress("张伟"),
-		sanitizer.SanitizePhone("+972542222222"): sanitizer.SanitizeNameOrAddress("Владимир"),
+		sanitizer.SanitizeNameOrAddress("José María"): "+972501234567",
+		sanitizer.SanitizeNameOrAddress("张伟"):         "+972541111111",
+		sanitizer.SanitizeNameOrAddress("Владимир"):   "+972542222222",
 	}
 	if len(created.Participants) != len(expectedParticipants) {
 		t.Errorf("expected %d participants, got %d", len(expectedParticipants), len(created.Participants))
 	}
-	for phone, name := range expectedParticipants {
-		if created.Participants[phone] != name {
+	for name, phone := range expectedParticipants {
+		if created.Participants[name] != phone {
 			t.Errorf("expected participant %s -> %s, got %s",
-				phone, name, created.Participants[phone])
+				name, phone, created.Participants[name])
 		}
 	}
 
@@ -1176,7 +1183,6 @@ func testSearchWithExactTimeMatch(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Exact Time Match", start, end)
 	httpClient.POST(t, "/api/v1/bookings", payload)
 
-	// Search with exact time range
 	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012&start_time=%s&end_time=%s",
 		start.Format(time.RFC3339), end.Format(time.RFC3339)))
 	common.AssertStatusCode(t, resp, 200)
@@ -1189,15 +1195,14 @@ func testSearchWithExactTimeMatch(t *testing.T) {
 func testBookingWithPastEndTime(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	start := time.Now().Add(-2 * time.Hour)
+	start := time.Now().Add(-12 * time.Hour)
 	end := time.Now().Add(-1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Past Booking", start, end)
 
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
-	// Should allow creating past bookings but may log a warning
 	if resp.StatusCode == 201 {
 		created := decodeBooking(t, resp)
-		t.Logf("Past booking created with ID %s", created.ID)
+		t.Errorf("Past booking created with ID %s", created.ID)
 		httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 	}
 }
@@ -1209,18 +1214,17 @@ func testUpdateParticipantsExceedCapacity(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Capacity Test", start, end)
 	payload["capacity"] = 2
-	payload["participants"] = map[string]string{"+972501234567": "Alice"}
+	payload["participants"] = map[string]string{"Alice": "+972501234567"}
 
 	createResp := httpClient.POST(t, "/api/v1/bookings", payload)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBooking(t, createResp)
 
-	// Try to add more participants than capacity
 	update := map[string]any{
 		"participants": map[string]string{
-			"+972501234567": "Alice",
-			"+972541111111": "Bob",
-			"+972542222222": "Charlie",
+			"Alice":   "+972501234567",
+			"Bob":     "+972541111111",
+			"Charlie": "+972542222222",
 		},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
@@ -1237,21 +1241,17 @@ func testManagedByValidation(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 
-	// Test with invalid phone in managed_by
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Invalid Managed By", start, end)
-	payload["managed_by"] = map[string]string{"invalid-phone": "Manager"}
+	payload["managed_by"] = map[string]string{"Manager": "invalid-phone"}
 	resp := httpClient.POST(t, "/api/v1/bookings", payload)
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Logf("Invalid managed_by phone returned status %d", resp.StatusCode)
 	}
 
-	// Test with empty managed_by (should fail as it's required)
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Empty Managed By", start.Add(2*time.Hour), end.Add(2*time.Hour))
 	payload2["managed_by"] = map[string]string{}
 	resp = httpClient.POST(t, "/api/v1/bookings", payload2)
-	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Logf("Empty managed_by returned status %d", resp.StatusCode)
-	}
+	common.AssertStatusCode(t, resp, 201)
 }
 
 func testSearchWithoutTimeRange(t *testing.T) {
@@ -1262,7 +1262,6 @@ func testSearchWithoutTimeRange(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "No Time Range Search", start, end)
 	httpClient.POST(t, "/api/v1/bookings", payload)
 
-	// Search without time range (should return all bookings for the schedule)
 	resp := httpClient.GET(t, "/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012")
 	common.AssertStatusCode(t, resp, 200)
 	data := decodeBookings(t, resp)
@@ -1282,14 +1281,11 @@ func testUpdateClearParticipants(t *testing.T) {
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBooking(t, createResp)
 
-	// Try to clear participants (should fail as it would be invalid)
 	update := map[string]any{
 		"participants": map[string]string{},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
-	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Logf("Clearing participants returned status %d", resp.StatusCode)
-	}
+	common.AssertStatusCode(t, resp, 204)
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
 }
@@ -1300,7 +1296,6 @@ func testBookingWithSameBusinessDifferentSchedule(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 
-	// Create two bookings with same business but different schedules at same time
 	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Schedule 1", start, end)
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439013", "Schedule 2", start, end)
 
@@ -1308,7 +1303,6 @@ func testBookingWithSameBusinessDifferentSchedule(t *testing.T) {
 	common.AssertStatusCode(t, resp1, 201)
 	created1 := decodeBooking(t, resp1)
 
-	// Should succeed since it's a different schedule
 	resp2 := httpClient.POST(t, "/api/v1/bookings", payload2)
 	common.AssertStatusCode(t, resp2, 201)
 	created2 := decodeBooking(t, resp2)

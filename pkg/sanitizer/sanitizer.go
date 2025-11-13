@@ -5,8 +5,6 @@ import (
 	"regexp"
 	"skeji/pkg/config"
 	"strings"
-
-	"github.com/nyaruka/phonenumbers"
 )
 
 type Strategy func(string) string
@@ -90,22 +88,6 @@ func SanitizeSlice(values []string, strategy Strategy) []string {
 	return out
 }
 
-func SanitizePhone(phone string) string {
-	phone = strings.TrimSpace(phone)
-
-	if phone == "" || !reValidPhone.MatchString(phone) {
-		return phone
-	}
-
-	for _, region := range supportedRegions {
-		parsedNumber, err := phonenumbers.Parse(phone, region)
-		if err == nil {
-			return phonenumbers.Format(parsedNumber, phonenumbers.E164)
-		}
-	}
-	return ""
-}
-
 func SanitizePriority(cfg *config.Config, priority int64) int64 {
 	if priority < int64(cfg.MinBusinessPriority) {
 		return int64(cfg.MinBusinessPriority)
@@ -161,7 +143,6 @@ func SanitizeParticipantsMap(mp map[string]string) map[string]string {
 	normalized := map[string]string{}
 	for name, phone := range mp {
 		name = SanitizeNameOrAddress(name)
-		phone = SanitizePhone(phone)
 		normalized[name] = phone
 	}
 	return normalized

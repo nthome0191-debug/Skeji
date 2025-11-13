@@ -62,9 +62,10 @@ func NewBookingValidator(log *logger.Logger) *BookingValidator {
 
 func validateParticipantsMap(fl validator.FieldLevel) bool {
 	value := fl.Field()
+	fmt.Println(fl.FieldName())
 
 	if value.IsNil() {
-		return true
+		return false
 	}
 
 	participants, ok := value.Interface().(map[string]string)
@@ -116,9 +117,12 @@ func (v *BookingValidator) Validate(booking *model.Booking) error {
 	}
 
 	if booking.StartTime.Before(time.Now()) {
-		v.logger.Warn("Booking start time is in the past",
-			"start_time", booking.StartTime,
-		)
+		return ValidationErrors{
+			ValidationError{
+				Field:   "StratTime",
+				Message: "start_time cannot be in the past",
+			},
+		}
 	}
 
 	return nil
