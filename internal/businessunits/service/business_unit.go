@@ -48,23 +48,15 @@ func NewBusinessUnitService(
 }
 
 func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit) error {
-	s.sanitize(bu)
 	s.applyDefaults(bu)
-
-	if err := s.validator.Validate(bu); err != nil {
-		s.cfg.Log.Warn("Business unit validation failed",
-			"name", bu.Name,
-			"admin_phone", bu.AdminPhone,
-			"error", err,
-		)
-		return apperrors.Validation("Business unit validation failed", map[string]any{
-			"error": err.Error(),
-		})
+	s.sanitize(bu)
+	err := s.validate(bu)
+	if err != nil {
+		return err
 	}
-
 	s.populateCityLabelPairs(bu)
 
-	err := s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
+	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
 		existing, err := s.repo.FindByAdminPhone(sessCtx, bu.AdminPhone)
 		if err != nil {
 			return fmt.Errorf("failed to check for duplicates: %w", err)
@@ -173,7 +165,6 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 	if id == "" {
 		return apperrors.InvalidInput("Business unit ID cannot be empty")
 	}
-
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, businessunitserrors.ErrNotFound) {
@@ -184,30 +175,13 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 		}
 		return apperrors.Internal("Failed to check business unit existence", err)
 	}
-	if err = s.validator.ValidateUpdate(updates); err != nil {
-		s.cfg.Log.Warn("Business unit update validation failed",
-			"id", id,
-			"error", err,
-		)
-		return apperrors.Validation("Invalid update input", map[string]any{"error": err.Error()})
-	}
-	s.sanitizeUpdate(updates)
 	merged := s.mergeBusinessUnitUpdates(existing, updates)
-	err = s.validator.Validate(merged)
+	s.sanitize(merged)
+	err = s.validate(merged)
 	if err != nil {
-		s.cfg.Log.Warn("Business unit validation failed",
-			"name", merged.Name,
-			"admin_phone", merged.AdminPhone,
-			"id", id,
-			"error", err,
-		)
-		return apperrors.Validation("Business unit validation failed", map[string]any{
-			"error": err.Error(),
-		})
+		return err
 	}
-
 	s.populateCityLabelPairs(merged)
-
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
 		existingUnits, err := s.repo.FindByAdminPhone(sessCtx, merged.AdminPhone)
 		if err != nil {
@@ -283,7 +257,7 @@ func (s *businessUnitService) GetByAdminPhone(ctx context.Context, phone string)
 		return nil, apperrors.InvalidInput("Admin phone number cannot be empty")
 	}
 
-	phone = sanitizer.NormalizePhone(phone)
+	phone = sanitizer.SanitizePhone(phone)
 
 	units, err := s.repo.FindByAdminPhone(ctx, phone)
 	if err != nil {
@@ -305,8 +279,7 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 	originalCities := append([]string(nil), cities...)
 	originalLabels := append([]string(nil), labels...)
 
-	cities = sanitizer.NormalizeCities(cities)
-	labels = sanitizer.NormalizeLabels(labels)
+	labels, cities = s.sanitizeSearchRequest(labels, cities)
 
 	if len(cities) == 0 || len(labels) == 0 {
 		s.cfg.Log.Warn("Search criteria normalized to empty",
@@ -346,54 +319,6 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 	return units, nil
 }
 
-func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
-	bu.Name = sanitizer.Normalize(bu.Name, true)
-	bu.Cities = sanitizer.NormalizeCities(bu.Cities)
-	bu.Labels = sanitizer.NormalizeLabels(bu.Labels)
-	bu.AdminPhone = sanitizer.NormalizePhone(bu.AdminPhone)
-	// bu.Maintainers = sanitizer.NormalizeMaintainers(bu.Maintainers)
-	bu.WebsiteURLs = sanitizer.NormalizeURLs(bu.WebsiteURLs)
-	bu.Priority = sanitizer.NormalizePriority(s.cfg, bu.Priority)
-}
-
-func (s *businessUnitService) sanitizeUpdate(updates *model.BusinessUnitUpdate) {
-	if updates.Name != "" {
-		updates.Name = sanitizer.Normalize(updates.Name, true)
-	}
-	if updates.Cities != nil {
-		if len(updates.Cities) == 0 {
-			s.cfg.Log.Warn("Attempted to update cities with empty array")
-		} else {
-			updates.Cities = sanitizer.NormalizeCities(updates.Cities)
-		}
-	}
-	if updates.Labels != nil {
-		if len(updates.Labels) == 0 {
-			s.cfg.Log.Warn("Attempted to update labels with empty array")
-		} else {
-			updates.Labels = sanitizer.NormalizeLabels(updates.Labels)
-		}
-	}
-	if updates.AdminPhone != "" {
-		updates.AdminPhone = sanitizer.NormalizePhone(updates.AdminPhone)
-	}
-	// if updates.Maintainers != nil {
-	// 	normalized := sanitizer.NormalizeMaintainers(*updates.Maintainers)
-	// 	updates.Maintainers = &normalized
-	// }
-	if updates.Priority != nil {
-		normalized := sanitizer.NormalizePriority(s.cfg, *updates.Priority)
-		updates.Priority = &normalized
-	}
-	if updates.WebsiteURLs != nil {
-		normalized := sanitizer.NormalizeURLs(*updates.WebsiteURLs)
-		updates.WebsiteURLs = &normalized
-	}
-	if updates.TimeZone != "" {
-		updates.TimeZone = sanitizer.TrimAndNormalize(updates.TimeZone)
-	}
-}
-
 func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
 	if bu.TimeZone == "" {
 		bu.TimeZone = locale.InferTimezoneFromPhone(bu.AdminPhone)
@@ -401,6 +326,42 @@ func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
 	if bu.Priority == 0 {
 		bu.Priority = int64(s.cfg.DefaultBusinessPriority)
 	}
+	if bu.Maintainers == nil {
+		bu.Maintainers = map[string]string{}
+	}
+	if bu.WebsiteURLs == nil {
+		bu.WebsiteURLs = []string{}
+	}
+}
+
+func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
+	bu.Name = sanitizer.SanitizeNameOrAddress(bu.Name)
+	bu.Cities = sanitizer.SanitizeSlice(bu.Cities, sanitizer.SanitizeCityOrLabel)
+	bu.Labels = sanitizer.SanitizeSlice(bu.Labels, sanitizer.SanitizeCityOrLabel)
+	bu.AdminPhone = sanitizer.SanitizePhone(bu.AdminPhone)
+	bu.Maintainers = sanitizer.SanitizeParticipantsMap(bu.Maintainers)
+	bu.WebsiteURLs = sanitizer.SanitizeSlice(bu.WebsiteURLs, sanitizer.SanitizeURL)
+	bu.Priority = sanitizer.SanitizePriority(s.cfg, bu.Priority)
+}
+
+func (s *businessUnitService) sanitizeSearchRequest(labels, cities []string) (l []string, c []string) {
+	labels = sanitizer.SanitizeSlice(labels, sanitizer.SanitizeCityOrLabel)
+	cities = sanitizer.SanitizeSlice(cities, sanitizer.SanitizeCityOrLabel)
+	return labels, cities
+}
+
+func (s *businessUnitService) validate(bu *model.BusinessUnit) error {
+	if err := s.validator.Validate(bu); err != nil {
+		s.cfg.Log.Warn("Business unit validation failed",
+			"name", bu.Name,
+			"admin_phone", bu.AdminPhone,
+			"error", err,
+		)
+		return apperrors.Validation("Business unit validation failed", map[string]any{
+			"error": err.Error(),
+		})
+	}
+	return nil
 }
 
 func (s *businessUnitService) mergeBusinessUnitUpdates(existing *model.BusinessUnit, updates *model.BusinessUnitUpdate) *model.BusinessUnit {
@@ -445,7 +406,7 @@ func (s *businessUnitService) mergeBusinessUnitUpdates(existing *model.BusinessU
 }
 
 func (s *businessUnitService) isDuplicate(newBU, existingBU *model.BusinessUnit) bool {
-	if sanitizer.NormalizeNameForComparison(newBU.Name) != sanitizer.NormalizeNameForComparison(existingBU.Name) {
+	if sanitizer.SanitizeNameOrAddress(newBU.Name) != sanitizer.SanitizeNameOrAddress(existingBU.Name) {
 		return false
 	}
 

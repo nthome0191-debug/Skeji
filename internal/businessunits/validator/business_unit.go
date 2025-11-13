@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/url"
 	"regexp"
+	"skeji/pkg/config"
+	"skeji/pkg/locale"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
 	"strings"
@@ -13,7 +15,10 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-var phoneRegex = regexp.MustCompile(`^(?:|\+[1-9]\d{7,14})$`)
+var (
+	phoneRegex    = regexp.MustCompile(`^(?:|\+[1-9]\d{7,14})$`)
+	validTimeZone = regexp.MustCompile(`^[A-Za-z0-9_\-/]+$`)
+)
 
 type ValidationError struct {
 	Field   string `json:"field"`
@@ -62,6 +67,12 @@ func NewBusinessUnitValidator(log *logger.Logger) *BusinessUnitValidator {
 		)
 	}
 
+	if err := v.RegisterValidation("participants_map", validateParticipantsMap); err != nil {
+		log.Fatal("Failed to register 'participants_map' validator",
+			"error", err,
+		)
+	}
+
 	log.Info("Business unit validator initialized successfully")
 
 	return &BusinessUnitValidator{
@@ -85,6 +96,46 @@ func validateSupportedCountry(fl validator.FieldLevel) bool {
 	}
 
 	return false
+}
+
+func validateSupportedTimeZone(tz string) bool {
+	if !validTimeZone.MatchString(tz) {
+		return false
+	}
+	if !locale.SupportedTimeZones[tz] {
+		return false
+	}
+	return true
+}
+
+func validateParticipantsMap(fl validator.FieldLevel) bool {
+	value := fl.Field()
+
+	if value.IsNil() {
+		return true
+	}
+
+	participants, ok := value.Interface().(map[string]string)
+	if !ok {
+		return false
+	}
+
+	n := len(participants)
+	if n == 0 {
+		return true
+	}
+
+	if n < 1 || n > 200 {
+		return false
+	}
+
+	for name, phone := range participants {
+		if phone == "" || name == "" || !phoneRegex.MatchString(phone) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func validateUrl(fl validator.FieldLevel) bool {
@@ -137,17 +188,45 @@ func (v *BusinessUnitValidator) Validate(bu *model.BusinessUnit) error {
 		}
 		return err
 	}
-	return nil
-}
-
-func (v *BusinessUnitValidator) ValidateUpdate(update *model.BusinessUnitUpdate) error {
-	if err := v.validate.Struct(update); err != nil {
-		var validationErrs validator.ValidationErrors
-		if errors.As(err, &validationErrs) {
-			return v.translateValidationErrors(validationErrs)
+	if len(bu.Maintainers) > config.DefaultMaxMaintainersPerBusiness {
+		return ValidationErrors{
+			ValidationError{
+				Field:   "Maintainers",
+				Message: fmt.Sprintf("Maintainers count (%d) exceeds capacity (%d)", len(bu.Maintainers), config.DefaultMaxMaintainersPerBusiness),
+			},
 		}
-		return err
 	}
+
+	if len(bu.Cities) < 1 || len(bu.Cities) > config.MaxCitiesForBusiness {
+		return ValidationErrors{
+			ValidationError{
+				Field:   "Cities",
+				Message: fmt.Sprintf("Cities count (%d) exceeds capacity (%d)", len(bu.Cities), config.MaxCitiesForBusiness),
+			},
+		}
+	}
+
+	if len(bu.Labels) > config.MaxLabelsForBusiness {
+		return ValidationError{
+			Field:   "Lables",
+			Message: fmt.Sprintf("Labels count (%d) exceeds capacity (%d)", len(bu.Labels), config.MaxLabelsForBusiness),
+		}
+	}
+
+	if !phoneRegex.MatchString(bu.AdminPhone) {
+		return ValidationError{
+			Field:   "AdminPhone",
+			Message: fmt.Sprintf("AdminPhone must be a valid phone (%s)", bu.AdminPhone),
+		}
+	}
+
+	if !validateSupportedTimeZone(bu.TimeZone) {
+		return ValidationError{
+			Field:   "TimeZone",
+			Message: fmt.Sprintf("TimeZone '%s' is not supported", bu.TimeZone),
+		}
+	}
+
 	return nil
 }
 

@@ -255,8 +255,7 @@ func (s *scheduleService) Search(ctx context.Context, businessID string, city st
 		return nil, apperrors.InvalidInput("Business_id must be provided, city is optional")
 	}
 
-	city = sanitizer.Normalize(city, false)
-	businessID = sanitizer.TrimAndNormalize(businessID)
+	city = sanitizer.SanitizeCityOrLabel(city)
 
 	schedules, err := s.repo.Search(ctx, businessID, city)
 	if err != nil {
@@ -278,28 +277,28 @@ func (s *scheduleService) Search(ctx context.Context, businessID string, city st
 }
 
 func (s *scheduleService) sanitize(sc *model.Schedule) {
-	sc.Name = sanitizer.Normalize(sc.Name, true)
-	sc.City = sanitizer.Normalize(sc.City, false)
-	sc.Address = sanitizer.Normalize(sc.Address, true)
-	sc.WorkingDays = sanitizer.NormalizeWorkingDays(sc.WorkingDays)
-	sc.Exceptions = sanitizer.NormalizeExceptions(sc.Exceptions)
+	sc.Name = sanitizer.SanitizeNameOrAddress(sc.Name)
+	sc.City = sanitizer.SanitizeCityOrLabel(sc.City)
+	sc.Address = sanitizer.SanitizeNameOrAddress(sc.Address)
+	sc.WorkingDays = sanitizer.SanitizeSlice(sc.WorkingDays, sanitizer.SanitizeCityOrLabel)
+	sc.Exceptions = sanitizer.SanitizeSlice(sc.Exceptions, sanitizer.SanitizeNameOrAddress)
 }
 
 func (s *scheduleService) sanitizeUpdate(updates *model.ScheduleUpdate) {
 	if updates.Name != "" {
-		updates.Name = sanitizer.Normalize(updates.Name, true)
+		updates.Name = sanitizer.SanitizeNameOrAddress(updates.Name)
 	}
 	if updates.City != "" {
-		updates.City = sanitizer.Normalize(updates.City, false)
+		updates.City = sanitizer.SanitizeCityOrLabel(updates.City)
 	}
 	if updates.Address != "" {
-		updates.Address = sanitizer.Normalize(updates.Address, true)
+		updates.Address = sanitizer.SanitizeNameOrAddress(updates.Address)
 	}
 	if len(updates.WorkingDays) > 0 {
-		updates.WorkingDays = sanitizer.NormalizeWorkingDays(updates.WorkingDays)
+		updates.WorkingDays = sanitizer.SanitizeSlice(updates.WorkingDays, sanitizer.SanitizeCityOrLabel)
 	}
 	if updates.Exceptions != nil {
-		*updates.Exceptions = sanitizer.NormalizeExceptions(*updates.Exceptions)
+		*updates.Exceptions = sanitizer.SanitizeSlice(*updates.Exceptions, sanitizer.SanitizeNameOrAddress)
 	}
 }
 

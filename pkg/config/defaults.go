@@ -42,6 +42,10 @@ const (
 	DefaultMinBusinessPriority     = 0
 	DefaultMaxBusinessPriority     = 1000
 
+	DefaultMaxMaintainersPerBusiness = 10
+	MaxCitiesForBusiness             = 50
+	MaxLabelsForBusiness             = 10
+
 	DefaultDefaultMeetingDurationMin     = 45
 	DefaultDefaultBreakDurationMin       = 15
 	DefaultDefaultMaxParticipantsPerSlot = 1

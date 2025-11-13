@@ -12,7 +12,7 @@ type Booking struct {
 	StartTime    time.Time         `json:"start_time" bson:"start_time" validate:"required"`
 	EndTime      time.Time         `json:"end_time" bson:"end_time" validate:"required,gtfield=StartTime"`
 	Capacity     int               `json:"capacity" bson:"capacity" validate:"required,min=1,max=200"`
-	Participants map[string]string `json:"participants" bson:"participants" validate:"participants_map"`
+	Participants map[string]string `json:"participants" bson:"participants" validate:"omitempty,participants_map"`
 	Status       string            `json:"status" bson:"status" validate:"required,oneof=pending confirmed cancelled"`
 	ManagedBy    map[string]string `json:"managed_by" bson:"managed_by" validate:"required,participants_map"`
 	CreatedAt    time.Time         `json:"created_at" bson:"created_at" validate:"omitempty"`

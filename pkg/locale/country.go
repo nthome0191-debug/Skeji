@@ -35,6 +35,14 @@ var (
 		"IL": {"Asia/Jerusalem", "Israel", "Asia/Tel_Aviv"},
 		"US": {"America/New_York", "America/Los_Angeles", "US/Eastern", "US/Pacific"},
 	}
+	SupportedTimeZones = map[string]bool{
+		"Asia/Jerusalem":      true,
+		"Asia/Tel_Aviv":       true,
+		"America/New_York":    true,
+		"America/Los_Angeles": true,
+		"US/Eastern":          true,
+		"US/Pacific":          true,
+	}
 )
 
 func DetectRegion(tz string) string {
