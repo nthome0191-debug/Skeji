@@ -44,12 +44,6 @@ func (tw *timeoutWriter) Write(b []byte) (int, error) {
 	return tw.ResponseWriter.Write(b)
 }
 
-func (tw *timeoutWriter) timeout() {
-	tw.mu.Lock()
-	defer tw.mu.Unlock()
-	tw.timedOut = true
-}
-
 func RequestTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -65,15 +59,19 @@ func RequestTimeout(timeout time.Duration) func(http.Handler) http.Handler {
 			done := make(chan struct{})
 
 			stop := context.AfterFunc(ctx, func() {
-				tw.timeout()
 				tw.mu.Lock()
+				defer tw.mu.Unlock()
+
 				if !tw.written {
+					tw.timedOut = true
+					tw.written = true
+					tw.statusCode = http.StatusServiceUnavailable
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusServiceUnavailable)
 					_, _ = w.Write([]byte(`{"error":"Request timeout"}`))
-					tw.written = true
+				} else {
+					tw.timedOut = true
 				}
-				tw.mu.Unlock()
 			})
 			defer stop()
 
