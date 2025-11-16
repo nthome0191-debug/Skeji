@@ -1,14 +1,35 @@
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: skeji-local
+
 nodes:
   - role: control-plane
+    labels:
+      topology.kubernetes.io/zone: "kind-zone-cp"
+
+  - role: worker
+    labels:
+      skeji.io/type: "app"
+      topology.kubernetes.io/zone: "kind-zone-a"
+
+  - role: worker
+    labels:
+      skeji.io/type: "infra"
+      topology.kubernetes.io/zone: "kind-zone-b"
     extraPortMappings:
       - containerPort: 27017
         hostPort: 27017
         protocol: TCP
-      - containerPort: 9092
-        hostPort: 9092
+      - containerPort: 9094
+        hostPort: 9094
         protocol: TCP
+
   - role: worker
+    labels:
+      skeji.io/type: "infra"
+      topology.kubernetes.io/zone: "kind-zone-c"
+
   - role: worker
+    labels:
+      skeji.io/type: "infra"
+      topology.kubernetes.io/zone: "kind-zone-d"

@@ -31,6 +31,7 @@ kind-up:
 
 kind-down:
 	@echo "🧹 Deleting kind cluster..."
+	bash test/scripts/setup-infra.sh --clean
 	kind delete cluster --name skeji-local || true
 	@echo "✅ Kind cluster deleted."
 
