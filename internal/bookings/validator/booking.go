@@ -62,7 +62,6 @@ func NewBookingValidator(log *logger.Logger) *BookingValidator {
 
 func validateParticipantsMap(fl validator.FieldLevel) bool {
 	value := fl.Field()
-	fmt.Println(fl.FieldName())
 
 	if value.IsNil() {
 		return false
