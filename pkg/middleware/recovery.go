@@ -13,7 +13,9 @@ func Recovery(log *logger.Logger) func(http.Handler) http.Handler {
 				if err := recover(); err != nil {
 					requestID := ""
 					if rid := r.Context().Value(RequestIDKey); rid != nil {
-						requestID = rid.(string)
+						if id, ok := rid.(string); ok {
+							requestID = id
+						}
 					}
 
 					log.Error("Panic recovered",

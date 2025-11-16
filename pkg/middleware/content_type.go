@@ -39,7 +39,9 @@ func extractContentType(header string) string {
 func rejectInvalidContentType(w http.ResponseWriter, log *logger.Logger, r *http.Request, contentType string) {
 	requestID := ""
 	if rid := r.Context().Value(RequestIDKey); rid != nil {
-		requestID = rid.(string)
+		if id, ok := rid.(string); ok {
+			requestID = id
+		}
 	}
 
 	log.Warn("Invalid Content-Type header",

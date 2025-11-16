@@ -119,7 +119,9 @@ func extractPhoneNumber(r *http.Request, extractor PhoneExtractor) string {
 func rejectRateLimited(w http.ResponseWriter, log *logger.Logger, r *http.Request, phone string) {
 	requestID := ""
 	if rid := r.Context().Value(RequestIDKey); rid != nil {
-		requestID = rid.(string)
+		if id, ok := rid.(string); ok {
+			requestID = id
+		}
 	}
 
 	log.Warn("Rate limit exceeded",
