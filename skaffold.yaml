@@ -10,11 +10,21 @@ build:
     - image: skeji-business-units
       context: .
       docker:
+        dockerfile: build/docker/schedules.Dockerfile
+    - image: skeji-schedules
+      context: .
+      docker:
+        dockerfile: build/docker/bookings.Dockerfile
+    - image: skeji-bookings
+      context: .
+      docker:
         dockerfile: build/docker/business-units.Dockerfile
 
 manifests:
   rawYaml:
     - deployment/local/business-units/*.yaml
+    - deployment/local/schedules/*.yaml
+    - deployment/local/bookings/*.yaml
     - deployment/local/mongo/*.yaml
     - deployment/local/migrate/*.yaml
 
@@ -26,6 +36,14 @@ portForward:
     resourceName: business-units
     port: 8080
     localPort: 8080
+  - resourceType: service
+    resourceName: schedules
+    port: 8081
+    localPort: 8081
+  - resourceType: service
+    resourceName: bookings
+    port: 8082
+    localPort: 8082
 
 profiles:
   - name: kind
