@@ -51,8 +51,13 @@ func NewMongoBusinessUnitRepository(cfg *config.Config) BusinessUnitRepository {
 	}
 }
 
+// withTimeout wraps the context with a timeout if not already in a transaction.
+// When inside a transaction (SessionContext), returns the original context unchanged
+// with a no-op cancel function, as we cannot wrap SessionContext without breaking
+// transaction semantics.
 func (r *mongoBusinessUnitRepository) withTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
 	if _, ok := ctx.(mongo.SessionContext); ok {
+		// Inside transaction - cannot wrap SessionContext, return no-op cancel
 		return ctx, func() {}
 	}
 
