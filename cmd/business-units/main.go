@@ -13,6 +13,15 @@ const ServiceName = "business-units"
 
 func main() {
 	cfg := config.Load(ServiceName)
+
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		cfg.Log.Fatal("Invalid configuration", "error", err)
+	}
+
+	// Log all configuration values
+	cfg.LogConfiguration()
+
 	cfg.Log.Info("Starting Business Units service")
 	businessUnitService := initServices(cfg)
 	serverApp := app.NewApplication(cfg)

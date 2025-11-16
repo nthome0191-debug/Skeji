@@ -2,7 +2,9 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"regexp"
 	"skeji/pkg/client"
 	"skeji/pkg/logger"
 	"strconv"
@@ -90,6 +92,141 @@ func Load(serviceName string) *Config {
 	}
 	cfg.Client.SetMongo(cfg.Log, cfg.MongoURI, cfg.MongoConnTimeout)
 	return cfg
+}
+
+// Validate checks all configuration values and returns an error if any are invalid.
+// This should be called after Load() to ensure the application starts with valid config.
+func (cfg *Config) Validate() error {
+	var errors []string
+
+	// Validate port range (1-65535)
+	if port, err := strconv.Atoi(cfg.Port); err != nil || port < 1 || port > 65535 {
+		errors = append(errors, fmt.Sprintf("Port must be between 1 and 65535, got: %s", cfg.Port))
+	}
+
+	// Validate time format for start/end of day (HH:MM)
+	timeRegex := regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
+	if !timeRegex.MatchString(cfg.DefaultStartOfDay) {
+		errors = append(errors, fmt.Sprintf("DefaultStartOfDay must be in HH:MM format (00:00-23:59), got: %s", cfg.DefaultStartOfDay))
+	}
+	if !timeRegex.MatchString(cfg.DefaultEndOfDay) {
+		errors = append(errors, fmt.Sprintf("DefaultEndOfDay must be in HH:MM format (00:00-23:59), got: %s", cfg.DefaultEndOfDay))
+	}
+
+	// Validate MongoDB URI format (basic check)
+	if cfg.MongoURI == "" {
+		errors = append(errors, "MongoURI cannot be empty")
+	} else if len(cfg.MongoURI) < 10 || !regexp.MustCompile(`^mongodb(\+srv)?://`).MatchString(cfg.MongoURI) {
+		errors = append(errors, fmt.Sprintf("MongoURI must start with 'mongodb://' or 'mongodb+srv://', got: %s", cfg.MongoURI))
+	}
+
+	// Validate database name
+	if cfg.MongoDatabaseName == "" {
+		errors = append(errors, "MongoDatabaseName cannot be empty")
+	}
+
+	// Validate durations are positive
+	if cfg.MongoConnTimeout <= 0 {
+		errors = append(errors, fmt.Sprintf("MongoConnTimeout must be positive, got: %s", cfg.MongoConnTimeout))
+	}
+	if cfg.RateLimitWindow <= 0 {
+		errors = append(errors, fmt.Sprintf("RateLimitWindow must be positive, got: %s", cfg.RateLimitWindow))
+	}
+	if cfg.RequestTimeout <= 0 {
+		errors = append(errors, fmt.Sprintf("RequestTimeout must be positive, got: %s", cfg.RequestTimeout))
+	}
+	if cfg.IdempotencyTTL <= 0 {
+		errors = append(errors, fmt.Sprintf("IdempotencyTTL must be positive, got: %s", cfg.IdempotencyTTL))
+	}
+	if cfg.ReadTimeout <= 0 {
+		errors = append(errors, fmt.Sprintf("ReadTimeout must be positive, got: %s", cfg.ReadTimeout))
+	}
+	if cfg.WriteTimeout <= 0 {
+		errors = append(errors, fmt.Sprintf("WriteTimeout must be positive, got: %s", cfg.WriteTimeout))
+	}
+	if cfg.IdleTimeout <= 0 {
+		errors = append(errors, fmt.Sprintf("IdleTimeout must be positive, got: %s", cfg.IdleTimeout))
+	}
+	if cfg.ShutdownTimeout <= 0 {
+		errors = append(errors, fmt.Sprintf("ShutdownTimeout must be positive, got: %s", cfg.ShutdownTimeout))
+	}
+
+	// Validate integer ranges
+	if cfg.RateLimitRequests <= 0 {
+		errors = append(errors, fmt.Sprintf("RateLimitRequests must be positive, got: %d", cfg.RateLimitRequests))
+	}
+	if cfg.MaxRequestSize <= 0 {
+		errors = append(errors, fmt.Sprintf("MaxRequestSize must be positive, got: %d", cfg.MaxRequestSize))
+	}
+
+	// Validate business priority ranges
+	if cfg.MinBusinessPriority < 0 {
+		errors = append(errors, fmt.Sprintf("MinBusinessPriority cannot be negative, got: %d", cfg.MinBusinessPriority))
+	}
+	if cfg.MaxBusinessPriority < cfg.MinBusinessPriority {
+		errors = append(errors, fmt.Sprintf("MaxBusinessPriority (%d) must be >= MinBusinessPriority (%d)", cfg.MaxBusinessPriority, cfg.MinBusinessPriority))
+	}
+	if cfg.DefaultBusinessPriority < cfg.MinBusinessPriority || cfg.DefaultBusinessPriority > cfg.MaxBusinessPriority {
+		errors = append(errors, fmt.Sprintf("DefaultBusinessPriority (%d) must be between MinBusinessPriority (%d) and MaxBusinessPriority (%d)", cfg.DefaultBusinessPriority, cfg.MinBusinessPriority, cfg.MaxBusinessPriority))
+	}
+
+	// Validate meeting/schedule settings
+	if cfg.DefaultMeetingDurationMin <= 0 {
+		errors = append(errors, fmt.Sprintf("DefaultMeetingDurationMin must be positive, got: %d", cfg.DefaultMeetingDurationMin))
+	}
+	if cfg.DefaultBreakDurationMin < 0 {
+		errors = append(errors, fmt.Sprintf("DefaultBreakDurationMin cannot be negative, got: %d", cfg.DefaultBreakDurationMin))
+	}
+	if cfg.DefaultMaxParticipantsPerSlot <= 0 {
+		errors = append(errors, fmt.Sprintf("DefaultMaxParticipantsPerSlot must be positive, got: %d", cfg.DefaultMaxParticipantsPerSlot))
+	}
+
+	if len(errors) > 0 {
+		errMsg := "Configuration validation failed:\n"
+		for i, err := range errors {
+			errMsg += fmt.Sprintf("  %d. %s\n", i+1, err)
+		}
+		return fmt.Errorf("%s", errMsg)
+	}
+
+	return nil
+}
+
+// LogConfiguration logs all configuration values at INFO level (with sensitive data redacted).
+// This should be called after Load() and Validate() to provide visibility into startup config.
+func (cfg *Config) LogConfiguration() {
+	cfg.Log.Info("Configuration loaded successfully",
+		"mongo_uri", redactMongoURI(cfg.MongoURI),
+		"mongo_database", cfg.MongoDatabaseName,
+		"mongo_conn_timeout", cfg.MongoConnTimeout,
+		"port", cfg.Port,
+		"whatsapp_secret_set", cfg.WhatsAppAppSecret != "",
+		"rate_limit_requests", cfg.RateLimitRequests,
+		"rate_limit_window", cfg.RateLimitWindow,
+		"request_timeout", cfg.RequestTimeout,
+		"idempotency_ttl", cfg.IdempotencyTTL,
+		"max_request_size", cfg.MaxRequestSize,
+		"read_timeout", cfg.ReadTimeout,
+		"write_timeout", cfg.WriteTimeout,
+		"idle_timeout", cfg.IdleTimeout,
+		"shutdown_timeout", cfg.ShutdownTimeout,
+		"default_business_priority", cfg.DefaultBusinessPriority,
+		"min_business_priority", cfg.MinBusinessPriority,
+		"max_business_priority", cfg.MaxBusinessPriority,
+		"default_meeting_duration_min", cfg.DefaultMeetingDurationMin,
+		"default_break_duration_min", cfg.DefaultBreakDurationMin,
+		"default_max_participants_per_slot", cfg.DefaultMaxParticipantsPerSlot,
+		"default_start_of_day", cfg.DefaultStartOfDay,
+		"default_end_of_day", cfg.DefaultEndOfDay,
+	)
+}
+
+// redactMongoURI removes credentials from MongoDB URI for safe logging.
+func redactMongoURI(uri string) string {
+	// Pattern: mongodb://username:password@host:port/database
+	// Replace with: mongodb://***:***@host:port/database
+	credentialRegex := regexp.MustCompile(`(mongodb(\+srv)?://)[^:]+:[^@]+@`)
+	return credentialRegex.ReplaceAllString(uri, "${1}***:***@")
 }
 
 func getEnvStr(key, fallback string) string {
