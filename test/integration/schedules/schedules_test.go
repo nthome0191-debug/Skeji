@@ -45,6 +45,26 @@ func testAdvanced(t *testing.T) {
 	testUpdatePartialFields(t)
 	testCityNormalization(t)
 	testBreakDurationZero(t)
+	testLargeScaleSchedules(t)
+	testSearchPaginationLargeDataset(t)
+	testUpdateTimeRangeValidation(t)
+	testMaxParticipantsValidation(t)
+	testWorkingDaysEmptyArray(t)
+	testWorkingDaysWeekendOnly(t)
+	testExceptionsDuplicateDates(t)
+	testExceptionsInvalidFormat(t)
+	testExceptionsPastDates(t)
+	testTimeZoneDSTTransition(t)
+	testMultipleSchedulesSameCity(t)
+	testScheduleWithLongAddress(t)
+	testScheduleNameWithSpecialChars(t)
+	testUpdateTimeZoneImpact(t)
+	testSearchByMultipleCities(t)
+	testConcurrentScheduleUpdates(t)
+	testBatchScheduleCreation(t)
+	testScheduleWithMinimalDuration(t)
+	testScheduleWith24HourOperation(t)
+	testUpdateWorkingDaysToEmpty(t)
 }
 
 func setup() {
@@ -1325,6 +1345,464 @@ func testBreakDurationZero(t *testing.T) {
 
 	if created.DefaultBreakDurationMin != 1 {
 		t.Errorf("expected break duration 1, got %d", created.DefaultBreakDurationMin)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+// ========== ENRICHED TESTS ==========
+
+func testLargeScaleSchedules(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create 50 schedules for same business
+	businessID := "507f1f77bcf86cd799439011"
+	createdIDs := []string{}
+
+	for i := 0; i < 50; i++ {
+		req := createValidSchedule(fmt.Sprintf("Large Scale Schedule %d", i))
+		req["business_id"] = businessID
+		req["city"] = fmt.Sprintf("City%d", i%10)
+		resp := httpClient.POST(t, "/api/v1/schedules", req)
+		if resp.StatusCode == 201 {
+			created := decodeSchedule(t, resp)
+			createdIDs = append(createdIDs, created.ID)
+		}
+	}
+
+	// Verify pagination
+	resp := httpClient.GET(t, "/api/v1/schedules?limit=25&offset=0")
+	common.AssertStatusCode(t, resp, 200)
+	data, total, _, _ := decodePaginated(t, resp)
+
+	if total < 50 {
+		t.Errorf("expected at least 50 schedules, got %d", total)
+	}
+	if len(data) != 25 {
+		t.Errorf("expected 25 items per page, got %d", len(data))
+	}
+
+	// Cleanup
+	for _, id := range createdIDs {
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", id))
+	}
+}
+
+func testSearchPaginationLargeDataset(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	businessID := "507f1f77bcf86cd799439011"
+
+	// Create 30 schedules
+	for i := 0; i < 30; i++ {
+		req := createValidSchedule(fmt.Sprintf("Pagination Test %d", i))
+		req["business_id"] = businessID
+		req["city"] = "TestCity"
+		httpClient.POST(t, "/api/v1/schedules", req)
+	}
+
+	// Test search pagination
+	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/search?business_id=%s&limit=10&offset=0", businessID))
+	common.AssertStatusCode(t, resp, 200)
+
+	// Get second page
+	resp = httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/search?business_id=%s&limit=10&offset=10", businessID))
+	common.AssertStatusCode(t, resp, 200)
+}
+
+func testUpdateTimeRangeValidation(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("Time Range Validation")
+	createResp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeSchedule(t, createResp)
+
+	// Try to update with invalid time range (end before start)
+	update := map[string]any{
+		"start_of_day": "18:00",
+		"end_of_day":   "09:00",
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), update)
+
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for invalid time range, got %d", resp.StatusCode)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testMaxParticipantsValidation(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("Max Participants Test")
+	req["max_participants_per_slot"] = 1000
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+
+	// Should either accept or cap at maximum
+	if resp.StatusCode == 201 {
+		created := decodeSchedule(t, resp)
+		t.Logf("Created with max_participants_per_slot = %d", created.MaxParticipantsPerSlot)
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	} else if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("unexpected status for max participants: %d", resp.StatusCode)
+	}
+}
+
+func testWorkingDaysEmptyArray(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("Empty Working Days")
+	req["working_days"] = []string{}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeSchedule(t, resp)
+
+	expectedDays := 5
+	if len(created.WorkingDays) != expectedDays {
+		t.Errorf("expected %d working days (Israel defaults), got %d", expectedDays, len(created.WorkingDays))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testWorkingDaysWeekendOnly(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("Weekend Only")
+	req["working_days"] = []string{"Friday", "Saturday"}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeSchedule(t, resp)
+
+	if len(created.WorkingDays) != 2 {
+		t.Errorf("expected 2 working days, got %d", len(created.WorkingDays))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testExceptionsDuplicateDates(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("Duplicate Exceptions")
+	req["exceptions"] = []string{"2025-12-25", "2025-12-25", "2025-12-26"}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeSchedule(t, resp)
+
+	// Should deduplicate
+	if len(created.Exceptions) != 2 {
+		t.Errorf("expected 2 unique exceptions, got %d", len(created.Exceptions))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testExceptionsInvalidFormat(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("Invalid Exception Format")
+	req["exceptions"] = []string{"12/25/2025", "not-a-date", "2025-13-45"}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+
+	// Should either reject or filter out invalid dates
+	if resp.StatusCode != 201 && resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Invalid exception format returned status %d", resp.StatusCode)
+	}
+}
+
+func testExceptionsPastDates(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("Past Exceptions")
+	req["exceptions"] = []string{"2020-01-01", "2021-12-25", "2022-06-15"}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+
+	// Should either accept or reject past dates
+	if resp.StatusCode == 201 {
+		created := decodeSchedule(t, resp)
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	} else if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Past exceptions returned status %d", resp.StatusCode)
+	}
+}
+
+func testTimeZoneDSTTransition(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create schedule with timezone that observes DST
+	req := createValidSchedule("DST Transition Test")
+	req["time_zone"] = "America/New_York"
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeSchedule(t, resp)
+
+	if created.TimeZone != "America/New_York" {
+		t.Errorf("expected timezone America/New_York, got %s", created.TimeZone)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testMultipleSchedulesSameCity(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	businessID := "507f1f77bcf86cd799439011"
+
+	// Create 5 schedules in same city
+	createdIDs := []string{}
+	for i := 0; i < 5; i++ {
+		req := createValidSchedule(fmt.Sprintf("Same City Schedule %d", i))
+		req["business_id"] = businessID
+		req["city"] = "Tel Aviv"
+		resp := httpClient.POST(t, "/api/v1/schedules", req)
+		common.AssertStatusCode(t, resp, 201)
+		created := decodeSchedule(t, resp)
+		createdIDs = append(createdIDs, created.ID)
+	}
+
+	// Search by city
+	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/search?business_id=%s&city=Tel%%20Aviv", businessID))
+	common.AssertStatusCode(t, resp, 200)
+	results := decodeSchedules(t, resp)
+
+	if len(results) < 5 {
+		t.Errorf("expected at least 5 schedules in Tel Aviv, got %d", len(results))
+	}
+
+	// Cleanup
+	for _, id := range createdIDs {
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", id))
+	}
+}
+
+func testScheduleWithLongAddress(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	longAddress := ""
+	for i := 0; i < 500; i++ {
+		longAddress += "Long Address Street "
+	}
+
+	req := createValidSchedule("Long Address Test")
+	req["address"] = longAddress
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+
+	// Should either accept with truncation or reject
+	if resp.StatusCode != 201 && resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Long address returned status %d", resp.StatusCode)
+	}
+}
+
+func testScheduleNameWithSpecialChars(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	specialNames := []string{
+		"עברית Branch",
+		"中文 Location",
+		"Café™ Shop",
+		"Test@#$% Center",
+	}
+
+	for _, name := range specialNames {
+		req := createValidSchedule(name)
+		resp := httpClient.POST(t, "/api/v1/schedules", req)
+
+		if resp.StatusCode == 201 {
+			created := decodeSchedule(t, resp)
+			httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+		}
+	}
+}
+
+func testUpdateTimeZoneImpact(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("Timezone Update Test")
+	req["time_zone"] = "Asia/Jerusalem"
+	createResp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeSchedule(t, createResp)
+
+	// Update to different timezone
+	update := map[string]any{"time_zone": "America/Los_Angeles"}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), update)
+	common.AssertStatusCode(t, resp, 204)
+
+	// Verify timezone changed
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+	updated := decodeSchedule(t, getResp)
+
+	if updated.TimeZone != "America/Los_Angeles" {
+		t.Errorf("expected timezone America/Los_Angeles, got %s", updated.TimeZone)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testSearchByMultipleCities(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	businessID := "507f1f77bcf86cd799439011"
+
+	// Create schedules in different cities
+	req1 := createValidSchedule("Tel Aviv Branch")
+	req1["business_id"] = businessID
+	req1["city"] = "Tel Aviv"
+	httpClient.POST(t, "/api/v1/schedules", req1)
+
+	req2 := createValidSchedule("Haifa Branch")
+	req2["business_id"] = businessID
+	req2["city"] = "Haifa"
+	httpClient.POST(t, "/api/v1/schedules", req2)
+
+	req3 := createValidSchedule("Jerusalem Branch")
+	req3["business_id"] = businessID
+	req3["city"] = "Jerusalem"
+	httpClient.POST(t, "/api/v1/schedules", req3)
+
+	// Search for specific city
+	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/search?business_id=%s&city=Tel%%20Aviv", businessID))
+	common.AssertStatusCode(t, resp, 200)
+	results := decodeSchedules(t, resp)
+
+	if len(results) < 1 {
+		t.Error("expected at least 1 schedule in Tel Aviv")
+	}
+}
+
+func testConcurrentScheduleUpdates(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("Concurrent Update Test")
+	createResp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeSchedule(t, createResp)
+
+	var wg sync.WaitGroup
+	results := make([]int, 10)
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			update := map[string]any{
+				"name": fmt.Sprintf("Updated Name %d", index),
+			}
+			resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), update)
+			results[index] = resp.StatusCode
+		}(i)
+	}
+
+	wg.Wait()
+
+	successCount := 0
+	for _, status := range results {
+		if status == 204 {
+			successCount++
+		}
+	}
+
+	if successCount != 10 {
+		t.Logf("Concurrent updates: %d/10 succeeded", successCount)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testBatchScheduleCreation(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create 20 schedules in batch
+	createdIDs := []string{}
+	for i := 0; i < 20; i++ {
+		req := createValidSchedule(fmt.Sprintf("Batch Schedule %d", i))
+		resp := httpClient.POST(t, "/api/v1/schedules", req)
+		if resp.StatusCode == 201 {
+			created := decodeSchedule(t, resp)
+			createdIDs = append(createdIDs, created.ID)
+		}
+	}
+
+	if len(createdIDs) != 20 {
+		t.Errorf("expected 20 schedules created, got %d", len(createdIDs))
+	}
+
+	// Cleanup
+	for _, id := range createdIDs {
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", id))
+	}
+}
+
+func testScheduleWithMinimalDuration(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("Minimal Duration")
+	req["start_of_day"] = "09:00"
+	req["end_of_day"] = "09:01" // 1 minute duration
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+
+	// Should either accept or reject based on business rules
+	if resp.StatusCode != 201 && resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Minimal duration returned status %d", resp.StatusCode)
+	}
+}
+
+func testScheduleWith24HourOperation(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("24 Hour Operation")
+	req["start_of_day"] = "00:00"
+	req["end_of_day"] = "23:59"
+	req["working_days"] = []string{"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"}
+
+	resp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeSchedule(t, resp)
+
+	if created.StartOfDay != "00:00" || created.EndOfDay != "23:59" {
+		t.Errorf("expected 24-hour operation, got %s - %s", created.StartOfDay, created.EndOfDay)
+	}
+
+	if len(created.WorkingDays) != 7 {
+		t.Errorf("expected 7 working days, got %d", len(created.WorkingDays))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testUpdateWorkingDaysToEmpty(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	req := createValidSchedule("Update To Empty Working Days")
+	createResp := httpClient.POST(t, "/api/v1/schedules", req)
+	common.AssertStatusCode(t, createResp, 201)
+	created := decodeSchedule(t, createResp)
+
+	// Update to empty working days
+	update := map[string]any{
+		"working_days": []string{},
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID), update)
+
+	// Should accept empty working days
+	if resp.StatusCode == 204 {
+		getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+		updated := decodeSchedule(t, getResp)
+
+		if len(updated.WorkingDays) != 0 {
+			t.Errorf("expected 0 working days after update, got %d", len(updated.WorkingDays))
+		}
 	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))

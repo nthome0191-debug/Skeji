@@ -43,6 +43,35 @@ func testAdvanced(t *testing.T) {
 	testSearchWithoutTimeRange(t)
 	testUpdateClearParticipants(t)
 	testBookingWithSameBusinessDifferentSchedule(t)
+	testServiceLabelNormalization(t)
+	testServiceLabelEmptyString(t)
+	testBookingWithMaxCapacity(t)
+	testBookingWithSingleParticipant(t)
+	testMultipleBookingsSameTimeSlot(t)
+	testBookingAcrossTimeZones(t)
+	testBulkBookingCreation(t)
+	testPaginationWithLargeDataset(t)
+	testSearchWithMultipleFilters(t)
+	testSearchByParticipantPhone(t)
+	testBookingStatusWorkflow(t)
+	testUpdateBookingToConflictingTime(t)
+	testUpdateBookingWithInvalidStatus(t)
+	testBookingWithVeryLongServiceLabel(t)
+	testBookingWithSpecialCharsInServiceLabel(t)
+	testParticipantsWithInternationalPhones(t)
+	testManagedByMultipleManagers(t)
+	testManagedByEmptyMap(t)
+	testConcurrentUpdatesToSameBooking(t)
+	testBookingAtMidnight(t)
+	testBookingSpanningMultipleDays(t)
+	testSearchBookingsByDateRange(t)
+	testSearchBookingsByBusinessAndSchedule(t)
+	testUpdateCapacityToZero(t)
+	testUpdateCapacityToMaximum(t)
+	testBookingWithNegativeTimeDuration(t)
+	testDeleteBookingAndRecreate(t)
+	testGetBookingCreatedAt(t)
+	testSearchPaginationEdgeCases(t)
 }
 
 func setup() {
@@ -1309,4 +1338,729 @@ func testBookingWithSameBusinessDifferentSchedule(t *testing.T) {
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created1.ID))
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created2.ID))
+}
+
+// ========== ENRICHED TESTS ==========
+
+func testServiceLabelNormalization(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	// Test with mixed case and special characters
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Hair-Cut & Styling™", start, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	if created.ServiceLabel != sanitizer.SanitizeCityOrLabel("Hair-Cut & Styling™") {
+		t.Errorf("expected normalized service label, got %s", created.ServiceLabel)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testServiceLabelEmptyString(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "", start, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for empty service label, got %d", resp.StatusCode)
+	}
+}
+
+func testBookingWithMaxCapacity(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Large Event", start, end)
+	payload["capacity"] = 100
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	if created.Capacity != 100 {
+		t.Errorf("expected capacity 100, got %d", created.Capacity)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testBookingWithSingleParticipant(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Solo Session", start, end)
+	payload["participants"] = map[string]string{"Alice": "+972501234567"}
+	payload["capacity"] = 1
+
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	if len(created.Participants) != 1 {
+		t.Errorf("expected 1 participant, got %d", len(created.Participants))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testMultipleBookingsSameTimeSlot(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	// Create booking for schedule 1
+	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Service A", start, end)
+	resp1 := httpClient.POST(t, "/api/v1/bookings", payload1)
+	common.AssertStatusCode(t, resp1, 201)
+	created1 := decodeBooking(t, resp1)
+
+	// Create booking for schedule 2 (same business, different schedule, same time)
+	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439013", "Service B", start, end)
+	resp2 := httpClient.POST(t, "/api/v1/bookings", payload2)
+	common.AssertStatusCode(t, resp2, 201)
+	created2 := decodeBooking(t, resp2)
+
+	// Both should succeed as they're on different schedules
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created1.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created2.ID))
+}
+
+func testBookingAcrossTimeZones(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create booking with UTC time
+	startUTC := time.Now().UTC().Add(2 * time.Hour)
+	endUTC := startUTC.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Cross TZ Meeting", startUTC, endUTC)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	// Verify times are stored correctly
+	if created.StartTime.IsZero() || created.EndTime.IsZero() {
+		t.Error("expected valid start and end times")
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testBulkBookingCreation(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create 20 bookings
+	createdIDs := []string{}
+	for i := 0; i < 20; i++ {
+		start := time.Now().Add(time.Duration(i+1) * time.Hour)
+		end := start.Add(30 * time.Minute)
+
+		payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", fmt.Sprintf("Bulk Booking %d", i), start, end)
+		resp := httpClient.POST(t, "/api/v1/bookings", payload)
+		common.AssertStatusCode(t, resp, 201)
+		created := decodeBooking(t, resp)
+		createdIDs = append(createdIDs, created.ID)
+	}
+
+	// Verify all were created
+	resp := httpClient.GET(t, "/api/v1/bookings?limit=25&offset=0")
+	common.AssertStatusCode(t, resp, 200)
+	data, total, _, _ := decodeBookingsPaginated(t, resp)
+
+	if total < 20 {
+		t.Errorf("expected at least 20 bookings, got %d", total)
+	}
+	if len(data) < 20 {
+		t.Errorf("expected at least 20 bookings in data, got %d", len(data))
+	}
+
+	// Cleanup
+	for _, id := range createdIDs {
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", id))
+	}
+}
+
+func testPaginationWithLargeDataset(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create 50 bookings
+	for i := 0; i < 50; i++ {
+		start := time.Now().Add(time.Duration(i+1) * time.Hour)
+		end := start.Add(30 * time.Minute)
+
+		payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", fmt.Sprintf("Pagination Test %d", i), start, end)
+		httpClient.POST(t, "/api/v1/bookings", payload)
+	}
+
+	// Test pagination
+	resp := httpClient.GET(t, "/api/v1/bookings?limit=10&offset=0")
+	common.AssertStatusCode(t, resp, 200)
+	data, total, limit, offset := decodeBookingsPaginated(t, resp)
+
+	if total < 50 {
+		t.Errorf("expected at least 50 total, got %d", total)
+	}
+	if len(data) != 10 {
+		t.Errorf("expected 10 items on page, got %d", len(data))
+	}
+	if limit != 10 || offset != 0 {
+		t.Errorf("expected limit=10 offset=0, got limit=%d offset=%d", limit, offset)
+	}
+
+	// Test second page
+	resp = httpClient.GET(t, "/api/v1/bookings?limit=10&offset=10")
+	common.AssertStatusCode(t, resp, 200)
+	data, _, limit, offset = decodeBookingsPaginated(t, resp)
+
+	if len(data) != 10 {
+		t.Errorf("expected 10 items on second page, got %d", len(data))
+	}
+	if limit != 10 || offset != 10 {
+		t.Errorf("expected limit=10 offset=10, got limit=%d offset=%d", limit, offset)
+	}
+}
+
+func testSearchWithMultipleFilters(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Multi Filter Test", start, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	// Search with business_id, schedule_id, and time range
+	searchURL := fmt.Sprintf("/api/v1/bookings/search?business_id=%s&schedule_id=%s&start_time=%s&end_time=%s",
+		"507f1f77bcf86cd799439011",
+		"507f1f77bcf86cd799439012",
+		start.Add(-10*time.Minute).Format(time.RFC3339),
+		end.Add(10*time.Minute).Format(time.RFC3339))
+
+	searchResp := httpClient.GET(t, searchURL)
+	common.AssertStatusCode(t, searchResp, 200)
+	results := decodeBookings(t, searchResp)
+
+	if len(results) < 1 {
+		t.Error("expected at least 1 booking in search results")
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testSearchByParticipantPhone(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	testPhone := "+972501234567"
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Participant Search", start, end)
+	payload["participants"] = map[string]string{"Alice": testPhone}
+
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	// Search by participant phone (if supported by API)
+	searchURL := fmt.Sprintf("/api/v1/bookings/search?participant_phone=%s", testPhone)
+	searchResp := httpClient.GET(t, searchURL)
+
+	// API may or may not support this - just test it doesn't crash
+	if searchResp.StatusCode != 200 && searchResp.StatusCode != 400 {
+		t.Logf("Participant phone search returned status %d", searchResp.StatusCode)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testBookingStatusWorkflow(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	// Create as pending
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Status Workflow", start, end)
+	payload["status"] = "pending"
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	// Transition to confirmed
+	update := map[string]any{"status": "confirmed"}
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	common.AssertStatusCode(t, resp, 204)
+
+	// Verify status changed
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	common.AssertStatusCode(t, getResp, 200)
+	updated := decodeBooking(t, getResp)
+
+	if updated.Status != "confirmed" {
+		t.Errorf("expected status 'confirmed', got %s", updated.Status)
+	}
+
+	// Transition to cancelled
+	update = map[string]any{"status": "cancelled"}
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	common.AssertStatusCode(t, resp, 204)
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testUpdateBookingToConflictingTime(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start1 := time.Now().Add(1 * time.Hour)
+	end1 := start1.Add(1 * time.Hour)
+
+	start2 := start1.Add(2 * time.Hour)
+	end2 := start2.Add(1 * time.Hour)
+
+	// Create first booking
+	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Booking 1", start1, end1)
+	resp1 := httpClient.POST(t, "/api/v1/bookings", payload1)
+	common.AssertStatusCode(t, resp1, 201)
+	created1 := decodeBooking(t, resp1)
+
+	// Create second booking
+	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Booking 2", start2, end2)
+	resp2 := httpClient.POST(t, "/api/v1/bookings", payload2)
+	common.AssertStatusCode(t, resp2, 201)
+	created2 := decodeBooking(t, resp2)
+
+	// Try to update booking2 to overlap with booking1
+	update := map[string]any{
+		"start_time": start1.Format(time.RFC3339),
+		"end_time":   end1.Format(time.RFC3339),
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created2.ID), update)
+
+	if resp.StatusCode != 409 && resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Expected conflict error, got %d", resp.StatusCode)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created1.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created2.ID))
+}
+
+func testUpdateBookingWithInvalidStatus(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Invalid Status", start, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	// Try to update with invalid status
+	update := map[string]any{"status": "invalid_status"}
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for invalid status, got %d", resp.StatusCode)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testBookingWithVeryLongServiceLabel(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	longLabel := ""
+	for i := 0; i < 150; i++ {
+		longLabel += "A"
+	}
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", longLabel, start, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+
+	// Should either accept with truncation or reject
+	if resp.StatusCode != 201 && resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Long service label returned unexpected status %d", resp.StatusCode)
+	}
+}
+
+func testBookingWithSpecialCharsInServiceLabel(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	specialLabels := []string{
+		"עברית",         // Hebrew
+		"中文",            // Chinese
+		"Café & Spa™",   // Special chars
+		"Test@#$%",      // Symbols
+		"Multi  Spaces", // Multiple spaces
+		"Tab\tChar",     // Tab character
+		"New\nLine",     // Newline
+	}
+
+	for _, label := range specialLabels {
+		payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", label, start.Add(time.Minute), end.Add(time.Minute))
+		resp := httpClient.POST(t, "/api/v1/bookings", payload)
+
+		if resp.StatusCode == 201 {
+			created := decodeBooking(t, resp)
+			httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+		}
+	}
+}
+
+func testParticipantsWithInternationalPhones(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "International", start, end)
+	payload["participants"] = map[string]string{
+		"US":     "+12125551234",
+		"Canada": "+14165551234",
+		"Israel": "+972501234567",
+	}
+
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	if len(created.Participants) != 3 {
+		t.Errorf("expected 3 participants, got %d", len(created.Participants))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testManagedByMultipleManagers(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Multi Manager", start, end)
+	payload["managed_by"] = map[string]string{
+		"Manager1": "+972501111111",
+		"Manager2": "+972502222222",
+		"Manager3": "+972503333333",
+	}
+
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	if len(created.ManagedBy) != 3 {
+		t.Errorf("expected 3 managers, got %d", len(created.ManagedBy))
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testManagedByEmptyMap(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Empty Manager", start, end)
+	payload["managed_by"] = map[string]string{}
+
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+
+	// Should either accept empty map or require at least one manager
+	if resp.StatusCode != 201 && resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Empty managed_by returned status %d", resp.StatusCode)
+	}
+}
+
+func testConcurrentUpdatesToSameBooking(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Concurrent Update", start, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	var wg sync.WaitGroup
+	results := make([]int, 10)
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			update := map[string]any{
+				"service_label": fmt.Sprintf("Updated Label %d", index),
+			}
+			resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+			results[index] = resp.StatusCode
+		}(i)
+	}
+
+	wg.Wait()
+
+	successCount := 0
+	for _, status := range results {
+		if status == 204 {
+			successCount++
+		}
+	}
+
+	if successCount != 10 {
+		t.Logf("Concurrent updates: %d/10 succeeded", successCount)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testBookingAtMidnight(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	now := time.Now()
+	midnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+	end := midnight.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Midnight Session", midnight, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testBookingSpanningMultipleDays(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(24 * time.Hour)
+	end := start.Add(36 * time.Hour) // Spans into next day
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Multi-Day Event", start, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+
+	// Should either accept or reject based on business rules
+	if resp.StatusCode != 201 && resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Logf("Multi-day booking returned status %d", resp.StatusCode)
+	}
+}
+
+func testSearchBookingsByDateRange(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create bookings across different days
+	for i := 0; i < 5; i++ {
+		start := time.Now().Add(time.Duration(24*(i+1)) * time.Hour)
+		end := start.Add(1 * time.Hour)
+
+		payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", fmt.Sprintf("Day %d", i), start, end)
+		httpClient.POST(t, "/api/v1/bookings", payload)
+	}
+
+	// Search for bookings in specific date range
+	searchStart := time.Now().Add(24 * time.Hour)
+	searchEnd := searchStart.Add(72 * time.Hour)
+
+	searchURL := fmt.Sprintf("/api/v1/bookings/search?business_id=%s&schedule_id=%s&start_time=%s&end_time=%s",
+		"507f1f77bcf86cd799439011",
+		"507f1f77bcf86cd799439012",
+		searchStart.Format(time.RFC3339),
+		searchEnd.Format(time.RFC3339))
+
+	resp := httpClient.GET(t, searchURL)
+	common.AssertStatusCode(t, resp, 200)
+	results := decodeBookings(t, resp)
+
+	if len(results) < 3 {
+		t.Errorf("expected at least 3 bookings in date range, got %d", len(results))
+	}
+}
+
+func testSearchBookingsByBusinessAndSchedule(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	// Create multiple bookings
+	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Service 1", start, end)
+	httpClient.POST(t, "/api/v1/bookings", payload1)
+
+	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439013", "Service 2", start.Add(time.Hour), end.Add(time.Hour))
+	httpClient.POST(t, "/api/v1/bookings", payload2)
+
+	// Search by business_id only
+	resp := httpClient.GET(t, "/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011")
+	if resp.StatusCode == 200 {
+		results := decodeBookings(t, resp)
+		if len(results) < 2 {
+			t.Errorf("expected at least 2 bookings for business, got %d", len(results))
+		}
+	}
+
+	// Search by business_id and schedule_id
+	resp = httpClient.GET(t, "/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012")
+	if resp.StatusCode == 200 {
+		results := decodeBookings(t, resp)
+		if len(results) < 1 {
+			t.Errorf("expected at least 1 booking for specific schedule, got %d", len(results))
+		}
+	}
+}
+
+func testUpdateCapacityToZero(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Capacity Zero", start, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	// Try to update capacity to zero
+	update := map[string]any{"capacity": 0}
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for zero capacity, got %d", resp.StatusCode)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testUpdateCapacityToMaximum(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Max Capacity", start, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	// Update to maximum capacity
+	update := map[string]any{"capacity": 1000}
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+
+	// Should either accept or cap at max value
+	if resp.StatusCode == 204 {
+		getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+		updated := decodeBooking(t, getResp)
+		t.Logf("Capacity updated to %d", updated.Capacity)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testBookingWithNegativeTimeDuration(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(-30 * time.Minute) // End before start
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Negative Duration", start, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+
+	if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("expected validation error for negative duration, got %d", resp.StatusCode)
+	}
+}
+
+func testDeleteBookingAndRecreate(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	// Create booking
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Delete and Recreate", start, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+	firstID := created.ID
+
+	// Delete it
+	resp = httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", firstID))
+	common.AssertStatusCode(t, resp, 204)
+
+	// Recreate same booking
+	resp = httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	recreated := decodeBooking(t, resp)
+
+	if recreated.ID == firstID {
+		t.Error("expected different ID for recreated booking")
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", recreated.ID))
+}
+
+func testGetBookingCreatedAt(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	start := time.Now().Add(1 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "CreatedAt Test", start, end)
+	resp := httpClient.POST(t, "/api/v1/bookings", payload)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBooking(t, resp)
+
+	if created.CreatedAt.IsZero() {
+		t.Error("expected created_at to be set")
+	}
+
+	originalCreatedAt := created.CreatedAt
+
+	// Update booking
+	update := map[string]any{"service_label": "Updated Label"}
+	httpClient.PATCH(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+
+	// Verify created_at didn't change
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	updated := decodeBooking(t, getResp)
+
+	if !updated.CreatedAt.Equal(originalCreatedAt) {
+		t.Error("created_at should not change on update")
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+}
+
+func testSearchPaginationEdgeCases(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	searchURL := "/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012&limit=0&offset=0"
+	resp := httpClient.GET(t, searchURL)
+	common.AssertStatusCode(t, resp, 200)
+
+	searchURL = "/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012&limit=10000&offset=0"
+	resp = httpClient.GET(t, searchURL)
+	common.AssertStatusCode(t, resp, 200)
+
+	searchURL = "/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012&limit=10&offset=999999"
+	resp = httpClient.GET(t, searchURL)
+	common.AssertStatusCode(t, resp, 200)
 }

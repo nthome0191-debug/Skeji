@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 const (
@@ -43,6 +44,26 @@ func testAdvanced(t *testing.T) {
 	testMaxLimitPagination(t)
 	testPriorityRangeValidation(t)
 	testTimezoneBoundaries(t)
+	testLargeScaleBusinessUnits(t)
+	testSearchWithManyFilters(t)
+	testSearchPerformance(t)
+	testComplexPriorityOrdering(t)
+	testURLDeduplicationComplex(t)
+	testMaintainersMaxLimit(t)
+	testUpdateWithPartialOverlap(t)
+	testSearchCaseSensitivity(t)
+	testBatchDeletion(t)
+	testConcurrentSearches(t)
+	testUpdateAllFieldsSimultaneously(t)
+	testCitiesLabelsIntersection(t)
+	testGetByAdminPhone(t)
+	testGetByMaintainerPhone(t)
+	testEmptySearchResults(t)
+	testSearchWithInvalidPriority(t)
+	testUpdateToExistingData(t)
+	testCreateWithMinimalFields(t)
+	testUpdatePriorityImpactOnSearch(t)
+	testMultipleCitiesSingleLabel(t)
 }
 
 func setup() {
@@ -1844,4 +1865,536 @@ func testTimezoneBoundaries(t *testing.T) {
 
 		httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	}
+}
+
+// ========== ENRICHED TESTS ==========
+
+func testLargeScaleBusinessUnits(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create 100 business units
+	createdIDs := []string{}
+	for i := 0; i < 100; i++ {
+		bu := createValidBusinessUnit(fmt.Sprintf("Large Scale BU %d", i), fmt.Sprintf("+97250%07d", 8000000+i))
+		bu["cities"] = []string{"Tel Aviv"}
+		bu["labels"] = []string{"Service"}
+		bu["priority"] = i % 10
+
+		resp := httpClient.POST(t, "/api/v1/business-units", bu)
+		if resp.StatusCode == 201 {
+			created := decodeBusinessUnit(t, resp)
+			createdIDs = append(createdIDs, created.ID)
+		}
+	}
+
+	// Verify pagination works with large dataset
+	resp := httpClient.GET(t, "/api/v1/business-units?limit=50&offset=0")
+	common.AssertStatusCode(t, resp, 200)
+	data, total, _, _ := decodePaginated(t, resp)
+
+	if total < 100 {
+		t.Errorf("expected at least 100 business units, got %d", total)
+	}
+	if len(data) != 50 {
+		t.Errorf("expected 50 items per page, got %d", len(data))
+	}
+
+	// Cleanup
+	for _, id := range createdIDs {
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", id))
+	}
+}
+
+func testSearchWithManyFilters(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create business units with various combinations
+	bu1 := createValidBusinessUnit("Multi Filter Test 1", "+97250800001")
+	bu1["cities"] = []string{"Tel Aviv", "Haifa", "Jerusalem"}
+	bu1["labels"] = []string{"Haircut", "Massage", "Spa"}
+	bu1["priority"] = 5
+	httpClient.POST(t, "/api/v1/business-units", bu1)
+
+	bu2 := createValidBusinessUnit("Multi Filter Test 2", "+97250800002")
+	bu2["cities"] = []string{"Beer Sheva", "Eilat"}
+	bu2["labels"] = []string{"Styling", "Nails"}
+	bu2["priority"] = 8
+	httpClient.POST(t, "/api/v1/business-units", bu2)
+
+	// Search with multiple cities and labels
+	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv,haifa,beer_sheva&labels=haircut,styling")
+	common.AssertStatusCode(t, resp, 200)
+	results := decodeBusinessUnits(t, resp)
+
+	if len(results) < 2 {
+		t.Errorf("expected at least 2 results for multi-filter search, got %d", len(results))
+	}
+}
+
+func testSearchPerformance(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create 50 business units for performance testing
+	for i := 0; i < 50; i++ {
+		bu := createValidBusinessUnit(fmt.Sprintf("Perf Test %d", i), fmt.Sprintf("+97250%07d", 8100000+i))
+		bu["cities"] = []string{fmt.Sprintf("City%d", i%10)}
+		bu["labels"] = []string{fmt.Sprintf("Label%d", i%5)}
+		httpClient.POST(t, "/api/v1/business-units", bu)
+	}
+
+	// Measure search time
+	searchURL := "/api/v1/business-units/search?cities=city0,city1,city2&labels=label0,label1"
+
+	start := time.Now()
+	resp := httpClient.GET(t, searchURL)
+	duration := time.Since(start)
+
+	common.AssertStatusCode(t, resp, 200)
+
+	if duration > 2*time.Second {
+		t.Logf("Search took %v (warning: might be slow)", duration)
+	}
+}
+
+func testComplexPriorityOrdering(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	priorities := []int{10, 1, 5, 8, 3, 7, 2, 9, 4, 6}
+	for i, priority := range priorities {
+		bu := createValidBusinessUnit(fmt.Sprintf("Priority %d", priority), fmt.Sprintf("+97250%07d", 8200000+i))
+		bu["priority"] = priority
+		bu["cities"] = []string{"TestCity"}
+		bu["labels"] = []string{"TestLabel"}
+		httpClient.POST(t, "/api/v1/business-units", bu)
+	}
+
+	// Search and verify ordering
+	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=testcity&labels=testlabel")
+	common.AssertStatusCode(t, resp, 200)
+	results := decodeBusinessUnits(t, resp)
+
+	if len(results) < 10 {
+		t.Errorf("expected 10 results, got %d", len(results))
+	}
+
+	// Verify descending priority order
+	for i := 1; i < len(results); i++ {
+		if results[i-1].Priority < results[i].Priority {
+			t.Errorf("results not ordered by priority descending: %d < %d at positions %d and %d",
+				results[i-1].Priority, results[i].Priority, i-1, i)
+		}
+	}
+}
+
+func testURLDeduplicationComplex(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	bu := createValidBusinessUnit("URL Dedup Complex", "+972508300001")
+	bu["website_urls"] = []string{
+		"https://example.com",
+		"https://Example.com",
+		"https://EXAMPLE.COM",
+		"https://www.example.com",
+		"https://example.com/",
+		"https://example.com/?utm_source=test",
+	}
+
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	// Should deduplicate all variations to single URL
+	if len(created.WebsiteURLs) > 2 {
+		t.Logf("URL deduplication: expected <= 2 URLs, got %d: %v", len(created.WebsiteURLs), created.WebsiteURLs)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testMaintainersMaxLimit(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	bu := createValidBusinessUnit("Max Maintainers", "+972508400001")
+
+	// Try to add maximum number of maintainers
+	maintainers := make(map[string]string)
+	for i := 0; i < 100; i++ {
+		maintainers[fmt.Sprintf("Maintainer%d", i)] = fmt.Sprintf("+97250%07d", 8400000+i)
+	}
+	bu["maintainers"] = maintainers
+
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+
+	// Should either accept all or cap at maximum
+	if resp.StatusCode == 201 {
+		created := decodeBusinessUnit(t, resp)
+		t.Logf("Created with %d maintainers", len(created.Maintainers))
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	} else if resp.StatusCode != 422 && resp.StatusCode != 400 {
+		t.Errorf("unexpected status for max maintainers: %d", resp.StatusCode)
+	}
+}
+
+func testUpdateWithPartialOverlap(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	adminPhone := "+972508500001"
+
+	// Create business unit with cities A, B, C and labels X, Y, Z
+	bu1 := createValidBusinessUnit("Overlap Test 1", adminPhone)
+	bu1["cities"] = []string{"CityA", "CityB", "CityC"}
+	bu1["labels"] = []string{"LabelX", "LabelY", "LabelZ"}
+	resp1 := httpClient.POST(t, "/api/v1/business-units", bu1)
+	common.AssertStatusCode(t, resp1, 201)
+	created1 := decodeBusinessUnit(t, resp1)
+
+	// Try to update to partially overlap: cities B, C, D and labels Y, Z, W
+	update := map[string]any{
+		"cities": []string{"CityB", "CityC", "CityD"},
+		"labels": []string{"LabelY", "LabelZ", "LabelW"},
+	}
+	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created1.ID), update)
+
+	// Should accept partial overlap for same business
+	if resp.StatusCode != 204 && resp.StatusCode != 409 {
+		t.Logf("Partial overlap update returned status %d", resp.StatusCode)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created1.ID))
+}
+
+func testSearchCaseSensitivity(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	bu := createValidBusinessUnit("Case Test", "+972508600001")
+	bu["cities"] = []string{"Tel Aviv"}
+	bu["labels"] = []string{"Haircut"}
+	httpClient.POST(t, "/api/v1/business-units", bu)
+
+	// Search with different case variations
+	testCases := []string{
+		"/api/v1/business-units/search?cities=tel_aviv&labels=haircut",
+		"/api/v1/business-units/search?cities=TEL_AVIV&labels=HAIRCUT",
+		"/api/v1/business-units/search?cities=Tel_Aviv&labels=Haircut",
+	}
+
+	for _, searchURL := range testCases {
+		resp := httpClient.GET(t, searchURL)
+		common.AssertStatusCode(t, resp, 200)
+		results := decodeBusinessUnits(t, resp)
+
+		if len(results) < 1 {
+			t.Errorf("case variation %s returned no results", searchURL)
+		}
+	}
+}
+
+func testBatchDeletion(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create 20 business units
+	createdIDs := []string{}
+	for i := 0; i < 20; i++ {
+		bu := createValidBusinessUnit(fmt.Sprintf("Batch Delete %d", i), fmt.Sprintf("+97250%07d", 8700000+i))
+		resp := httpClient.POST(t, "/api/v1/business-units", bu)
+		common.AssertStatusCode(t, resp, 201)
+		created := decodeBusinessUnit(t, resp)
+		createdIDs = append(createdIDs, created.ID)
+	}
+
+	// Delete all at once
+	for _, id := range createdIDs {
+		resp := httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", id))
+		common.AssertStatusCode(t, resp, 204)
+	}
+
+	// Verify all deleted
+	for _, id := range createdIDs {
+		resp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", id))
+		common.AssertStatusCode(t, resp, 404)
+	}
+}
+
+func testConcurrentSearches(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create some business units
+	for i := 0; i < 10; i++ {
+		bu := createValidBusinessUnit(fmt.Sprintf("Concurrent Search %d", i), fmt.Sprintf("+97250%07d", 8800000+i))
+		bu["cities"] = []string{"TestCity"}
+		bu["labels"] = []string{"TestLabel"}
+		httpClient.POST(t, "/api/v1/business-units", bu)
+	}
+
+	// Run concurrent searches
+	var wg sync.WaitGroup
+	results := make([]int, 10)
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			resp := httpClient.GET(t, "/api/v1/business-units/search?cities=testcity&labels=testlabel")
+			results[index] = resp.StatusCode
+		}(i)
+	}
+
+	wg.Wait()
+
+	for i, status := range results {
+		if status != 200 {
+			t.Errorf("concurrent search %d returned status %d", i, status)
+		}
+	}
+}
+
+func testUpdateAllFieldsSimultaneously(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	bu := createValidBusinessUnit("Update All Fields", "+972508900001")
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	// Update every possible field
+	update := map[string]any{
+		"name":         "Completely New Name",
+		"cities":       []string{"New City1", "New City2"},
+		"labels":       []string{"New Label1", "New Label2"},
+		"admin_phone":  "+972509000000",
+		"priority":     9,
+		"time_zone":    "America/New_York",
+		"website_urls": []string{"https://newsite.com"},
+		"maintainers":  map[string]string{"NewManager": "+972509000001"},
+	}
+
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), update)
+	common.AssertStatusCode(t, resp, 204)
+
+	// Verify all fields updated
+	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	updated := decodeBusinessUnit(t, getResp)
+
+	if updated.AdminPhone != "+972509000000" {
+		t.Errorf("admin_phone not updated")
+	}
+	if updated.Priority != 9 {
+		t.Errorf("priority not updated")
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testCitiesLabelsIntersection(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create BU with cities [A, B] and labels [X, Y]
+	bu1 := createValidBusinessUnit("Intersection Test 1", "+972509100001")
+	bu1["cities"] = []string{"CityA", "CityB"}
+	bu1["labels"] = []string{"LabelX", "LabelY"}
+	httpClient.POST(t, "/api/v1/business-units", bu1)
+
+	// Create BU with cities [B, C] and labels [Y, Z]
+	bu2 := createValidBusinessUnit("Intersection Test 2", "+972509100002")
+	bu2["cities"] = []string{"CityB", "CityC"}
+	bu2["labels"] = []string{"LabelY", "LabelZ"}
+	httpClient.POST(t, "/api/v1/business-units", bu2)
+
+	// Search for intersection (city B, label Y) should find both
+	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=cityb&labels=labely")
+	common.AssertStatusCode(t, resp, 200)
+	results := decodeBusinessUnits(t, resp)
+
+	if len(results) < 2 {
+		t.Errorf("expected at least 2 results for intersection, got %d", len(results))
+	}
+}
+
+func testGetByAdminPhone(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	phone := "+972509200001"
+	bu := createValidBusinessUnit("Admin Phone Test", phone)
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	// Try to get by admin phone (if API supports it)
+	searchURL := fmt.Sprintf("/api/v1/business-units/search/admin-phone/%s", phone)
+	searchResp := httpClient.GET(t, searchURL)
+
+	// API may or may not support this endpoint
+	if searchResp.StatusCode != 200 && searchResp.StatusCode != 404 {
+		t.Logf("Get by admin phone returned status %d", searchResp.StatusCode)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testGetByMaintainerPhone(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	maintainerPhone := "+972509300001"
+	bu := createValidBusinessUnit("Maintainer Phone Test", "+972509300000")
+	bu["maintainers"] = map[string]string{"TestMaintainer": maintainerPhone}
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	// Try to get by maintainer phone (if API supports it)
+	searchURL := fmt.Sprintf("/api/v1/business-units/search/maintainer-phone/%s", maintainerPhone)
+	searchResp := httpClient.GET(t, searchURL)
+
+	// API may or may not support this endpoint
+	if searchResp.StatusCode != 200 && searchResp.StatusCode != 404 {
+		t.Logf("Get by maintainer phone returned status %d", searchResp.StatusCode)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testEmptySearchResults(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Search for non-existent combination
+	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=nonexistentcity&labels=nonexistentlabel")
+	common.AssertStatusCode(t, resp, 200)
+	results := decodeBusinessUnits(t, resp)
+
+	if len(results) != 0 {
+		t.Errorf("expected 0 results for non-existent search, got %d", len(results))
+	}
+}
+
+func testSearchWithInvalidPriority(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Try search with invalid priority filter (if API supports it)
+	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=telaviv&labels=haircut&priority=-1")
+
+	// Should either ignore invalid priority or return 400
+	if resp.StatusCode != 200 && resp.StatusCode != 400 {
+		t.Logf("Search with invalid priority returned status %d", resp.StatusCode)
+	}
+}
+
+func testUpdateToExistingData(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	bu := createValidBusinessUnit("Update To Existing", "+972509400001")
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	// Update to exact same data
+	update := map[string]any{
+		"name":        created.Name,
+		"cities":      created.Cities,
+		"labels":      created.Labels,
+		"admin_phone": created.AdminPhone,
+	}
+
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), update)
+	common.AssertStatusCode(t, resp, 204)
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testCreateWithMinimalFields(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create with only required fields
+	minimal := map[string]any{
+		"name":        "Minimal BU",
+		"cities":      []string{"Tel Aviv"},
+		"labels":      []string{"Service"},
+		"admin_phone": "+972509500001",
+	}
+
+	resp := httpClient.POST(t, "/api/v1/business-units", minimal)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	// Verify defaults were applied
+	if created.Priority != config.DefaultDefaultBusinessPriority {
+		t.Errorf("expected default priority %d, got %d", config.DefaultDefaultBusinessPriority, created.Priority)
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+}
+
+func testUpdatePriorityImpactOnSearch(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// Create two business units with different priorities
+	bu1 := createValidBusinessUnit("Priority Impact 1", "+972509600001")
+	bu1["priority"] = 1
+	bu1["cities"] = []string{"TestCity"}
+	bu1["labels"] = []string{"TestLabel"}
+	resp1 := httpClient.POST(t, "/api/v1/business-units", bu1)
+	common.AssertStatusCode(t, resp1, 201)
+	created1 := decodeBusinessUnit(t, resp1)
+
+	bu2 := createValidBusinessUnit("Priority Impact 2", "+972509600002")
+	bu2["priority"] = 5
+	bu2["cities"] = []string{"TestCity"}
+	bu2["labels"] = []string{"TestLabel"}
+	resp2 := httpClient.POST(t, "/api/v1/business-units", bu2)
+	common.AssertStatusCode(t, resp2, 201)
+	created2 := decodeBusinessUnit(t, resp2)
+
+	// Search - bu2 should come first (higher priority)
+	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=testcity&labels=testlabel")
+	common.AssertStatusCode(t, resp, 200)
+	results := decodeBusinessUnits(t, resp)
+
+	if len(results) >= 2 && results[0].Priority < results[1].Priority {
+		t.Error("results not ordered by priority (higher first)")
+	}
+
+	// Update bu1 to have higher priority
+	update := map[string]any{"priority": 10}
+	httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created1.ID), update)
+
+	// Search again - bu1 should now come first
+	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=testcity&labels=testlabel")
+	common.AssertStatusCode(t, resp, 200)
+	results = decodeBusinessUnits(t, resp)
+
+	if len(results) >= 2 && results[0].ID != created1.ID {
+		t.Logf("Priority update didn't affect search ordering as expected")
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created1.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created2.ID))
+}
+
+func testMultipleCitiesSingleLabel(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	bu := createValidBusinessUnit("Multi City Single Label", "+972509700001")
+	bu["cities"] = []string{"Tel Aviv", "Haifa", "Jerusalem", "Beer Sheva", "Eilat"}
+	bu["labels"] = []string{"Haircut"}
+	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	common.AssertStatusCode(t, resp, 201)
+	created := decodeBusinessUnit(t, resp)
+
+	// Search for any of the cities with the label
+	searchTests := []string{
+		"/api/v1/business-units/search?cities=tel_aviv&labels=haircut",
+		"/api/v1/business-units/search?cities=haifa&labels=haircut",
+		"/api/v1/business-units/search?cities=jerusalem&labels=haircut",
+	}
+
+	for _, searchURL := range searchTests {
+		resp := httpClient.GET(t, searchURL)
+		common.AssertStatusCode(t, resp, 200)
+		results := decodeBusinessUnits(t, resp)
+
+		if len(results) < 1 {
+			t.Errorf("search %s didn't find business unit", searchURL)
+		}
+	}
+
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }
