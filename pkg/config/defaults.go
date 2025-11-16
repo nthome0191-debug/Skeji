@@ -13,7 +13,7 @@ const (
 
 	Pending   string = "pending"
 	Confirmed string = "confirmed"
-	Cancelled string = "canceled"
+	Cancelled string = "cancelled"
 )
 
 const (
