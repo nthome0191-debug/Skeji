@@ -91,20 +91,21 @@ func Load(serviceName string) *Config {
 		Client: client.NewClient(),
 	}
 	cfg.Client.SetMongo(cfg.Log, cfg.MongoURI, cfg.MongoConnTimeout)
+	err := cfg.Validate()
+	if err != nil {
+		cfg.Log.Fatal(err.Error())
+	}
+	cfg.LogConfiguration()
 	return cfg
 }
 
-// Validate checks all configuration values and returns an error if any are invalid.
-// This should be called after Load() to ensure the application starts with valid config.
 func (cfg *Config) Validate() error {
 	var errors []string
 
-	// Validate port range (1-65535)
 	if port, err := strconv.Atoi(cfg.Port); err != nil || port < 1 || port > 65535 {
 		errors = append(errors, fmt.Sprintf("Port must be between 1 and 65535, got: %s", cfg.Port))
 	}
 
-	// Validate time format for start/end of day (HH:MM)
 	timeRegex := regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
 	if !timeRegex.MatchString(cfg.DefaultStartOfDay) {
 		errors = append(errors, fmt.Sprintf("DefaultStartOfDay must be in HH:MM format (00:00-23:59), got: %s", cfg.DefaultStartOfDay))
@@ -113,19 +114,16 @@ func (cfg *Config) Validate() error {
 		errors = append(errors, fmt.Sprintf("DefaultEndOfDay must be in HH:MM format (00:00-23:59), got: %s", cfg.DefaultEndOfDay))
 	}
 
-	// Validate MongoDB URI format (basic check)
 	if cfg.MongoURI == "" {
 		errors = append(errors, "MongoURI cannot be empty")
 	} else if len(cfg.MongoURI) < 10 || !regexp.MustCompile(`^mongodb(\+srv)?://`).MatchString(cfg.MongoURI) {
 		errors = append(errors, fmt.Sprintf("MongoURI must start with 'mongodb://' or 'mongodb+srv://', got: %s", cfg.MongoURI))
 	}
 
-	// Validate database name
 	if cfg.MongoDatabaseName == "" {
 		errors = append(errors, "MongoDatabaseName cannot be empty")
 	}
 
-	// Validate durations are positive
 	if cfg.MongoConnTimeout <= 0 {
 		errors = append(errors, fmt.Sprintf("MongoConnTimeout must be positive, got: %s", cfg.MongoConnTimeout))
 	}
@@ -151,7 +149,6 @@ func (cfg *Config) Validate() error {
 		errors = append(errors, fmt.Sprintf("ShutdownTimeout must be positive, got: %s", cfg.ShutdownTimeout))
 	}
 
-	// Validate integer ranges
 	if cfg.RateLimitRequests <= 0 {
 		errors = append(errors, fmt.Sprintf("RateLimitRequests must be positive, got: %d", cfg.RateLimitRequests))
 	}
@@ -159,7 +156,6 @@ func (cfg *Config) Validate() error {
 		errors = append(errors, fmt.Sprintf("MaxRequestSize must be positive, got: %d", cfg.MaxRequestSize))
 	}
 
-	// Validate business priority ranges
 	if cfg.MinBusinessPriority < 0 {
 		errors = append(errors, fmt.Sprintf("MinBusinessPriority cannot be negative, got: %d", cfg.MinBusinessPriority))
 	}
@@ -170,7 +166,6 @@ func (cfg *Config) Validate() error {
 		errors = append(errors, fmt.Sprintf("DefaultBusinessPriority (%d) must be between MinBusinessPriority (%d) and MaxBusinessPriority (%d)", cfg.DefaultBusinessPriority, cfg.MinBusinessPriority, cfg.MaxBusinessPriority))
 	}
 
-	// Validate meeting/schedule settings
 	if cfg.DefaultMeetingDurationMin <= 0 {
 		errors = append(errors, fmt.Sprintf("DefaultMeetingDurationMin must be positive, got: %d", cfg.DefaultMeetingDurationMin))
 	}
@@ -192,8 +187,6 @@ func (cfg *Config) Validate() error {
 	return nil
 }
 
-// LogConfiguration logs all configuration values at INFO level (with sensitive data redacted).
-// This should be called after Load() and Validate() to provide visibility into startup config.
 func (cfg *Config) LogConfiguration() {
 	cfg.Log.Info("Configuration loaded successfully",
 		"mongo_uri", redactMongoURI(cfg.MongoURI),
@@ -221,10 +214,7 @@ func (cfg *Config) LogConfiguration() {
 	)
 }
 
-// redactMongoURI removes credentials from MongoDB URI for safe logging.
 func redactMongoURI(uri string) string {
-	// Pattern: mongodb://username:password@host:port/database
-	// Replace with: mongodb://***:***@host:port/database
 	credentialRegex := regexp.MustCompile(`(mongodb(\+srv)?://)[^:]+:[^@]+@`)
 	return credentialRegex.ReplaceAllString(uri, "${1}***:***@")
 }

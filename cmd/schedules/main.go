@@ -14,14 +14,6 @@ const ServiceName = "schedules"
 func main() {
 	cfg := config.Load(ServiceName)
 
-	// Validate configuration
-	if err := cfg.Validate(); err != nil {
-		cfg.Log.Fatal("Invalid configuration", "error", err)
-	}
-
-	// Log all configuration values
-	cfg.LogConfiguration()
-
 	cfg.Log.Info("Starting Schedules service")
 	scheduleService := initServices(cfg)
 	serverApp := app.NewApplication(cfg)
