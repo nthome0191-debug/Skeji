@@ -2,9 +2,7 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
@@ -12,8 +10,6 @@ import (
 
 	_ "skeji/internal/schedules/docs" // Import generated swagger docs
 	"skeji/internal/schedules/service"
-	"skeji/pkg/config"
-	apperrors "skeji/pkg/errors"
 	httputil "skeji/pkg/http"
 	"skeji/pkg/logger"
 	"skeji/pkg/model"
@@ -104,34 +100,13 @@ func (h *ScheduleHandler) GetByID(w http.ResponseWriter, r *http.Request, ps htt
 // @Failure 500 {object} httputil.ErrorResponse
 // @Router /api/v1/schedules [get]
 func (h *ScheduleHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-	query := r.URL.Query()
-
-	limit := 0
-	if limitStr := query.Get("limit"); limitStr != "" {
-		var err error
-		limit, err = strconv.Atoi(limitStr)
-		if err != nil {
-			if writeErr := httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid limit parameter: %s", limitStr))); writeErr != nil {
-				h.log.Error("failed to write error response", "handler", "GetAll", "operation", "WriteError", "error", writeErr)
-			}
-			return
+	limit, offset, err := httputil.ExtractLimitOffset(r)
+	if err != nil {
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "GetAll", "operation", "WriteError", "error", writeErr)
 		}
+		return
 	}
-
-	offset := 0
-	if offsetStr := query.Get("offset"); offsetStr != "" {
-		var err error
-		offset, err = strconv.Atoi(offsetStr)
-		if err != nil {
-			if writeErr := httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid offset parameter: %s", offsetStr))); writeErr != nil {
-				h.log.Error("failed to write error response", "handler", "GetAll", "operation", "WriteError", "error", writeErr)
-			}
-			return
-		}
-	}
-
-	limit = config.NormalizePaginationLimit(limit)
-	offset = config.NormalizeOffset(offset)
 
 	schedules, totalCount, err := h.service.GetAll(r.Context(), limit, offset)
 	if err != nil {
@@ -242,32 +217,13 @@ func (h *ScheduleHandler) Search(w http.ResponseWriter, r *http.Request, _ httpr
 		return
 	}
 
-	limit := 0
-	if limitStr := query.Get("limit"); limitStr != "" {
-		var err error
-		limit, err = strconv.Atoi(limitStr)
-		if err != nil {
-			if writeErr := httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid limit parameter: %s", limitStr))); writeErr != nil {
-				h.log.Error("failed to write error response", "handler", "Search", "operation", "WriteError", "error", writeErr)
-			}
-			return
+	limit, offset, err := httputil.ExtractLimitOffset(r)
+	if err != nil {
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "Search", "operation", "WriteError", "error", writeErr)
 		}
+		return
 	}
-
-	offset := 0
-	if offsetStr := query.Get("offset"); offsetStr != "" {
-		var err error
-		offset, err = strconv.Atoi(offsetStr)
-		if err != nil {
-			if writeErr := httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid offset parameter: %s", offsetStr))); writeErr != nil {
-				h.log.Error("failed to write error response", "handler", "Search", "operation", "WriteError", "error", writeErr)
-			}
-			return
-		}
-	}
-
-	limit = config.NormalizePaginationLimit(limit)
-	offset = config.NormalizeOffset(offset)
 
 	results, totalCount, err := h.service.Search(r.Context(), businessID, city, limit, offset)
 	if err != nil {
