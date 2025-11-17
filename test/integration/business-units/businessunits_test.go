@@ -56,8 +56,7 @@ func testAdvanced(t *testing.T) {
 	testConcurrentSearches(t)
 	testUpdateAllFieldsSimultaneously(t)
 	testCitiesLabelsIntersection(t)
-	testGetByAdminPhone(t)
-	testGetByMaintainerPhone(t)
+	testGetByPhone(t)
 	testEmptySearchResults(t)
 	testSearchWithInvalidPriority(t)
 	testUpdateToExistingData(t)
@@ -2210,47 +2209,161 @@ func testCitiesLabelsIntersection(t *testing.T) {
 	}
 }
 
-func testGetByAdminPhone(t *testing.T) {
+func testGetByPhone(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	phone := "+972509200001"
-	bu := createValidBusinessUnit("Admin Phone Test", phone)
-	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	// Test 1: Get by admin phone
+	adminPhone := "+972509300001"
+	bu1 := createValidBusinessUnit("Admin Phone Test", adminPhone)
+	resp := httpClient.POST(t, "/api/v1/business-units", bu1)
 	common.AssertStatusCode(t, resp, 201)
-	created := decodeBusinessUnit(t, resp)
+	created1 := decodeBusinessUnit(t, resp)
 
-	// Try to get by admin phone (if API supports it)
-	searchURL := fmt.Sprintf("/api/v1/business-units/search/admin-phone/%s", phone)
+	searchURL := fmt.Sprintf("/api/v1/business-units/phone/%s", adminPhone)
 	searchResp := httpClient.GET(t, searchURL)
+	common.AssertStatusCode(t, searchResp, 200)
+	results := decodeBusinessUnits(t, searchResp)
 
-	// API may or may not support this endpoint
-	if searchResp.StatusCode != 200 && searchResp.StatusCode != 404 {
-		t.Logf("Get by admin phone returned status %d", searchResp.StatusCode)
+	if len(results) != 1 {
+		t.Errorf("expected 1 business unit for admin phone, got %d", len(results))
+	}
+	if len(results) > 0 && results[0].ID != created1.ID {
+		t.Errorf("expected business unit ID %s, got %s", created1.ID, results[0].ID)
 	}
 
-	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-}
-
-func testGetByMaintainerPhone(t *testing.T) {
-	defer common.ClearTestData(t, httpClient, TableName)
-
-	maintainerPhone := "+972509300001"
-	bu := createValidBusinessUnit("Maintainer Phone Test", "+972509300000")
-	bu["maintainers"] = map[string]string{maintainerPhone: "TestMaintainer"}
-	resp := httpClient.POST(t, "/api/v1/business-units", bu)
+	// Test 2: Get by maintainer phone
+	maintainerPhone := "+972509300002"
+	bu2 := createValidBusinessUnit("Maintainer Phone Test", "+972509300000")
+	bu2["maintainers"] = map[string]string{maintainerPhone: "TestMaintainer"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
 	common.AssertStatusCode(t, resp, 201)
-	created := decodeBusinessUnit(t, resp)
+	created2 := decodeBusinessUnit(t, resp)
 
-	// Try to get by maintainer phone (if API supports it)
-	searchURL := fmt.Sprintf("/api/v1/business-units/search/maintainer-phone/%s", maintainerPhone)
-	searchResp := httpClient.GET(t, searchURL)
+	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", maintainerPhone)
+	searchResp = httpClient.GET(t, searchURL)
+	common.AssertStatusCode(t, searchResp, 200)
+	results = decodeBusinessUnits(t, searchResp)
 
-	// API may or may not support this endpoint
-	if searchResp.StatusCode != 200 && searchResp.StatusCode != 404 {
-		t.Logf("Get by maintainer phone returned status %d", searchResp.StatusCode)
+	if len(results) != 1 {
+		t.Errorf("expected 1 business unit for maintainer phone, got %d", len(results))
+	}
+	if len(results) > 0 && results[0].ID != created2.ID {
+		t.Errorf("expected business unit ID %s, got %s", created2.ID, results[0].ID)
 	}
 
-	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
+	// Test 3: Admin phone in maintainers should be sanitized
+	adminPhone3 := "+972509300003"
+	bu3 := createValidBusinessUnit("Admin in Maintainers Test", adminPhone3)
+	bu3["maintainers"] = map[string]string{
+		adminPhone3:         "ShouldBeRemoved",
+		"+972509300004": "ShouldStay",
+	}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
+	common.AssertStatusCode(t, resp, 201)
+	created3 := decodeBusinessUnit(t, resp)
+
+	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", adminPhone3)
+	searchResp = httpClient.GET(t, searchURL)
+	common.AssertStatusCode(t, searchResp, 200)
+	results = decodeBusinessUnits(t, searchResp)
+
+	if len(results) != 1 {
+		t.Errorf("expected 1 business unit, got %d", len(results))
+	}
+	if len(results) > 0 {
+		// Admin phone should be removed from maintainers
+		if _, exists := results[0].Maintainers[adminPhone3]; exists {
+			t.Errorf("admin phone should be removed from maintainers, but found it")
+		}
+		// Other maintainer should still be there
+		if _, exists := results[0].Maintainers["+972509300004"]; !exists {
+			t.Errorf("other maintainer should still be present")
+		}
+		if len(results[0].Maintainers) != 1 {
+			t.Errorf("expected 1 maintainer after sanitization, got %d", len(results[0].Maintainers))
+		}
+	}
+
+	// Test 4: Multiple business units with same maintainer
+	sharedMaintainer := "+972509300005"
+	bu4 := createValidBusinessUnit("Shared Maintainer 1", "+972509300006")
+	bu4["maintainers"] = map[string]string{sharedMaintainer: "SharedPerson"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu4)
+	common.AssertStatusCode(t, resp, 201)
+	created4 := decodeBusinessUnit(t, resp)
+
+	bu5 := createValidBusinessUnit("Shared Maintainer 2", "+972509300007")
+	bu5["maintainers"] = map[string]string{sharedMaintainer: "SharedPerson"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu5)
+	common.AssertStatusCode(t, resp, 201)
+	created5 := decodeBusinessUnit(t, resp)
+
+	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", sharedMaintainer)
+	searchResp = httpClient.GET(t, searchURL)
+	common.AssertStatusCode(t, searchResp, 200)
+	results = decodeBusinessUnits(t, searchResp)
+
+	if len(results) != 2 {
+		t.Errorf("expected 2 business units for shared maintainer, got %d", len(results))
+	}
+
+	foundIDs := make(map[string]bool)
+	for _, bu := range results {
+		foundIDs[bu.ID] = true
+	}
+	if !foundIDs[created4.ID] || !foundIDs[created5.ID] {
+		t.Errorf("expected to find both business units with shared maintainer")
+	}
+
+	// Test 5: Phone that is admin in one unit and maintainer in another
+	dualPhone := "+972509300008"
+	bu6 := createValidBusinessUnit("Dual Role Admin", dualPhone)
+	resp = httpClient.POST(t, "/api/v1/business-units", bu6)
+	common.AssertStatusCode(t, resp, 201)
+	created6 := decodeBusinessUnit(t, resp)
+
+	bu7 := createValidBusinessUnit("Dual Role Maintainer", "+972509300009")
+	bu7["maintainers"] = map[string]string{dualPhone: "DualPerson"}
+	resp = httpClient.POST(t, "/api/v1/business-units", bu7)
+	common.AssertStatusCode(t, resp, 201)
+	created7 := decodeBusinessUnit(t, resp)
+
+	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", dualPhone)
+	searchResp = httpClient.GET(t, searchURL)
+	common.AssertStatusCode(t, searchResp, 200)
+	results = decodeBusinessUnits(t, searchResp)
+
+	if len(results) != 2 {
+		t.Errorf("expected 2 business units (admin + maintainer roles), got %d", len(results))
+	}
+
+	foundIDs = make(map[string]bool)
+	for _, bu := range results {
+		foundIDs[bu.ID] = true
+	}
+	if !foundIDs[created6.ID] || !foundIDs[created7.ID] {
+		t.Errorf("expected to find both business units where phone is admin and maintainer")
+	}
+
+	// Test 6: Non-existent phone should return empty array
+	nonExistentPhone := "+972509399999"
+	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", nonExistentPhone)
+	searchResp = httpClient.GET(t, searchURL)
+	common.AssertStatusCode(t, searchResp, 200)
+	results = decodeBusinessUnits(t, searchResp)
+
+	if len(results) != 0 {
+		t.Errorf("expected 0 business units for non-existent phone, got %d", len(results))
+	}
+
+	// Cleanup
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created1.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created2.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created3.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created4.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created5.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created6.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created7.ID))
 }
 
 func testEmptySearchResults(t *testing.T) {
