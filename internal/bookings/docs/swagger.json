@@ -253,16 +253,25 @@
                         "description": "End time (RFC3339)",
                         "name": "end_time",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/model.Booking"
-                            }
+                            "$ref": "#/definitions/http.PaginatedResponse"
                         }
                     },
                     "400": {

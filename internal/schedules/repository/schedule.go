@@ -34,7 +34,8 @@ type ScheduleRepository interface {
 	FindAll(ctx context.Context, limit int, offset int) ([]*model.Schedule, error)
 	Update(ctx context.Context, id string, sc *model.Schedule) (*mongo.UpdateResult, error)
 	Delete(ctx context.Context, id string) error
-	Search(ctx context.Context, businessId string, city string) ([]*model.Schedule, error)
+	Search(ctx context.Context, businessId string, city string, limit int, offset int) ([]*model.Schedule, error)
+	CountBySearch(ctx context.Context, businessId string, city string) (int64, error)
 	Count(ctx context.Context) (int64, error)
 	ExecuteTransaction(ctx context.Context, fn mongotx.TransactionFunc) error
 }
@@ -201,7 +202,7 @@ func escapeRegexSpecialChars(s string) string {
 	})
 }
 
-func (r *mongoScheduleRepository) Search(ctx context.Context, businessId string, city string) ([]*model.Schedule, error) {
+func (r *mongoScheduleRepository) Search(ctx context.Context, businessId string, city string, limit int, offset int) ([]*model.Schedule, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
@@ -215,10 +216,10 @@ func (r *mongoScheduleRepository) Search(ctx context.Context, businessId string,
 		filter["city"] = bson.M{"$regex": escapedCity, "$options": "i"}
 	}
 
-	const maxSearchResults = 1000
 	opts := options.Find().
-		SetSort(bson.D{{Key: "created_at", Value: -1}}). //todo: why we need this? necessary? would mongo search work without it?
-		SetLimit(maxSearchResults)
+		SetLimit(int64(limit)).
+		SetSkip(int64(offset)).
+		SetSort(bson.D{{Key: "created_at", Value: -1}})
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
@@ -232,6 +233,27 @@ func (r *mongoScheduleRepository) Search(ctx context.Context, businessId string,
 	}
 
 	return schedules, nil
+}
+
+func (r *mongoScheduleRepository) CountBySearch(ctx context.Context, businessId string, city string) (int64, error) {
+	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
+	defer cancel()
+
+	filter := bson.M{}
+	if businessId != "" {
+		filter["business_id"] = businessId
+	}
+	if city != "" {
+		// Escape special regex characters to prevent ReDoS attacks
+		escapedCity := escapeRegexSpecialChars(city)
+		filter["city"] = bson.M{"$regex": escapedCity, "$options": "i"}
+	}
+
+	count, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count schedules by search: %w", err)
+	}
+	return count, nil
 }
 
 func (r *mongoScheduleRepository) Count(ctx context.Context) (int64, error) {

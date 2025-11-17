@@ -92,14 +92,44 @@ func (h *BusinessUnitHandler) GetByID(w http.ResponseWriter, r *http.Request, ps
 // @Tags BusinessUnits
 // @Produce json
 // @Param phone path string true "Phone Number"
-// @Success 200 {array} model.BusinessUnit
-// @Failure 404 {object} httputil.ErrorResponse
+// @Param limit query int false "Limit"
+// @Param offset query int false "Offset"
+// @Success 200 {object} httputil.PaginatedResponse
+// @Failure 400 {object} httputil.ErrorResponse
 // @Failure 500 {object} httputil.ErrorResponse
 // @Router /api/v1/business-units/phone/{phone} [get]
 func (h *BusinessUnitHandler) GetByPhone(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	phone := ps.ByName("phone")
+	query := r.URL.Query()
 
-	units, err := h.service.GetByPhone(r.Context(), phone)
+	limit := 0
+	if limitStr := query.Get("limit"); limitStr != "" {
+		var err error
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			if writeErr := httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid limit parameter: %s", limitStr))); writeErr != nil {
+				h.log.Error("failed to write error response", "handler", "GetByPhone", "operation", "WriteError", "error", writeErr)
+			}
+			return
+		}
+	}
+
+	offset := 0
+	if offsetStr := query.Get("offset"); offsetStr != "" {
+		var err error
+		offset, err = strconv.Atoi(offsetStr)
+		if err != nil {
+			if writeErr := httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid offset parameter: %s", offsetStr))); writeErr != nil {
+				h.log.Error("failed to write error response", "handler", "GetByPhone", "operation", "WriteError", "error", writeErr)
+			}
+			return
+		}
+	}
+
+	limit = config.NormalizePaginationLimit(limit)
+	offset = config.NormalizeOffset(offset)
+
+	units, totalCount, err := h.service.GetByPhone(r.Context(), phone, limit, offset)
 	if err != nil {
 		if writeErr := httputil.WriteError(w, err); writeErr != nil {
 			h.log.Error("failed to write error response", "handler", "GetByPhone", "operation", "WriteError", "error", writeErr)
@@ -107,8 +137,8 @@ func (h *BusinessUnitHandler) GetByPhone(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	if err := httputil.WriteSuccess(w, units); err != nil {
-		h.log.Error("failed to write success response", "handler", "GetByPhone", "operation", "WriteSuccess", "error", err)
+	if err := httputil.WritePaginated(w, units, totalCount, limit, offset); err != nil {
+		h.log.Error("failed to write paginated response", "handler", "GetByPhone", "operation", "WritePaginated", "error", err)
 	}
 }
 
@@ -223,7 +253,9 @@ func (h *BusinessUnitHandler) Delete(w http.ResponseWriter, r *http.Request, ps 
 // @Produce json
 // @Param cities query string true "Comma-separated cities"
 // @Param labels query string true "Comma-separated labels"
-// @Success 200 {array} model.BusinessUnit
+// @Param limit query int false "Limit"
+// @Param offset query int false "Offset"
+// @Success 200 {object} httputil.PaginatedResponse
 // @Failure 400 {object} httputil.ErrorResponse
 // @Failure 500 {object} httputil.ErrorResponse
 // @Router /api/v1/business-units/search [get]
@@ -253,7 +285,34 @@ func (h *BusinessUnitHandler) Search(w http.ResponseWriter, r *http.Request, _ h
 		return
 	}
 
-	units, err := h.service.Search(r.Context(), cities, labels)
+	limit := 0
+	if limitStr := query.Get("limit"); limitStr != "" {
+		var err error
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			if writeErr := httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid limit parameter: %s", limitStr))); writeErr != nil {
+				h.log.Error("failed to write error response", "handler", "Search", "operation", "WriteError", "error", writeErr)
+			}
+			return
+		}
+	}
+
+	offset := 0
+	if offsetStr := query.Get("offset"); offsetStr != "" {
+		var err error
+		offset, err = strconv.Atoi(offsetStr)
+		if err != nil {
+			if writeErr := httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid offset parameter: %s", offsetStr))); writeErr != nil {
+				h.log.Error("failed to write error response", "handler", "Search", "operation", "WriteError", "error", writeErr)
+			}
+			return
+		}
+	}
+
+	limit = config.NormalizePaginationLimit(limit)
+	offset = config.NormalizeOffset(offset)
+
+	units, totalCount, err := h.service.Search(r.Context(), cities, labels, limit, offset)
 	if err != nil {
 		if writeErr := httputil.WriteError(w, err); writeErr != nil {
 			h.log.Error("failed to write error response", "handler", "Search", "operation", "WriteError", "error", writeErr)
@@ -261,8 +320,8 @@ func (h *BusinessUnitHandler) Search(w http.ResponseWriter, r *http.Request, _ h
 		return
 	}
 
-	if err := httputil.WriteSuccess(w, units); err != nil {
-		h.log.Error("failed to write success response", "handler", "Search", "operation", "WriteSuccess", "error", err)
+	if err := httputil.WritePaginated(w, units, totalCount, limit, offset); err != nil {
+		h.log.Error("failed to write paginated response", "handler", "Search", "operation", "WritePaginated", "error", err)
 	}
 }
 

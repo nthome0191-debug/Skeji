@@ -24,8 +24,8 @@ type BusinessUnitService interface {
 	Update(ctx context.Context, id string, updates *model.BusinessUnitUpdate) error
 	Delete(ctx context.Context, id string) error
 
-	GetByPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
-	Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error)
+	GetByPhone(ctx context.Context, phone string, limit int, offset int) ([]*model.BusinessUnit, int64, error)
+	Search(ctx context.Context, cities []string, labels []string, limit int, offset int) ([]*model.BusinessUnit, int64, error)
 }
 
 type businessUnitService struct {
@@ -47,7 +47,7 @@ func NewBusinessUnitService(
 }
 
 func (s *businessUnitService) verifyDuplication(ctx context.Context, bu *model.BusinessUnit) error {
-	existing, err := s.repo.FindByPhone(ctx, bu.AdminPhone)
+	existing, err := s.repo.FindByPhone(ctx, bu.AdminPhone, 5000, 0)
 	if err != nil {
 		return fmt.Errorf("failed to check for duplicates: %w", err)
 	}
@@ -241,26 +241,57 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *businessUnitService) GetByPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {
+func (s *businessUnitService) GetByPhone(ctx context.Context, phone string, limit int, offset int) ([]*model.BusinessUnit, int64, error) {
 	if phone == "" {
-		return nil, apperrors.InvalidInput("Phone number cannot be empty")
+		return nil, 0, apperrors.InvalidInput("Phone number cannot be empty")
 	}
 
-	units, err := s.repo.FindByPhone(ctx, phone)
-	if err != nil {
-		s.cfg.Log.Error("Failed to get business units by phone",
-			"phone", phone,
-			"error", err,
-		)
-		return nil, apperrors.Internal("Failed to retrieve business units by phone", err)
+	var count int64
+	var units []*model.BusinessUnit
+	var errCount, errFind error
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		var err error
+		count, err = s.repo.CountByPhone(ctx, phone)
+		if err != nil {
+			s.cfg.Log.Error("Failed to count business units by phone", "phone", phone, "error", err)
+			errCount = apperrors.Internal("Failed to count business units by phone", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		var err error
+		units, err = s.repo.FindByPhone(ctx, phone, limit, offset)
+		if err != nil {
+			s.cfg.Log.Error("Failed to get business units by phone",
+				"phone", phone,
+				"limit", limit,
+				"offset", offset,
+				"error", err,
+			)
+			errFind = apperrors.Internal("Failed to retrieve business units by phone", err)
+		}
+	}()
+
+	wg.Wait()
+
+	if errCount != nil {
+		return nil, 0, errCount
+	}
+	if errFind != nil {
+		return nil, 0, errFind
 	}
 
-	return units, nil
+	return units, count, nil
 }
 
-func (s *businessUnitService) Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error) {
+func (s *businessUnitService) Search(ctx context.Context, cities []string, labels []string, limit int, offset int) ([]*model.BusinessUnit, int64, error) {
 	if len(cities) == 0 || len(labels) == 0 {
-		return nil, apperrors.InvalidInput("Both search criteria (cities and labels) must be provided")
+		return nil, 0, apperrors.InvalidInput("Both search criteria (cities and labels) must be provided")
 	}
 
 	originalCities := append([]string(nil), cities...)
@@ -275,7 +306,7 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 			"normalized_cities", cities,
 			"normalized_labels", labels,
 		)
-		return nil, apperrors.InvalidInput("Search criteria resulted in no valid items after normalization")
+		return nil, 0, apperrors.InvalidInput("Search criteria resulted in no valid items after normalization")
 	}
 
 	pairs := make([]string, 0, len(cities)*len(labels))
@@ -285,15 +316,51 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 		}
 	}
 
-	units, err := s.repo.SearchByCityLabelPairs(ctx, pairs)
-	if err != nil {
-		s.cfg.Log.Error("Failed to search business units by city_label_pairs",
-			"cities", cities,
-			"labels", labels,
-			"pairs", pairs,
-			"error", err,
-		)
-		return nil, apperrors.Internal("Failed to search business units", err)
+	var count int64
+	var units []*model.BusinessUnit
+	var errCount, errFind error
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		var err error
+		count, err = s.repo.CountByCityLabelPairs(ctx, pairs)
+		if err != nil {
+			s.cfg.Log.Error("Failed to count business units by city_label_pairs",
+				"cities", cities,
+				"labels", labels,
+				"pairs", pairs,
+				"error", err,
+			)
+			errCount = apperrors.Internal("Failed to count business units", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		var err error
+		units, err = s.repo.SearchByCityLabelPairs(ctx, pairs, limit, offset)
+		if err != nil {
+			s.cfg.Log.Error("Failed to search business units by city_label_pairs",
+				"cities", cities,
+				"labels", labels,
+				"pairs", pairs,
+				"limit", limit,
+				"offset", offset,
+				"error", err,
+			)
+			errFind = apperrors.Internal("Failed to search business units", err)
+		}
+	}()
+
+	wg.Wait()
+
+	if errCount != nil {
+		return nil, 0, errCount
+	}
+	if errFind != nil {
+		return nil, 0, errFind
 	}
 
 	s.cfg.Log.Debug("Business units search completed",
@@ -301,9 +368,10 @@ func (s *businessUnitService) Search(ctx context.Context, cities []string, label
 		"labels", labels,
 		"pairs_count", len(pairs),
 		"results_count", len(units),
+		"total_count", count,
 	)
 
-	return units, nil
+	return units, count, nil
 }
 
 func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {

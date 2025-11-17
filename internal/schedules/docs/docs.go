@@ -247,16 +247,25 @@ const docTemplate = `{
                         "description": "City",
                         "name": "city",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/model.Schedule"
-                            }
+                            "$ref": "#/definitions/http.PaginatedResponse"
                         }
                     },
                     "400": {

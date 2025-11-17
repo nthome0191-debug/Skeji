@@ -33,7 +33,8 @@ type BookingRepository interface {
 	FindAll(ctx context.Context, limit int, offset int) ([]*model.Booking, error)
 	Update(ctx context.Context, id string, booking *model.Booking) (*mongo.UpdateResult, error)
 	Delete(ctx context.Context, id string) error
-	FindByBusinessAndSchedule(ctx context.Context, businessID string, scheduleID string, startTime *time.Time, endTime *time.Time) ([]*model.Booking, error)
+	FindByBusinessAndSchedule(ctx context.Context, businessID string, scheduleID string, startTime *time.Time, endTime *time.Time, limit int, offset int) ([]*model.Booking, error)
+	CountByBusinessAndSchedule(ctx context.Context, businessID string, scheduleID string, startTime *time.Time, endTime *time.Time) (int64, error)
 	Count(ctx context.Context) (int64, error)
 	ExecuteTransaction(ctx context.Context, fn mongotx.TransactionFunc) error
 }
@@ -194,10 +195,51 @@ func (r *mongoBookingRepository) FindByBusinessAndSchedule(
 	businessID string,
 	scheduleID string,
 	startTime, endTime *time.Time,
+	limit, offset int,
 ) ([]*model.Booking, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
+	filter := r.buildSearchFilter(businessID, scheduleID, startTime, endTime)
+
+	opts := options.Find().
+		SetLimit(int64(limit)).
+		SetSkip(int64(offset)).
+		SetSort(bson.D{{Key: "start_time", Value: 1}})
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find bookings: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var bookings []*model.Booking
+	if err = cursor.All(ctx, &bookings); err != nil {
+		return nil, fmt.Errorf("failed to decode bookings: %w", err)
+	}
+
+	return bookings, nil
+}
+
+func (r *mongoBookingRepository) CountByBusinessAndSchedule(
+	ctx context.Context,
+	businessID string,
+	scheduleID string,
+	startTime, endTime *time.Time,
+) (int64, error) {
+	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
+	defer cancel()
+
+	filter := r.buildSearchFilter(businessID, scheduleID, startTime, endTime)
+
+	count, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count bookings by search: %w", err)
+	}
+	return count, nil
+}
+
+func (r *mongoBookingRepository) buildSearchFilter(businessID string, scheduleID string, startTime, endTime *time.Time) bson.M {
 	filter := bson.M{
 		"business_id": businessID,
 		"schedule_id": scheduleID,
@@ -223,19 +265,7 @@ func (r *mongoBookingRepository) FindByBusinessAndSchedule(
 		filter["$and"] = []bson.M{timeFilters}
 	}
 
-	opts := options.Find().SetSort(bson.D{{Key: "start_time", Value: 1}})
-	cursor, err := r.collection.Find(ctx, filter, opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find bookings: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	var bookings []*model.Booking
-	if err = cursor.All(ctx, &bookings); err != nil {
-		return nil, fmt.Errorf("failed to decode bookings: %w", err)
-	}
-
-	return bookings, nil
+	return filter
 }
 
 func (r *mongoBookingRepository) Count(ctx context.Context) (int64, error) {

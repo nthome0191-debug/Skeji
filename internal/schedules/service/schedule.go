@@ -23,7 +23,7 @@ type ScheduleService interface {
 	GetAll(ctx context.Context, limit int, offset int) ([]*model.Schedule, int64, error)
 	Update(ctx context.Context, id string, updates *model.ScheduleUpdate) error
 	Delete(ctx context.Context, id string) error
-	Search(ctx context.Context, businessID string, city string) ([]*model.Schedule, error)
+	Search(ctx context.Context, businessID string, city string, limit int, offset int) ([]*model.Schedule, int64, error)
 }
 
 type scheduleService struct {
@@ -211,30 +211,66 @@ func (s *scheduleService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *scheduleService) Search(ctx context.Context, businessID string, city string) ([]*model.Schedule, error) {
+func (s *scheduleService) Search(ctx context.Context, businessID string, city string, limit int, offset int) ([]*model.Schedule, int64, error) {
 	if businessID == "" {
-		return nil, apperrors.InvalidInput("Business_id must be provided, city is optional")
+		return nil, 0, apperrors.InvalidInput("Business_id must be provided, city is optional")
 	}
 
 	city = sanitizer.SanitizeCityOrLabel(city)
 
-	schedules, err := s.repo.Search(ctx, businessID, city)
-	if err != nil {
-		s.cfg.Log.Error("Failed to search schedules",
-			"business_id", businessID,
-			"city", city,
-			"error", err,
-		)
-		return nil, apperrors.Internal("Failed to search schedules", err)
+	var count int64
+	var schedules []*model.Schedule
+	var errCount, errFind error
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		var err error
+		count, err = s.repo.CountBySearch(ctx, businessID, city)
+		if err != nil {
+			s.cfg.Log.Error("Failed to count schedules by search",
+				"business_id", businessID,
+				"city", city,
+				"error", err,
+			)
+			errCount = apperrors.Internal("Failed to count schedules", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		var err error
+		schedules, err = s.repo.Search(ctx, businessID, city, limit, offset)
+		if err != nil {
+			s.cfg.Log.Error("Failed to search schedules",
+				"business_id", businessID,
+				"city", city,
+				"limit", limit,
+				"offset", offset,
+				"error", err,
+			)
+			errFind = apperrors.Internal("Failed to search schedules", err)
+		}
+	}()
+
+	wg.Wait()
+
+	if errCount != nil {
+		return nil, 0, errCount
+	}
+	if errFind != nil {
+		return nil, 0, errFind
 	}
 
 	s.cfg.Log.Debug("Schedules search completed",
 		"business_id", businessID,
 		"city", city,
 		"results_count", len(schedules),
+		"total_count", count,
 	)
 
-	return schedules, nil
+	return schedules, count, nil
 }
 
 func (s *scheduleService) sanitize(sc *model.Schedule) {
@@ -333,7 +369,10 @@ func (s *scheduleService) validate(sc *model.Schedule) error {
 }
 
 func (s *scheduleService) verifyDeplication(ctx context.Context, sc *model.Schedule) error {
-	existingSchedules, err := s.repo.Search(ctx, sc.BusinessID, sc.City)
+	// For duplicate checking, we fetch with a reasonable limit
+	// In practice, a business shouldn't have more than 1000 schedules in a single city
+	const maxSchedulesPerCity = 1000
+	existingSchedules, err := s.repo.Search(ctx, sc.BusinessID, sc.City, maxSchedulesPerCity, 0)
 	if err != nil {
 		return apperrors.Internal("Failed to check for duplicate schedules", err)
 	}

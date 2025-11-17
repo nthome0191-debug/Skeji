@@ -34,8 +34,10 @@ type BusinessUnitRepository interface {
 	Update(ctx context.Context, id string, bu *model.BusinessUnit) (*mongo.UpdateResult, error)
 	Delete(ctx context.Context, id string) error
 
-	FindByPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
-	SearchByCityLabelPairs(ctx context.Context, pairs []string) ([]*model.BusinessUnit, error)
+	FindByPhone(ctx context.Context, phone string, limit int, offset int) ([]*model.BusinessUnit, error)
+	CountByPhone(ctx context.Context, phone string) (int64, error)
+	SearchByCityLabelPairs(ctx context.Context, pairs []string, limit int, offset int) ([]*model.BusinessUnit, error)
+	CountByCityLabelPairs(ctx context.Context, pairs []string) (int64, error)
 	Count(ctx context.Context) (int64, error)
 
 	ExecuteTransaction(ctx context.Context, fn mongotx.TransactionFunc) error
@@ -191,13 +193,16 @@ func (r *mongoBusinessUnitRepository) Delete(ctx context.Context, id string) err
 	return nil
 }
 
-func (r *mongoBusinessUnitRepository) SearchByCityLabelPairs(ctx context.Context, pairs []string) ([]*model.BusinessUnit, error) {
+func (r *mongoBusinessUnitRepository) SearchByCityLabelPairs(ctx context.Context, pairs []string, limit int, offset int) ([]*model.BusinessUnit, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
 	filter := bson.M{"city_label_pairs": bson.M{"$in": pairs}}
 
-	opts := options.Find().SetSort(bson.D{{Key: "priority", Value: -1}}).SetLimit(config.DefaultPaginationLimit)
+	opts := options.Find().
+		SetLimit(int64(limit)).
+		SetSkip(int64(offset)).
+		SetSort(bson.D{{Key: "priority", Value: -1}})
 
 	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
@@ -213,7 +218,20 @@ func (r *mongoBusinessUnitRepository) SearchByCityLabelPairs(ctx context.Context
 	return results, nil
 }
 
-func (r *mongoBusinessUnitRepository) FindByPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {
+func (r *mongoBusinessUnitRepository) CountByCityLabelPairs(ctx context.Context, pairs []string) (int64, error) {
+	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
+	defer cancel()
+
+	filter := bson.M{"city_label_pairs": bson.M{"$in": pairs}}
+
+	count, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count business units by city_label_pairs: %w", err)
+	}
+	return count, nil
+}
+
+func (r *mongoBusinessUnitRepository) FindByPhone(ctx context.Context, phone string, limit int, offset int) ([]*model.BusinessUnit, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
@@ -224,7 +242,12 @@ func (r *mongoBusinessUnitRepository) FindByPhone(ctx context.Context, phone str
 		},
 	}
 
-	cursor, err := r.collection.Find(ctx, filter, options.Find())
+	opts := options.Find().
+		SetLimit(int64(limit)).
+		SetSkip(int64(offset)).
+		SetSort(bson.D{{Key: "priority", Value: -1}})
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find business units for phone [%s]: %w", phone, err)
 	}
@@ -235,6 +258,24 @@ func (r *mongoBusinessUnitRepository) FindByPhone(ctx context.Context, phone str
 		return nil, fmt.Errorf("failed to decode search results: %w", err)
 	}
 	return businessUnits, nil
+}
+
+func (r *mongoBusinessUnitRepository) CountByPhone(ctx context.Context, phone string) (int64, error) {
+	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
+	defer cancel()
+
+	filter := bson.M{
+		"$or": []bson.M{
+			{"admin_phone": phone},
+			{fmt.Sprintf("maintainers.%s", phone): bson.M{"$exists": true}},
+		},
+	}
+
+	count, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count business units for phone [%s]: %w", phone, err)
+	}
+	return count, nil
 }
 
 func (r *mongoBusinessUnitRepository) Count(ctx context.Context) (int64, error) {

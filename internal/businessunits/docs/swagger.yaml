@@ -253,17 +253,23 @@ paths:
         name: phone
         required: true
         type: string
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/model.BusinessUnit'
-            type: array
-        "404":
-          description: Not Found
+            $ref: '#/definitions/http.PaginatedResponse'
+        "400":
+          description: Bad Request
           schema:
             $ref: '#/definitions/http.ErrorResponse'
         "500":
@@ -286,15 +292,21 @@ paths:
         name: labels
         required: true
         type: string
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/model.BusinessUnit'
-            type: array
+            $ref: '#/definitions/http.PaginatedResponse'
         "400":
           description: Bad Request
           schema:

@@ -23,7 +23,7 @@ type BookingService interface {
 	GetAll(ctx context.Context, limit int, offset int) ([]*model.Booking, int64, error)
 	Update(ctx context.Context, id string, updates *model.BookingUpdate) error
 	Delete(ctx context.Context, id string) error
-	SearchBySchedule(ctx context.Context, businessID string, scheduleID string, startTime, endTime *time.Time) ([]*model.Booking, error)
+	SearchBySchedule(ctx context.Context, businessID string, scheduleID string, startTime, endTime *time.Time, limit int, offset int) ([]*model.Booking, int64, error)
 }
 
 type bookingService struct {
@@ -199,23 +199,63 @@ func (s *bookingService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *bookingService) SearchBySchedule(ctx context.Context, businessID string, scheduleID string, startTime, endTime *time.Time) ([]*model.Booking, error) {
+func (s *bookingService) SearchBySchedule(ctx context.Context, businessID string, scheduleID string, startTime, endTime *time.Time, limit int, offset int) ([]*model.Booking, int64, error) {
 	if businessID == "" || scheduleID == "" {
-		return nil, apperrors.InvalidInput("BusinessID and ScheduleID are required")
+		return nil, 0, apperrors.InvalidInput("BusinessID and ScheduleID are required")
 	}
 
-	bookings, err := s.repo.FindByBusinessAndSchedule(ctx, businessID, scheduleID, startTime, endTime)
-	if err != nil {
-		s.cfg.Log.Error("Failed to search bookings", "error", err)
-		return nil, apperrors.Internal("Failed to search bookings", err)
+	var count int64
+	var bookings []*model.Booking
+	var errCount, errFind error
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		var err error
+		count, err = s.repo.CountByBusinessAndSchedule(ctx, businessID, scheduleID, startTime, endTime)
+		if err != nil {
+			s.cfg.Log.Error("Failed to count bookings by search",
+				"business_id", businessID,
+				"schedule_id", scheduleID,
+				"error", err,
+			)
+			errCount = apperrors.Internal("Failed to count bookings", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		var err error
+		bookings, err = s.repo.FindByBusinessAndSchedule(ctx, businessID, scheduleID, startTime, endTime, limit, offset)
+		if err != nil {
+			s.cfg.Log.Error("Failed to search bookings",
+				"business_id", businessID,
+				"schedule_id", scheduleID,
+				"limit", limit,
+				"offset", offset,
+				"error", err,
+			)
+			errFind = apperrors.Internal("Failed to search bookings", err)
+		}
+	}()
+
+	wg.Wait()
+
+	if errCount != nil {
+		return nil, 0, errCount
+	}
+	if errFind != nil {
+		return nil, 0, errFind
 	}
 
 	s.cfg.Log.Debug("Booking search completed",
 		"business_id", businessID,
 		"schedule_id", scheduleID,
 		"count", len(bookings),
+		"total_count", count,
 	)
-	return bookings, nil
+	return bookings, count, nil
 }
 
 // --- Helpers ---
@@ -284,7 +324,10 @@ func (s *bookingService) validate(booking *model.Booking) error {
 }
 
 func (s *bookingService) verifyDeplication(ctx context.Context, booking *model.Booking) error {
-	existing, err := s.repo.FindByBusinessAndSchedule(ctx, booking.BusinessID, booking.ScheduleID, &booking.StartTime, &booking.EndTime)
+	// For overlap checking, we fetch with a reasonable limit
+	// In practice, checking up to 1000 overlapping bookings should be sufficient
+	const maxOverlapCheck = 1000
+	existing, err := s.repo.FindByBusinessAndSchedule(ctx, booking.BusinessID, booking.ScheduleID, &booking.StartTime, &booking.EndTime, maxOverlapCheck, 0)
 	if err != nil {
 		return apperrors.Internal("Failed to check existing bookings", err)
 	}

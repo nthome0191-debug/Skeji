@@ -203,7 +203,9 @@ func (h *BookingHandler) Delete(w http.ResponseWriter, r *http.Request, ps httpr
 // @Param schedule_id query string true "Schedule ID"
 // @Param start_time query string false "Start time (RFC3339)"
 // @Param end_time query string false "End time (RFC3339)"
-// @Success 200 {array} model.Booking
+// @Param limit query int false "Limit"
+// @Param offset query int false "Offset"
+// @Success 200 {object} httputil.PaginatedResponse
 // @Failure 400 {object} httputil.ErrorResponse
 // @Failure 500 {object} httputil.ErrorResponse
 // @Router /api/v1/bookings/search [get]
@@ -248,7 +250,34 @@ func (h *BookingHandler) Search(w http.ResponseWriter, r *http.Request, _ httpro
 		}
 	}
 
-	bookings, err := h.service.SearchBySchedule(r.Context(), businessID, scheduleID, startTime, endTime)
+	limit := 0
+	if limitStr := query.Get("limit"); limitStr != "" {
+		var err error
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			if writeErr := httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid limit parameter: %s", limitStr))); writeErr != nil {
+				h.log.Error("failed to write error response", "handler", "Search", "operation", "WriteError", "error", writeErr)
+			}
+			return
+		}
+	}
+
+	offset := 0
+	if offsetStr := query.Get("offset"); offsetStr != "" {
+		var err error
+		offset, err = strconv.Atoi(offsetStr)
+		if err != nil {
+			if writeErr := httputil.WriteError(w, apperrors.InvalidInput(fmt.Sprintf("invalid offset parameter: %s", offsetStr))); writeErr != nil {
+				h.log.Error("failed to write error response", "handler", "Search", "operation", "WriteError", "error", writeErr)
+			}
+			return
+		}
+	}
+
+	limit = config.NormalizePaginationLimit(limit)
+	offset = config.NormalizeOffset(offset)
+
+	bookings, totalCount, err := h.service.SearchBySchedule(r.Context(), businessID, scheduleID, startTime, endTime, limit, offset)
 	if err != nil {
 		if writeErr := httputil.WriteError(w, err); writeErr != nil {
 			h.log.Error("failed to write error response", "handler", "Search", "operation", "WriteError", "error", writeErr)
@@ -256,8 +285,8 @@ func (h *BookingHandler) Search(w http.ResponseWriter, r *http.Request, _ httpro
 		return
 	}
 
-	if err := httputil.WriteSuccess(w, bookings); err != nil {
-		h.log.Error("failed to write success response", "handler", "Search", "operation", "WriteSuccess", "error", err)
+	if err := httputil.WritePaginated(w, bookings, totalCount, limit, offset); err != nil {
+		h.log.Error("failed to write paginated response", "handler", "Search", "operation", "WritePaginated", "error", err)
 	}
 }
 

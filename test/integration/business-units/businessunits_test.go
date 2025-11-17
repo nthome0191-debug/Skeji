@@ -212,7 +212,7 @@ func testGetBySearchEmptyTable(t *testing.T) {
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=Tel%20Aviv&labels=Haircut")
 	common.AssertStatusCode(t, resp, 200)
 
-	data := decodeBusinessUnits(t, resp)
+	data, _, _, _ := decodePaginated(t, resp)
 	if len(data) != 0 {
 		t.Errorf("expected empty results, got %d", len(data))
 	}
@@ -278,7 +278,7 @@ func testGetValidSearchExistingRecords(t *testing.T) {
 
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=Tel%20Aviv&labels=Haircut")
 	common.AssertStatusCode(t, resp, 200)
-	data := decodeBusinessUnits(t, resp)
+	data, _, _, _ := decodePaginated(t, resp)
 
 	if len(data) < 2 {
 		t.Errorf("expected at least 2 results, got %d", len(data))
@@ -381,7 +381,7 @@ func testGetSearchPriorityOrdering(t *testing.T) {
 
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv&labels=haircut")
 	common.AssertStatusCode(t, resp, 200)
-	results := decodeBusinessUnits(t, resp)
+	results, _, _, _ := decodePaginated(t, resp)
 
 	if len(results) < 3 {
 		t.Errorf("expected at least 3 results, got %d", len(results))
@@ -976,21 +976,21 @@ func testGetSearchNormalization(t *testing.T) {
 
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv&labels=haircut")
 	common.AssertStatusCode(t, resp, 200)
-	data := decodeBusinessUnits(t, resp)
+	data, _, _, _ := decodePaginated(t, resp)
 	if len(data) < 1 {
 		t.Error("search should find business unit with normalized lowercase city/label")
 	}
 
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv&labels=HAIRCUT")
 	common.AssertStatusCode(t, resp, 200)
-	data = decodeBusinessUnits(t, resp)
+	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) < 1 {
 		t.Error("search should find business unit with normalized uppercase city/label")
 	}
 
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=jerusalem&labels=massage")
 	common.AssertStatusCode(t, resp, 200)
-	data = decodeBusinessUnits(t, resp)
+	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) < 1 {
 		t.Error("search should find business unit with mixed case normalization")
 	}
@@ -1010,14 +1010,14 @@ func testGetSearchMultipleCitiesLabels(t *testing.T) {
 
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv,haifa&labels=haircut,massage")
 	common.AssertStatusCode(t, resp, 200)
-	data := decodeBusinessUnits(t, resp)
+	data, _, _, _ := decodePaginated(t, resp)
 	if len(data) < 1 {
 		t.Error("search should support multiple cities and labels")
 	}
 
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv,jerusalem&labels=haircut,spa")
 	common.AssertStatusCode(t, resp, 200)
-	data = decodeBusinessUnits(t, resp)
+	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) < 2 {
 		t.Error("search should return results matching any city and any label")
 	}
@@ -1709,14 +1709,14 @@ func testSearchPartialMatches(t *testing.T) {
 
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv&labels=haircut")
 	common.AssertStatusCode(t, resp, 200)
-	results := decodeBusinessUnits(t, resp)
+	results, _, _, _ := decodePaginated(t, resp)
 	if len(results) < 1 {
 		t.Error("Expected to find business unit with city match")
 	}
 
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv,jerusalem&labels=haircut,massage")
 	common.AssertStatusCode(t, resp, 200)
-	results = decodeBusinessUnits(t, resp)
+	results, _, _, _ = decodePaginated(t, resp)
 	if len(results) < 1 {
 		t.Error("Expected to find business unit with partial match")
 	}
@@ -1923,7 +1923,7 @@ func testSearchWithManyFilters(t *testing.T) {
 	// Search with multiple cities and labels
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv,haifa,beer_sheva&labels=haircut,styling")
 	common.AssertStatusCode(t, resp, 200)
-	results := decodeBusinessUnits(t, resp)
+	results, _, _, _ := decodePaginated(t, resp)
 
 	if len(results) < 2 {
 		t.Errorf("expected at least 2 results for multi-filter search, got %d", len(results))
@@ -1970,7 +1970,7 @@ func testComplexPriorityOrdering(t *testing.T) {
 	// Search and verify ordering
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=testcity&labels=testlabel")
 	common.AssertStatusCode(t, resp, 200)
-	results := decodeBusinessUnits(t, resp)
+	results, _, _, _ := decodePaginated(t, resp)
 
 	if len(results) < 10 {
 		t.Errorf("expected 10 results, got %d", len(results))
@@ -2080,7 +2080,7 @@ func testSearchCaseSensitivity(t *testing.T) {
 	for _, searchURL := range testCases {
 		resp := httpClient.GET(t, searchURL)
 		common.AssertStatusCode(t, resp, 200)
-		results := decodeBusinessUnits(t, resp)
+		results, _, _, _ := decodePaginated(t, resp)
 
 		if len(results) < 1 {
 			t.Errorf("case variation %s returned no results", searchURL)
@@ -2202,7 +2202,7 @@ func testCitiesLabelsIntersection(t *testing.T) {
 	// Search for intersection (city B, label Y) should find both
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=cityb&labels=labely")
 	common.AssertStatusCode(t, resp, 200)
-	results := decodeBusinessUnits(t, resp)
+	results, _, _, _ := decodePaginated(t, resp)
 
 	if len(results) < 2 {
 		t.Errorf("expected at least 2 results for intersection, got %d", len(results))
@@ -2372,7 +2372,7 @@ func testEmptySearchResults(t *testing.T) {
 	// Search for non-existent combination
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=nonexistentcity&labels=nonexistentlabel")
 	common.AssertStatusCode(t, resp, 200)
-	results := decodeBusinessUnits(t, resp)
+	results, _, _, _ := decodePaginated(t, resp)
 
 	if len(results) != 0 {
 		t.Errorf("expected 0 results for non-existent search, got %d", len(results))
@@ -2459,7 +2459,7 @@ func testUpdatePriorityImpactOnSearch(t *testing.T) {
 	// Search - bu2 should come first (higher priority)
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=testcity&labels=testlabel")
 	common.AssertStatusCode(t, resp, 200)
-	results := decodeBusinessUnits(t, resp)
+	results, _, _, _ := decodePaginated(t, resp)
 
 	if len(results) >= 2 && results[0].Priority < results[1].Priority {
 		t.Error("results not ordered by priority (higher first)")
@@ -2472,7 +2472,7 @@ func testUpdatePriorityImpactOnSearch(t *testing.T) {
 	// Search again - bu1 should now come first
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=testcity&labels=testlabel")
 	common.AssertStatusCode(t, resp, 200)
-	results = decodeBusinessUnits(t, resp)
+	results, _, _, _ = decodePaginated(t, resp)
 
 	if len(results) >= 2 && results[0].ID != created1.ID {
 		t.Logf("Priority update didn't affect search ordering as expected")
@@ -2502,7 +2502,7 @@ func testMultipleCitiesSingleLabel(t *testing.T) {
 	for _, searchURL := range searchTests {
 		resp := httpClient.GET(t, searchURL)
 		common.AssertStatusCode(t, resp, 200)
-		results := decodeBusinessUnits(t, resp)
+		results, _, _, _ := decodePaginated(t, resp)
 
 		if len(results) < 1 {
 			t.Errorf("search %s didn't find business unit", searchURL)

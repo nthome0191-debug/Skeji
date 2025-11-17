@@ -257,15 +257,21 @@ paths:
         in: query
         name: end_time
         type: string
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            items:
-              $ref: '#/definitions/model.Booking'
-            type: array
+            $ref: '#/definitions/http.PaginatedResponse'
         "400":
           description: Bad Request
           schema:
