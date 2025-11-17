@@ -97,46 +97,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/business-units/admin-phone/{admin_phone}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "BusinessUnits"
-                ],
-                "summary": "Get business unit by admin phone",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Admin Phone Number",
-                        "name": "admin_phone",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/model.BusinessUnit"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/http.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/http.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/business-units/id/{id}": {
             "get": {
                 "produces": [
@@ -248,6 +208,50 @@ const docTemplate = `{
                         "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/http.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/business-units/phone/{phone}": {
+            "get": {
+                "description": "Returns all business units where the phone is either the admin or a maintainer",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "BusinessUnits"
+                ],
+                "summary": "Get business units by phone",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Phone Number",
+                        "name": "phone",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/model.BusinessUnit"
+                            }
                         }
                     },
                     "404": {

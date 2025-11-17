@@ -87,27 +87,28 @@ func (h *BusinessUnitHandler) GetByID(w http.ResponseWriter, r *http.Request, ps
 	}
 }
 
-// @Summary Get business unit by admin phone
+// @Summary Get business units by phone
+// @Description Returns all business units where the phone is either the admin or a maintainer
 // @Tags BusinessUnits
 // @Produce json
-// @Param admin_phone path string true "Admin Phone Number"
-// @Success 200 {object} model.BusinessUnit
+// @Param phone path string true "Phone Number"
+// @Success 200 {array} model.BusinessUnit
 // @Failure 404 {object} httputil.ErrorResponse
 // @Failure 500 {object} httputil.ErrorResponse
-// @Router /api/v1/business-units/admin-phone/{admin_phone} [get]
-func (h *BusinessUnitHandler) GetByAdminPhone(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	phone := ps.ByName("admin_phone")
+// @Router /api/v1/business-units/phone/{phone} [get]
+func (h *BusinessUnitHandler) GetByPhone(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	phone := ps.ByName("phone")
 
-	bu, err := h.service.GetByAdminPhone(r.Context(), phone)
+	units, err := h.service.GetByPhone(r.Context(), phone)
 	if err != nil {
 		if writeErr := httputil.WriteError(w, err); writeErr != nil {
-			h.log.Error("failed to write error response", "handler", "GetByID", "operation", "WriteError", "error", writeErr)
+			h.log.Error("failed to write error response", "handler", "GetByPhone", "operation", "WriteError", "error", writeErr)
 		}
 		return
 	}
 
-	if err := httputil.WriteSuccess(w, bu); err != nil {
-		h.log.Error("failed to write success response", "handler", "GetByID", "operation", "WriteSuccess", "error", err)
+	if err := httputil.WriteSuccess(w, units); err != nil {
+		h.log.Error("failed to write success response", "handler", "GetByPhone", "operation", "WriteSuccess", "error", err)
 	}
 }
 
@@ -284,6 +285,7 @@ func (h *BusinessUnitHandler) RegisterRoutes(router *httprouter.Router) {
 	router.POST("/api/v1/business-units", h.Create)
 	router.GET("/api/v1/business-units", h.GetAll)
 	router.GET("/api/v1/business-units/search", h.Search)
+	router.GET("/api/v1/business-units/phone/:phone", h.GetByPhone)
 	router.GET("/api/v1/business-units/id/:id", h.GetByID)
 	router.PATCH("/api/v1/business-units/id/:id", h.Update)
 	router.DELETE("/api/v1/business-units/id/:id", h.Delete)

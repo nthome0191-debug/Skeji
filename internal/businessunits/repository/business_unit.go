@@ -34,7 +34,7 @@ type BusinessUnitRepository interface {
 	Update(ctx context.Context, id string, bu *model.BusinessUnit) (*mongo.UpdateResult, error)
 	Delete(ctx context.Context, id string) error
 
-	FindByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
+	FindByPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
 	SearchByCityLabelPairs(ctx context.Context, pairs []string) ([]*model.BusinessUnit, error)
 	Count(ctx context.Context) (int64, error)
 
@@ -213,11 +213,16 @@ func (r *mongoBusinessUnitRepository) SearchByCityLabelPairs(ctx context.Context
 	return results, nil
 }
 
-func (r *mongoBusinessUnitRepository) FindByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {
+func (r *mongoBusinessUnitRepository) FindByPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
-	filter := bson.M{"admin_phone": phone}
+	filter := bson.M{
+		"$or": []bson.M{
+			{"admin_phone": phone},
+			{fmt.Sprintf("maintainers.%s", phone): bson.M{"$exists": true}},
+		},
+	}
 
 	cursor, err := r.collection.Find(ctx, filter, options.Find())
 	if err != nil {

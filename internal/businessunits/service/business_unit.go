@@ -24,7 +24,7 @@ type BusinessUnitService interface {
 	Update(ctx context.Context, id string, updates *model.BusinessUnitUpdate) error
 	Delete(ctx context.Context, id string) error
 
-	GetByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
+	GetByPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error)
 	Search(ctx context.Context, cities []string, labels []string) ([]*model.BusinessUnit, error)
 }
 
@@ -47,7 +47,7 @@ func NewBusinessUnitService(
 }
 
 func (s *businessUnitService) verifyDuplication(ctx context.Context, bu *model.BusinessUnit) error {
-	existing, err := s.repo.FindByAdminPhone(ctx, bu.AdminPhone)
+	existing, err := s.repo.FindByPhone(ctx, bu.AdminPhone)
 	if err != nil {
 		return fmt.Errorf("failed to check for duplicates: %w", err)
 	}
@@ -241,14 +241,14 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *businessUnitService) GetByAdminPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {
+func (s *businessUnitService) GetByPhone(ctx context.Context, phone string) ([]*model.BusinessUnit, error) {
 	if phone == "" {
-		return nil, apperrors.InvalidInput("Admin phone number cannot be empty")
+		return nil, apperrors.InvalidInput("Phone number cannot be empty")
 	}
 
-	units, err := s.repo.FindByAdminPhone(ctx, phone)
+	units, err := s.repo.FindByPhone(ctx, phone)
 	if err != nil {
-		s.cfg.Log.Error("Failed to get business units by admin phone",
+		s.cfg.Log.Error("Failed to get business units by phone",
 			"phone", phone,
 			"error", err,
 		)
@@ -325,7 +325,7 @@ func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
 	bu.Name = sanitizer.SanitizeNameOrAddress(bu.Name)
 	bu.Cities = sanitizer.SanitizeSlice(bu.Cities, sanitizer.SanitizeCityOrLabel)
 	bu.Labels = sanitizer.SanitizeSlice(bu.Labels, sanitizer.SanitizeCityOrLabel)
-	bu.Maintainers = sanitizer.SanitizeMaintainersMap(bu.Maintainers)
+	bu.Maintainers = sanitizer.SanitizeMaintainersMap(bu.Maintainers, bu.AdminPhone)
 	bu.WebsiteURLs = sanitizer.SanitizeSlice(bu.WebsiteURLs, sanitizer.SanitizeURL)
 	bu.Priority = sanitizer.SanitizePriority(s.cfg, bu.Priority)
 }

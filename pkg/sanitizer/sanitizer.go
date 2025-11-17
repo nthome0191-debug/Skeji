@@ -147,12 +147,14 @@ func SanitizeParticipantsMap(mp map[string]string) map[string]string {
 	)
 }
 
-func SanitizeMaintainersMap(mp map[string]string) map[string]string {
-	return SanitizeMap(
+func SanitizeMaintainersMap(mp map[string]string, ownerPhone string) map[string]string {
+	sanitized := SanitizeMap(
 		mp,
 		func(str string) string { return str },
 		SanitizeNameOrAddress,
 	)
+	delete(sanitized, ownerPhone)
+	return sanitized
 }
 
 func SanitizeMap(mp map[string]string, keySanitizer func(string) string, valSanitizer func(string) string) map[string]string {
