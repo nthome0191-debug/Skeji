@@ -1,3 +1,20 @@
+# ==============================================================================
+# Skeji Kafka Topics Configuration
+# ==============================================================================
+# This file defines all Kafka topics for the Skeji microservices architecture
+#
+# Message Flow:
+# WhatsApp → Gateway → Scrub Layer → LLM Layer → Pipeline Executor → Domain Services
+#                           ↓                                              ↓
+#                       Notifier ←────────────────────────────────────────┘
+# ==============================================================================
+
+---
+# ==============================================================================
+# INFRASTRUCTURE & PIPELINE TOPICS
+# ==============================================================================
+
+# Topic 1: Gateway ingress buffer (backpressure handling)
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
@@ -5,41 +22,18 @@ metadata:
   namespace: kafka
   labels:
     strimzi.io/cluster: skeji-kafka
+    layer: infrastructure
 spec:
-  partitions: 6
+  partitions: 12
   replicas: 3
   config:
     cleanup.policy: delete
-    retention.ms: 3600000
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
 ---
-apiVersion: kafka.strimzi.io/v1beta2
-kind: KafkaTopic
-metadata:
-  name: pipeline-executor-requests
-  namespace: kafka
-  labels:
-    strimzi.io/cluster: skeji-kafka
-spec:
-  partitions: 6
-  replicas: 3
-  config:
-    cleanup.policy: delete
-    retention.ms: 86400000
----
-apiVersion: kafka.strimzi.io/v1beta2
-kind: KafkaTopic
-metadata:
-  name: llm-requests
-  namespace: kafka
-  labels:
-    strimzi.io/cluster: skeji-kafka
-spec:
-  partitions: 6
-  replicas: 3
-  config:
-    cleanup.policy: delete
-    retention.ms: 86400000
----
+# Topic 2: Gateway to Scrub Layer
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
@@ -47,13 +41,18 @@ metadata:
   namespace: kafka
   labels:
     strimzi.io/cluster: skeji-kafka
+    layer: infrastructure
 spec:
   partitions: 6
   replicas: 3
   config:
     cleanup.policy: delete
-    retention.ms: 86400000
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
 ---
+# Topic 3: Scrub Layer to LLM Layer (enriched messages)
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
@@ -61,9 +60,300 @@ metadata:
   namespace: kafka
   labels:
     strimzi.io/cluster: skeji-kafka
+    layer: infrastructure
 spec:
   partitions: 6
   replicas: 3
   config:
     cleanup.policy: delete
-    retention.ms: 86400000
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# Topic 4: Scrub Layer to Notifier (declined/invalid messages)
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: scrub-layer-to-notifier
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: infrastructure
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# Topic 5: LLM Layer to Pipeline Executor (REST API sequences)
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: llm-to-pipeline-executor
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: infrastructure
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# ==============================================================================
+# DOMAIN SERVICE COMMAND TOPICS (Pipeline Executor → Domain Services)
+# ==============================================================================
+
+# Topic 6: Pipeline Executor to Business Units Service
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: pipeline-executor-to-business-units
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: domain
+    domain: business-units
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# Topic 7: Pipeline Executor to Schedules Service
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: pipeline-executor-to-schedules
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: domain
+    domain: schedules
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# Topic 8: Pipeline Executor to Bookings Service
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: pipeline-executor-to-bookings
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: domain
+    domain: bookings
+spec:
+  partitions: 12
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# ==============================================================================
+# DOMAIN SERVICE RESPONSE TOPICS (Domain Services → Pipeline Executor)
+# ==============================================================================
+
+# Topic 9: Business Units responses back to Pipeline Executor
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: business-units-to-pipeline-executor
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: domain
+    domain: business-units
+spec:
+  partitions: 3
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# Topic 10: Schedules responses back to Pipeline Executor
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: schedules-to-pipeline-executor
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: domain
+    domain: schedules
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# Topic 11: Bookings responses back to Pipeline Executor
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: bookings-to-pipeline-executor
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: domain
+    domain: bookings
+spec:
+  partitions: 12
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# ==============================================================================
+# NOTIFICATION TOPICS
+# ==============================================================================
+
+# Topic 12: Pipeline Executor to Notifier (final responses to users)
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: pipeline-executor-to-notifier
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: infrastructure
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# Topic 13: Domain Events to Notifier (approvals, reminders, etc.)
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: domain-events-to-notifier
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: domain
+spec:
+  partitions: 6
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# ==============================================================================
+# DEAD LETTER QUEUES (DLQs)
+# ==============================================================================
+
+# Topic 14: DLQ for Scrub Layer failures
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: dlq-scrub-layer
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: dlq
+spec:
+  partitions: 1
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# Topic 15: DLQ for LLM Layer failures
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: dlq-llm-layer
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: dlq
+spec:
+  partitions: 1
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# Topic 16: DLQ for Pipeline Executor failures
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: dlq-pipeline-executor
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: dlq
+spec:
+  partitions: 1
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
+
+---
+# Topic 17: DLQ for Domain Services failures
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: dlq-domain-services
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: skeji-kafka
+    layer: dlq
+spec:
+  partitions: 1
+  replicas: 3
+  config:
+    cleanup.policy: delete
+    retention.ms: 1800000  # 30 min in ms
+    compression.type: snappy
+    min.insync.replicas: 2
