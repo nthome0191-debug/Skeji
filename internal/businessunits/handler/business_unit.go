@@ -68,6 +68,22 @@ func (h *BusinessUnitHandler) GetByID(w http.ResponseWriter, r *http.Request, ps
 	}
 }
 
+func (h *BusinessUnitHandler) GetByAdminPhone(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	phone := ps.ByName("admin_phone")
+
+	bu, err := h.service.GetByAdminPhone(r.Context(), phone)
+	if err != nil {
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "GetByID", "operation", "WriteError", "error", writeErr)
+		}
+		return
+	}
+
+	if err := httputil.WriteSuccess(w, bu); err != nil {
+		h.log.Error("failed to write success response", "handler", "GetByID", "operation", "WriteSuccess", "error", err)
+	}
+}
+
 func (h *BusinessUnitHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
 
