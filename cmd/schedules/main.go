@@ -11,6 +11,10 @@ import (
 
 const ServiceName = "schedules"
 
+// @title Skeji Schedules API
+// @version 1.0
+// @description API documentation for the Schedules microservice.
+// @BasePath /
 func main() {
 	cfg := config.Load(ServiceName)
 

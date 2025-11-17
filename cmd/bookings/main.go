@@ -11,6 +11,10 @@ import (
 
 const ServiceName = "bookings"
 
+// @title Skeji Bookings API
+// @version 1.0
+// @description API documentation for the Bookings microservice.
+// @BasePath /
 func main() {
 	cfg := config.Load(ServiceName)
 

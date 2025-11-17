@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
+	httpSwagger "github.com/swaggo/http-swagger"
 
+	_ "skeji/internal/businessunits/docs" // Import generated swagger docs
 	"skeji/internal/businessunits/service"
 	"skeji/pkg/config"
 	apperrors "skeji/pkg/errors"
@@ -29,6 +31,15 @@ func NewBusinessUnitHandler(service service.BusinessUnitService, log *logger.Log
 	}
 }
 
+// @Summary Create a new business unit
+// @Tags BusinessUnits
+// @Accept json
+// @Produce json
+// @Param business_unit body model.BusinessUnit true "Business unit data"
+// @Success 201 {object} model.BusinessUnit
+// @Failure 400 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/business-units [post]
 func (h *BusinessUnitHandler) Create(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var bu model.BusinessUnit
 	if err := json.NewDecoder(r.Body).Decode(&bu); err != nil {
@@ -52,6 +63,14 @@ func (h *BusinessUnitHandler) Create(w http.ResponseWriter, r *http.Request, _ h
 	}
 }
 
+// @Summary Get business unit by ID
+// @Tags BusinessUnits
+// @Produce json
+// @Param id path string true "Business Unit ID"
+// @Success 200 {object} model.BusinessUnit
+// @Failure 404 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/business-units/id/{id} [get]
 func (h *BusinessUnitHandler) GetByID(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 
@@ -68,6 +87,14 @@ func (h *BusinessUnitHandler) GetByID(w http.ResponseWriter, r *http.Request, ps
 	}
 }
 
+// @Summary Get business unit by admin phone
+// @Tags BusinessUnits
+// @Produce json
+// @Param admin_phone path string true "Admin Phone Number"
+// @Success 200 {object} model.BusinessUnit
+// @Failure 404 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/business-units/admin-phone/{admin_phone} [get]
 func (h *BusinessUnitHandler) GetByAdminPhone(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	phone := ps.ByName("admin_phone")
 
@@ -84,6 +111,14 @@ func (h *BusinessUnitHandler) GetByAdminPhone(w http.ResponseWriter, r *http.Req
 	}
 }
 
+// @Summary Get all business units
+// @Tags BusinessUnits
+// @Produce json
+// @Param limit query int false "Limit"
+// @Param offset query int false "Offset"
+// @Success 200 {object} httputil.PaginatedResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/business-units [get]
 func (h *BusinessUnitHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
 
@@ -127,6 +162,17 @@ func (h *BusinessUnitHandler) GetAll(w http.ResponseWriter, r *http.Request, _ h
 	}
 }
 
+// @Summary Update business unit
+// @Tags BusinessUnits
+// @Accept json
+// @Produce json
+// @Param id path string true "Business Unit ID"
+// @Param business_unit body model.BusinessUnitUpdate true "Business unit update"
+// @Success 204 "No Content"
+// @Failure 400 {object} httputil.ErrorResponse
+// @Failure 404 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/business-units/id/{id} [patch]
 func (h *BusinessUnitHandler) Update(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 
@@ -150,6 +196,14 @@ func (h *BusinessUnitHandler) Update(w http.ResponseWriter, r *http.Request, ps 
 	httputil.WriteNoContent(w)
 }
 
+// @Summary Delete business unit
+// @Tags BusinessUnits
+// @Produce json
+// @Param id path string true "Business Unit ID"
+// @Success 204 "No Content"
+// @Failure 404 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/business-units/id/{id} [delete]
 func (h *BusinessUnitHandler) Delete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 
@@ -163,6 +217,15 @@ func (h *BusinessUnitHandler) Delete(w http.ResponseWriter, r *http.Request, ps 
 	httputil.WriteNoContent(w)
 }
 
+// @Summary Search business units by cities and labels
+// @Tags BusinessUnits
+// @Produce json
+// @Param cities query string true "Comma-separated cities"
+// @Param labels query string true "Comma-separated labels"
+// @Success 200 {array} model.BusinessUnit
+// @Failure 400 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/business-units/search [get]
 func (h *BusinessUnitHandler) Search(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
 	citiesParam := query.Get("cities")
@@ -214,6 +277,10 @@ func splitAndTrim(param string) []string {
 }
 
 func (h *BusinessUnitHandler) RegisterRoutes(router *httprouter.Router) {
+	// Swagger UI routes
+	router.Handler("GET", "/swagger/*any", httpSwagger.WrapHandler)
+
+	// API routes
 	router.POST("/api/v1/business-units", h.Create)
 	router.GET("/api/v1/business-units", h.GetAll)
 	router.GET("/api/v1/business-units/search", h.Search)

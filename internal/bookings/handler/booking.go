@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	_ "skeji/internal/bookings/docs" // Import generated swagger docs
 	"skeji/internal/bookings/service"
 	"skeji/pkg/config"
 	apperrors "skeji/pkg/errors"
@@ -16,7 +17,10 @@ import (
 	"skeji/pkg/model"
 
 	"github.com/julienschmidt/httprouter"
+	httpSwagger "github.com/swaggo/http-swagger"
 )
+
+var _ = httputil.ErrorResponse{}
 
 type BookingHandler struct {
 	service service.BookingService
@@ -30,6 +34,15 @@ func NewBookingHandler(service service.BookingService, log *logger.Logger) *Book
 	}
 }
 
+// @Summary Create a new booking
+// @Tags Bookings
+// @Accept json
+// @Produce json
+// @Param booking body model.Booking true "Booking data"
+// @Success 201 {object} model.Booking
+// @Failure 400 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/bookings [post]
 func (h *BookingHandler) Create(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var booking model.Booking
 	if err := json.NewDecoder(r.Body).Decode(&booking); err != nil {
@@ -53,6 +66,14 @@ func (h *BookingHandler) Create(w http.ResponseWriter, r *http.Request, _ httpro
 	}
 }
 
+// @Summary Get booking by ID
+// @Tags Bookings
+// @Produce json
+// @Param id path string true "Booking ID"
+// @Success 200 {object} model.Booking
+// @Failure 404 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/bookings/id/{id} [get]
 func (h *BookingHandler) GetByID(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 
@@ -69,6 +90,14 @@ func (h *BookingHandler) GetByID(w http.ResponseWriter, r *http.Request, ps http
 	}
 }
 
+// @Summary Get all bookings
+// @Tags Bookings
+// @Produce json
+// @Param limit query int false "Limit"
+// @Param offset query int false "Offset"
+// @Success 200 {object} httputil.PaginatedResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/bookings [get]
 func (h *BookingHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
 
@@ -112,6 +141,17 @@ func (h *BookingHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httpro
 	}
 }
 
+// @Summary Update booking
+// @Tags Bookings
+// @Accept json
+// @Produce json
+// @Param id path string true "Booking ID"
+// @Param booking body model.BookingUpdate true "Booking update"
+// @Success 204 "No Content"
+// @Failure 400 {object} httputil.ErrorResponse
+// @Failure 404 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/bookings/id/{id} [patch]
 func (h *BookingHandler) Update(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 
@@ -135,6 +175,14 @@ func (h *BookingHandler) Update(w http.ResponseWriter, r *http.Request, ps httpr
 	httputil.WriteNoContent(w)
 }
 
+// @Summary Delete booking
+// @Tags Bookings
+// @Produce json
+// @Param id path string true "Booking ID"
+// @Success 204 "No Content"
+// @Failure 404 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/bookings/id/{id} [delete]
 func (h *BookingHandler) Delete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 
@@ -148,6 +196,17 @@ func (h *BookingHandler) Delete(w http.ResponseWriter, r *http.Request, ps httpr
 	httputil.WriteNoContent(w)
 }
 
+// @Summary Search bookings by business, schedule, and time range
+// @Tags Bookings
+// @Produce json
+// @Param business_id query string true "Business ID"
+// @Param schedule_id query string true "Schedule ID"
+// @Param start_time query string false "Start time (RFC3339)"
+// @Param end_time query string false "End time (RFC3339)"
+// @Success 200 {array} model.Booking
+// @Failure 400 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/bookings/search [get]
 func (h *BookingHandler) Search(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
 	businessID := query.Get("business_id")
@@ -203,11 +262,14 @@ func (h *BookingHandler) Search(w http.ResponseWriter, r *http.Request, _ httpro
 }
 
 func (h *BookingHandler) RegisterRoutes(router *httprouter.Router) {
+	// Swagger UI routes
+	router.Handler("GET", "/swagger/*any", httpSwagger.WrapHandler)
+
+	// API routes
 	router.POST("/api/v1/bookings", h.Create)
 	router.GET("/api/v1/bookings", h.GetAll)
 	router.GET("/api/v1/bookings/search", h.Search)
 	router.GET("/api/v1/bookings/id/:id", h.GetByID)
 	router.PATCH("/api/v1/bookings/id/:id", h.Update)
 	router.DELETE("/api/v1/bookings/id/:id", h.Delete)
-
 }

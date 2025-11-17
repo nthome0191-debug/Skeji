@@ -1,0 +1,302 @@
+basePath: /
+definitions:
+  http.ErrorResponse:
+    properties:
+      details:
+        additionalProperties: {}
+        type: object
+      error:
+        type: string
+    type: object
+  http.PaginatedResponse:
+    properties:
+      data: {}
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total_count:
+        type: integer
+    type: object
+  model.Schedule:
+    properties:
+      address:
+        maxLength: 200
+        minLength: 2
+        type: string
+      business_id:
+        type: string
+      city:
+        maxLength: 100
+        minLength: 2
+        type: string
+      created_at:
+        type: string
+      default_break_duration_min:
+        maximum: 480
+        minimum: 0
+        type: integer
+      default_meeting_duration_min:
+        maximum: 480
+        minimum: 5
+        type: integer
+      end_of_day:
+        type: string
+      exceptions:
+        items:
+          type: string
+        maxItems: 10
+        type: array
+      id:
+        type: string
+      max_participants_per_slot:
+        maximum: 200
+        minimum: 1
+        type: integer
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      start_of_day:
+        type: string
+      time_zone:
+        type: string
+      working_days:
+        items:
+          type: string
+        maxItems: 7
+        minItems: 1
+        type: array
+    required:
+    - address
+    - business_id
+    - city
+    - default_break_duration_min
+    - default_meeting_duration_min
+    - end_of_day
+    - max_participants_per_slot
+    - name
+    - start_of_day
+    - time_zone
+    - working_days
+    type: object
+  model.ScheduleUpdate:
+    properties:
+      address:
+        maxLength: 200
+        minLength: 2
+        type: string
+      city:
+        maxLength: 100
+        minLength: 2
+        type: string
+      default_break_duration_min:
+        maximum: 480
+        minimum: 0
+        type: integer
+      default_meeting_duration_min:
+        maximum: 480
+        minimum: 5
+        type: integer
+      end_of_day:
+        type: string
+      exceptions:
+        items:
+          type: string
+        maxItems: 10
+        type: array
+      max_participants_per_slot:
+        maximum: 200
+        minimum: 1
+        type: integer
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      start_of_day:
+        type: string
+      time_zone:
+        type: string
+      working_days:
+        items:
+          type: string
+        maxItems: 7
+        minItems: 1
+        type: array
+    type: object
+info:
+  contact: {}
+  description: API documentation for the Schedules microservice.
+  title: Skeji Schedules API
+  version: "1.0"
+paths:
+  /api/v1/schedules:
+    get:
+      parameters:
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.PaginatedResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Get all schedules
+      tags:
+      - Schedules
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Schedule data
+        in: body
+        name: schedule
+        required: true
+        schema:
+          $ref: '#/definitions/model.Schedule'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Schedule'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Create a new schedule
+      tags:
+      - Schedules
+  /api/v1/schedules/id/{id}:
+    delete:
+      parameters:
+      - description: Schedule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Delete schedule
+      tags:
+      - Schedules
+    get:
+      parameters:
+      - description: Schedule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Schedule'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Get schedule by ID
+      tags:
+      - Schedules
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Schedule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Schedule update
+        in: body
+        name: schedule
+        required: true
+        schema:
+          $ref: '#/definitions/model.ScheduleUpdate'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Update schedule
+      tags:
+      - Schedules
+  /api/v1/schedules/search:
+    get:
+      parameters:
+      - description: Business ID
+        in: query
+        name: business_id
+        required: true
+        type: string
+      - description: City
+        in: query
+        name: city
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Schedule'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Search schedules by business and city
+      tags:
+      - Schedules
+swagger: "2.0"

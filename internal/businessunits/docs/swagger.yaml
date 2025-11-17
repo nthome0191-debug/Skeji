@@ -1,0 +1,305 @@
+basePath: /
+definitions:
+  http.ErrorResponse:
+    properties:
+      details:
+        additionalProperties: {}
+        type: object
+      error:
+        type: string
+    type: object
+  http.PaginatedResponse:
+    properties:
+      data: {}
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total_count:
+        type: integer
+    type: object
+  model.BusinessUnit:
+    properties:
+      admin_phone:
+        type: string
+      cities:
+        items:
+          type: string
+        maxItems: 50
+        minItems: 1
+        type: array
+      created_at:
+        type: string
+      id:
+        type: string
+      labels:
+        items:
+          type: string
+        maxItems: 10
+        minItems: 1
+        type: array
+      maintainers:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      priority:
+        minimum: 0
+        type: integer
+      time_zone:
+        type: string
+      website_urls:
+        items:
+          type: string
+        maxItems: 5
+        type: array
+    required:
+    - admin_phone
+    - cities
+    - labels
+    - name
+    type: object
+  model.BusinessUnitUpdate:
+    properties:
+      admin_phone:
+        type: string
+      cities:
+        items:
+          type: string
+        maxItems: 50
+        minItems: 1
+        type: array
+      labels:
+        items:
+          type: string
+        maxItems: 10
+        minItems: 1
+        type: array
+      maintainers:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        maxLength: 100
+        minLength: 2
+        type: string
+      priority:
+        minimum: 0
+        type: integer
+      time_zone:
+        type: string
+      website_urls:
+        items:
+          type: string
+        maxItems: 5
+        type: array
+    required:
+    - cities
+    - labels
+    type: object
+info:
+  contact: {}
+  description: API documentation for the Business Units microservice.
+  title: Skeji Business Units API
+  version: "1.0"
+paths:
+  /api/v1/business-units:
+    get:
+      parameters:
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.PaginatedResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Get all business units
+      tags:
+      - BusinessUnits
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Business unit data
+        in: body
+        name: business_unit
+        required: true
+        schema:
+          $ref: '#/definitions/model.BusinessUnit'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.BusinessUnit'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Create a new business unit
+      tags:
+      - BusinessUnits
+  /api/v1/business-units/admin-phone/{admin_phone}:
+    get:
+      parameters:
+      - description: Admin Phone Number
+        in: path
+        name: admin_phone
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.BusinessUnit'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Get business unit by admin phone
+      tags:
+      - BusinessUnits
+  /api/v1/business-units/id/{id}:
+    delete:
+      parameters:
+      - description: Business Unit ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Delete business unit
+      tags:
+      - BusinessUnits
+    get:
+      parameters:
+      - description: Business Unit ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.BusinessUnit'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Get business unit by ID
+      tags:
+      - BusinessUnits
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Business Unit ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Business unit update
+        in: body
+        name: business_unit
+        required: true
+        schema:
+          $ref: '#/definitions/model.BusinessUnitUpdate'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Update business unit
+      tags:
+      - BusinessUnits
+  /api/v1/business-units/search:
+    get:
+      parameters:
+      - description: Comma-separated cities
+        in: query
+        name: cities
+        required: true
+        type: string
+      - description: Comma-separated labels
+        in: query
+        name: labels
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.BusinessUnit'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Search business units by cities and labels
+      tags:
+      - BusinessUnits
+swagger: "2.0"

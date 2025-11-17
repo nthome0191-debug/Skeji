@@ -17,7 +17,11 @@
 	test-integration-bookings \
 	test-integration-app-verbose-bookings \
 # 	test-integration-notifications \
-# 	test-integration-app-verbose-notifications
+# 	test-integration-app-verbose-notifications \
+	swagger \
+	swagger-schedules \
+	swagger-businessunits \
+	swagger-all
 
 # === Local Environment =======================================================
 
@@ -48,17 +52,17 @@ migrate:
 
 business-units-up:
 	@echo "🏢 Deploying Business Units service..."
-	bash deployment/local/business-units/setup.sh
+	go run cmd/business-units/main.go
 	@echo "✅ Business Units service deployed successfully."
 
 schedules-up:
 	@echo "📅 Deploying Schedules service..."
-	bash deployment/local/schedules/setup.sh
+	go run cmd/schedules/main.go
 	@echo "✅ Schedules service deployed successfully."
 
 bookings-up:
 	@echo "📘 Deploying Bookings service..."
-	bash deployment/local/bookings/setup.sh
+	go run cmd/bookings/main.go
 	@echo "✅ Bookings service deployed successfully."
 
 # notifications-up:
@@ -122,3 +126,36 @@ test-integration-app-verbose-bookings:
 # test-integration-app-verbose-notifications:
 # 	@echo "🧪 Running integration tests (verbose) for Notifications app..."
 # 	bash test/scripts/run-app-and-tests.sh notifications --verbose
+
+# === Dev Tools =======================================================
+swagger:
+	cd internal/bookings && swag init \
+		--generalInfo ../../cmd/bookings/main.go \
+		--dir ./ \
+		--output docs \
+		--parseDependency \
+		--parseInternal
+
+swagger-schedules:
+	cd internal/schedules && swag init \
+		--generalInfo ../../cmd/schedules/main.go \
+		--dir ./ \
+		--output docs \
+		--parseDependency \
+		--parseInternal
+
+swagger-businessunits:
+	cd internal/businessunits && swag init \
+		--generalInfo ../../cmd/business-units/main.go \
+		--dir ./ \
+		--output docs \
+		--parseDependency \
+		--parseInternal
+
+swagger-all:
+	@echo "📚 Generating Swagger documentation for all services..."
+	make swagger
+	make swagger-schedules
+	make swagger-businessunits
+	@echo "✅ All Swagger docs generated successfully."
+

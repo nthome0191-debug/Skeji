@@ -11,6 +11,10 @@ import (
 
 const ServiceName = "business-units"
 
+// @title Skeji Business Units API
+// @version 1.0
+// @description API documentation for the Business Units microservice.
+// @BasePath /
 func main() {
 	cfg := config.Load(ServiceName)
 

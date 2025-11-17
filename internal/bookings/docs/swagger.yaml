@@ -1,0 +1,280 @@
+basePath: /
+definitions:
+  http.ErrorResponse:
+    properties:
+      details:
+        additionalProperties: {}
+        type: object
+      error:
+        type: string
+    type: object
+  http.PaginatedResponse:
+    properties:
+      data: {}
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total_count:
+        type: integer
+    type: object
+  model.Booking:
+    properties:
+      business_id:
+        type: string
+      capacity:
+        maximum: 200
+        minimum: 1
+        type: integer
+      created_at:
+        type: string
+      end_time:
+        type: string
+      id:
+        type: string
+      managed_by:
+        additionalProperties:
+          type: string
+        type: object
+      participants:
+        additionalProperties:
+          type: string
+        type: object
+      schedule_id:
+        type: string
+      service_label:
+        maxLength: 100
+        minLength: 2
+        type: string
+      start_time:
+        type: string
+      status:
+        enum:
+        - pending
+        - confirmed
+        - cancelled
+        type: string
+    required:
+    - business_id
+    - capacity
+    - end_time
+    - managed_by
+    - schedule_id
+    - service_label
+    - start_time
+    - status
+    type: object
+  model.BookingUpdate:
+    properties:
+      capacity:
+        maximum: 200
+        minimum: 1
+        type: integer
+      end_time:
+        type: string
+      managed_by:
+        additionalProperties:
+          type: string
+        type: object
+      participants:
+        additionalProperties:
+          type: string
+        type: object
+      service_label:
+        maxLength: 100
+        minLength: 2
+        type: string
+      start_time:
+        type: string
+      status:
+        enum:
+        - pending
+        - confirmed
+        - cancelled
+        type: string
+    type: object
+info:
+  contact: {}
+  description: API documentation for the Bookings microservice.
+  title: Skeji Bookings API
+  version: "1.0"
+paths:
+  /api/v1/bookings:
+    get:
+      parameters:
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.PaginatedResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Get all bookings
+      tags:
+      - Bookings
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Booking data
+        in: body
+        name: booking
+        required: true
+        schema:
+          $ref: '#/definitions/model.Booking'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/model.Booking'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Create a new booking
+      tags:
+      - Bookings
+  /api/v1/bookings/id/{id}:
+    delete:
+      parameters:
+      - description: Booking ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Delete booking
+      tags:
+      - Bookings
+    get:
+      parameters:
+      - description: Booking ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/model.Booking'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Get booking by ID
+      tags:
+      - Bookings
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: Booking ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Booking update
+        in: body
+        name: booking
+        required: true
+        schema:
+          $ref: '#/definitions/model.BookingUpdate'
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Update booking
+      tags:
+      - Bookings
+  /api/v1/bookings/search:
+    get:
+      parameters:
+      - description: Business ID
+        in: query
+        name: business_id
+        required: true
+        type: string
+      - description: Schedule ID
+        in: query
+        name: schedule_id
+        required: true
+        type: string
+      - description: Start time (RFC3339)
+        in: query
+        name: start_time
+        type: string
+      - description: End time (RFC3339)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/model.Booking'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/http.ErrorResponse'
+      summary: Search bookings by business, schedule, and time range
+      tags:
+      - Bookings
+swagger: "2.0"

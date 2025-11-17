@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
+	httpSwagger "github.com/swaggo/http-swagger"
 
+	_ "skeji/internal/schedules/docs" // Import generated swagger docs
 	"skeji/internal/schedules/service"
 	"skeji/pkg/config"
 	apperrors "skeji/pkg/errors"
@@ -29,6 +31,15 @@ func NewScheduleHandler(service service.ScheduleService, log *logger.Logger) *Sc
 	}
 }
 
+// @Summary Create a new schedule
+// @Tags Schedules
+// @Accept json
+// @Produce json
+// @Param schedule body model.Schedule true "Schedule data"
+// @Success 201 {object} model.Schedule
+// @Failure 400 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/schedules [post]
 func (h *ScheduleHandler) Create(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	var sc model.Schedule
 	if err := json.NewDecoder(r.Body).Decode(&sc); err != nil {
@@ -52,6 +63,14 @@ func (h *ScheduleHandler) Create(w http.ResponseWriter, r *http.Request, _ httpr
 	}
 }
 
+// @Summary Get schedule by ID
+// @Tags Schedules
+// @Produce json
+// @Param id path string true "Schedule ID"
+// @Success 200 {object} model.Schedule
+// @Failure 404 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/schedules/id/{id} [get]
 func (h *ScheduleHandler) GetByID(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	if id == "" {
@@ -76,6 +95,14 @@ func (h *ScheduleHandler) GetByID(w http.ResponseWriter, r *http.Request, ps htt
 	}
 }
 
+// @Summary Get all schedules
+// @Tags Schedules
+// @Produce json
+// @Param limit query int false "Limit"
+// @Param offset query int false "Offset"
+// @Success 200 {object} httputil.PaginatedResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/schedules [get]
 func (h *ScheduleHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
 
@@ -119,6 +146,17 @@ func (h *ScheduleHandler) GetAll(w http.ResponseWriter, r *http.Request, _ httpr
 	}
 }
 
+// @Summary Update schedule
+// @Tags Schedules
+// @Accept json
+// @Produce json
+// @Param id path string true "Schedule ID"
+// @Param schedule body model.ScheduleUpdate true "Schedule update"
+// @Success 204 "No Content"
+// @Failure 400 {object} httputil.ErrorResponse
+// @Failure 404 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/schedules/id/{id} [patch]
 func (h *ScheduleHandler) Update(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	if id == "" {
@@ -150,6 +188,14 @@ func (h *ScheduleHandler) Update(w http.ResponseWriter, r *http.Request, ps http
 	httputil.WriteNoContent(w)
 }
 
+// @Summary Delete schedule
+// @Tags Schedules
+// @Produce json
+// @Param id path string true "Schedule ID"
+// @Success 204 "No Content"
+// @Failure 404 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/schedules/id/{id} [delete]
 func (h *ScheduleHandler) Delete(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 	if id == "" {
@@ -171,6 +217,15 @@ func (h *ScheduleHandler) Delete(w http.ResponseWriter, r *http.Request, ps http
 	httputil.WriteNoContent(w)
 }
 
+// @Summary Search schedules by business and city
+// @Tags Schedules
+// @Produce json
+// @Param business_id query string true "Business ID"
+// @Param city query string false "City"
+// @Success 200 {array} model.Schedule
+// @Failure 400 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/schedules/search [get]
 func (h *ScheduleHandler) Search(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
 	businessID := strings.TrimSpace(query.Get("business_id"))
@@ -199,6 +254,10 @@ func (h *ScheduleHandler) Search(w http.ResponseWriter, r *http.Request, _ httpr
 }
 
 func (h *ScheduleHandler) RegisterRoutes(router *httprouter.Router) {
+	// Swagger UI routes
+	router.Handler("GET", "/swagger/*any", httpSwagger.WrapHandler)
+
+	// API routes
 	router.POST("/api/v1/schedules", h.Create)
 	router.GET("/api/v1/schedules", h.GetAll)
 	router.GET("/api/v1/schedules/search", h.Search)
