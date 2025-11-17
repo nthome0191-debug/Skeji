@@ -8,7 +8,7 @@ type BusinessUnit struct {
 	Cities         []string          `json:"cities" bson:"cities" validate:"required,min=1,max=50,required"`
 	Labels         []string          `json:"labels" bson:"labels" validate:"required,min=1,max=10,required"`
 	AdminPhone     string            `json:"admin_phone" bson:"admin_phone" validate:"required,e164,supported_country,valid_phone"`
-	Maintainers    map[string]string `json:"maintainers,omitempty" bson:"maintainers" validate:"omitempty,participants_map"`
+	Maintainers    map[string]string `json:"maintainers,omitempty" bson:"maintainers" validate:"omitempty,maintainers_map"`
 	Priority       int64             `json:"priority,omitempty" bson:"priority" validate:"omitempty,min=0"`
 	TimeZone       string            `json:"time_zone,omitempty" bson:"time_zone" validate:"omitempty,timezone"`
 	WebsiteURLs    []string          `json:"website_urls,omitempty" bson:"website_urls,omitempty" validate:"omitempty,max=5,dive,valid_url"`
@@ -21,7 +21,7 @@ type BusinessUnitUpdate struct {
 	Cities         []string           `json:"cities,omitempty" validate:"omitempty,min=1,max=50,required"`
 	Labels         []string           `json:"labels,omitempty" validate:"omitempty,min=1,max=10,required"`
 	AdminPhone     string             `json:"admin_phone,omitempty" validate:"omitempty,e164,supported_country,valid_phone"`
-	Maintainers    *map[string]string `json:"maintainers,omitempty" validate:"omitempty,participants_map"`
+	Maintainers    *map[string]string `json:"maintainers,omitempty" validate:"omitempty,maintainers_map"`
 	Priority       *int64             `json:"priority,omitempty" validate:"omitempty,min=0"`
 	TimeZone       string             `json:"time_zone,omitempty" validate:"omitempty,timezone"`
 	WebsiteURLs    *[]string          `json:"website_urls,omitempty" validate:"omitempty,max=5,dive,valid_url"`

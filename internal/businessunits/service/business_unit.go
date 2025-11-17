@@ -325,7 +325,7 @@ func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
 	bu.Name = sanitizer.SanitizeNameOrAddress(bu.Name)
 	bu.Cities = sanitizer.SanitizeSlice(bu.Cities, sanitizer.SanitizeCityOrLabel)
 	bu.Labels = sanitizer.SanitizeSlice(bu.Labels, sanitizer.SanitizeCityOrLabel)
-	bu.Maintainers = sanitizer.SanitizeParticipantsMap(bu.Maintainers)
+	bu.Maintainers = sanitizer.SanitizeMaintainersMap(bu.Maintainers)
 	bu.WebsiteURLs = sanitizer.SanitizeSlice(bu.WebsiteURLs, sanitizer.SanitizeURL)
 	bu.Priority = sanitizer.SanitizePriority(s.cfg, bu.Priority)
 }

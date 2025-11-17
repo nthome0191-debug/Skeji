@@ -73,6 +73,12 @@ func NewBusinessUnitValidator(log *logger.Logger) *BusinessUnitValidator {
 		)
 	}
 
+	if err := v.RegisterValidation("maintainers_map", validateMaintainersMap); err != nil {
+		log.Fatal("Failed to register 'maintainers_map' validator",
+			"error", err,
+		)
+	}
+
 	log.Info("Business unit validator initialized successfully")
 
 	return &BusinessUnitValidator{
@@ -109,32 +115,35 @@ func validateSupportedTimeZone(tz string) bool {
 }
 
 func validateParticipantsMap(fl validator.FieldLevel) bool {
-	value := fl.Field()
+	return validateMap(fl, func(key string) bool { return true }, phoneRegex.MatchString)
+}
 
+func validateMaintainersMap(fl validator.FieldLevel) bool {
+	return validateMap(fl, phoneRegex.MatchString, func(key string) bool { return true })
+}
+
+func validateMap(fl validator.FieldLevel, keyValidator func(string) bool, valValidator func(string) bool) bool {
+	value := fl.Field()
 	if value.IsNil() {
 		return true
 	}
-
-	participants, ok := value.Interface().(map[string]string)
+	mp, ok := value.Interface().(map[string]string)
 	if !ok {
 		return false
 	}
 
-	n := len(participants)
+	n := len(mp)
 	if n == 0 {
 		return true
 	}
-
 	if n < 1 || n > 200 {
 		return false
 	}
-
-	for name, phone := range participants {
-		if phone == "" || name == "" || !phoneRegex.MatchString(phone) {
+	for k, v := range mp {
+		if k == "" || v == "" || !keyValidator(k) || !valValidator(v) {
 			return false
 		}
 	}
-
 	return true
 }
 

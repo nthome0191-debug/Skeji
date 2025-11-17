@@ -140,10 +140,25 @@ func SanitizeURL(input string) string {
 }
 
 func SanitizeParticipantsMap(mp map[string]string) map[string]string {
+	return SanitizeMap(
+		mp,
+		SanitizeNameOrAddress,
+		func(str string) string { return str },
+	)
+}
+
+func SanitizeMaintainersMap(mp map[string]string) map[string]string {
+	return SanitizeMap(
+		mp,
+		func(str string) string { return str },
+		SanitizeNameOrAddress,
+	)
+}
+
+func SanitizeMap(mp map[string]string, keySanitizer func(string) string, valSanitizer func(string) string) map[string]string {
 	normalized := map[string]string{}
-	for name, phone := range mp {
-		name = SanitizeNameOrAddress(name)
-		normalized[name] = phone
+	for k, v := range mp {
+		normalized[keySanitizer(k)] = valSanitizer(v)
 	}
 	return normalized
 }

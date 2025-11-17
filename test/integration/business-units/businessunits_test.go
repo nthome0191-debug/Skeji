@@ -584,7 +584,7 @@ func testPostWithWebsiteURL(t *testing.T) {
 func testPostWithMaintainers(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Maintainers Test", "+97252333944")
-	bu["maintainers"] = map[string]string{"lala": "+97254111133", "lele": "+97254222233"}
+	bu["maintainers"] = map[string]string{"+97254111133": "lala", "+97254222233": "lele"}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
@@ -595,7 +595,7 @@ func testPostWithMaintainers(t *testing.T) {
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
 	bu2 := createValidBusinessUnit("Invalid Maintainer Test", "+972523340")
-	bu2["maintainers"] = map[string]string{"lala": "not-a-phone", "lele": "+97254222233"}
+	bu2["maintainers"] = map[string]string{"not-a-phone": "lala", "+97254222233": "lele"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
 	common.AssertStatusCode(t, resp, 422)
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
@@ -926,7 +926,7 @@ func testUpdateMaintainers(t *testing.T) {
 	created := decodeBusinessUnit(t, createResp)
 
 	updates := map[string]any{
-		"maintainers": map[string]string{"baba": "+972543333333", "yababa": "+972544444444"},
+		"maintainers": map[string]string{"+972543333333": "baba", "+972544444444": "yababa"},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
 	common.AssertStatusCode(t, resp, 204)
@@ -1245,7 +1245,7 @@ func testUpdateClearOptionalFields(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Clear Fields Test", "+972523368")
 	bu["website_urls"] = []string{"https://example.com"}
-	bu["maintainers"] = map[string]string{"shalom": "+972541111111"}
+	bu["maintainers"] = map[string]string{"+972541111111": "shalom"}
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
@@ -1727,7 +1727,7 @@ func testMaintainersEdgeCases(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
 	bu2 := createValidBusinessUnit("Duplicate Maintainers", "+972502000011")
-	bu2["maintainers"] = map[string]string{"sh": "+972541111111", "mma": "+972542222222"}
+	bu2["maintainers"] = map[string]string{"+972541111111": "sh", "+972542222222": "mma"}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu2)
 	common.AssertStatusCode(t, resp, 201)
 	created2 := decodeBusinessUnit(t, resp)
@@ -1737,7 +1737,7 @@ func testMaintainersEdgeCases(t *testing.T) {
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created2.ID))
 
 	bu3 := createValidBusinessUnit("Admin As Maintainer", "+972502000012")
-	bu3["maintainers"] = map[string]string{"ya": "+972502000012", "da": "+972541111111"}
+	bu3["maintainers"] = map[string]string{"+972502000012": "ya", "+972541111111": "da"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
 	common.AssertStatusCode(t, resp, 201)
 	created3 := decodeBusinessUnit(t, resp)
@@ -2019,7 +2019,7 @@ func testMaintainersMaxLimit(t *testing.T) {
 	// Try to add maximum number of maintainers
 	maintainers := make(map[string]string)
 	for i := 0; i < 100; i++ {
-		maintainers[fmt.Sprintf("Maintainer%d", i)] = fmt.Sprintf("+97250%07d", 8400000+i)
+		maintainers[fmt.Sprintf("+97250%07d", 8400000+i)] = fmt.Sprintf("Maintainer%d", i)
 	}
 	bu["maintainers"] = maintainers
 
@@ -2165,7 +2165,7 @@ func testUpdateAllFieldsSimultaneously(t *testing.T) {
 		"priority":     9,
 		"time_zone":    "America/New_York",
 		"website_urls": []string{"https://newsite.com"},
-		"maintainers":  map[string]string{"NewManager": "+972509000001"},
+		"maintainers":  map[string]string{"+972509000001": "NewManager"},
 	}
 
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), update)
@@ -2236,7 +2236,7 @@ func testGetByMaintainerPhone(t *testing.T) {
 
 	maintainerPhone := "+972509300001"
 	bu := createValidBusinessUnit("Maintainer Phone Test", "+972509300000")
-	bu["maintainers"] = map[string]string{"TestMaintainer": maintainerPhone}
+	bu["maintainers"] = map[string]string{maintainerPhone: "TestMaintainer"}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
