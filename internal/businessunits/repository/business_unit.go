@@ -34,7 +34,7 @@ type BusinessUnitRepository interface {
 	Update(ctx context.Context, id string, bu *model.BusinessUnit) (*mongo.UpdateResult, error)
 	Delete(ctx context.Context, id string) error
 
-	FindByPhone(ctx context.Context, phone string, limit int, offset int) ([]*model.BusinessUnit, error)
+	GetByPhone(ctx context.Context, phone string, limit int, offset int) ([]*model.BusinessUnit, error)
 	CountByPhone(ctx context.Context, phone string) (int64, error)
 	SearchByCityLabelPairs(ctx context.Context, pairs []string, limit int, offset int) ([]*model.BusinessUnit, error)
 	CountByCityLabelPairs(ctx context.Context, pairs []string) (int64, error)
@@ -231,7 +231,7 @@ func (r *mongoBusinessUnitRepository) CountByCityLabelPairs(ctx context.Context,
 	return count, nil
 }
 
-func (r *mongoBusinessUnitRepository) FindByPhone(ctx context.Context, phone string, limit int, offset int) ([]*model.BusinessUnit, error) {
+func (r *mongoBusinessUnitRepository) GetByPhone(ctx context.Context, phone string, limit int, offset int) ([]*model.BusinessUnit, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 

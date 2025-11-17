@@ -47,7 +47,7 @@ func NewBusinessUnitService(
 }
 
 func (s *businessUnitService) verifyDuplication(ctx context.Context, bu *model.BusinessUnit) error {
-	existing, err := s.repo.FindByPhone(ctx, bu.AdminPhone, 5000, 0)
+	existing, err := s.repo.GetByPhone(ctx, bu.AdminPhone, 5000, 0) // todo: use the service get by phone
 	if err != nil {
 		return fmt.Errorf("failed to check for duplicates: %w", err)
 	}
@@ -265,7 +265,7 @@ func (s *businessUnitService) GetByPhone(ctx context.Context, phone string, limi
 	go func() {
 		defer wg.Done()
 		var err error
-		units, err = s.repo.FindByPhone(ctx, phone, limit, offset)
+		units, err = s.repo.GetByPhone(ctx, phone, limit, offset)
 		if err != nil {
 			s.cfg.Log.Error("Failed to get business units by phone",
 				"phone", phone,
