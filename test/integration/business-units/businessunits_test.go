@@ -3,6 +3,7 @@ package integrationtests
 import (
 	"fmt"
 	"os"
+	"skeji/pkg/client"
 	"skeji/pkg/config"
 	"skeji/pkg/model"
 	"skeji/pkg/sanitizer"
@@ -20,7 +21,7 @@ const (
 
 var (
 	cfg        *config.Config
-	httpClient *common.Client
+	httpClient *client.HttpClient
 )
 
 func TestMain(t *testing.T) {
@@ -76,7 +77,7 @@ func setup() {
 	if serverURL == "" {
 		serverURL = "http://localhost:8080"
 	}
-	httpClient = common.NewClient(serverURL)
+	httpClient = client.NewHttpClient(serverURL)
 }
 
 func teardown() {
@@ -94,7 +95,7 @@ func createValidBusinessUnit(name, phone string) map[string]any {
 	}
 }
 
-func decodeBusinessUnit(t *testing.T, resp *common.Response) *model.BusinessUnit {
+func decodeBusinessUnit(t *testing.T, resp *client.Response) *model.BusinessUnit {
 	t.Helper()
 	var result struct {
 		Data model.BusinessUnit `json:"data"`
@@ -105,7 +106,7 @@ func decodeBusinessUnit(t *testing.T, resp *common.Response) *model.BusinessUnit
 	return &result.Data
 }
 
-func decodeBusinessUnits(t *testing.T, resp *common.Response) []model.BusinessUnit {
+func decodeBusinessUnits(t *testing.T, resp *client.Response) []model.BusinessUnit {
 	t.Helper()
 	var result struct {
 		Data []model.BusinessUnit `json:"data"`
@@ -116,7 +117,7 @@ func decodeBusinessUnits(t *testing.T, resp *common.Response) []model.BusinessUn
 	return result.Data
 }
 
-func decodePaginated(t *testing.T, resp *common.Response) (bu_model []model.BusinessUnit, count int, limit int, offset int64) {
+func decodePaginated(t *testing.T, resp *client.Response) (bu_model []model.BusinessUnit, count int, limit int, offset int64) {
 	t.Helper()
 	var result struct {
 		Data       []model.BusinessUnit `json:"data"`
@@ -207,14 +208,14 @@ func testDelete(t *testing.T) {
 func testGetByIdEmptyTable(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units/id/507f1f77bcf86cd799439011")
-	common.AssertStatusCode(t, resp, 404)
-	common.AssertContains(t, resp, "not found")
+	client.AssertStatusCode(t, resp, 404)
+	client.AssertContains(t, resp, "not found")
 }
 
 func testGetBySearchEmptyTable(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=Tel%20Aviv&labels=Haircut")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 
 	data, _, _, _ := decodePaginated(t, resp)
 	if len(data) != 0 {
@@ -225,7 +226,7 @@ func testGetBySearchEmptyTable(t *testing.T) {
 func testGetAllPaginatedEmptyTable(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=10&offset=0")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 
 	data, totalCount, _, _ := decodePaginated(t, resp)
 	if totalCount != 0 || len(data) != 0 {
@@ -237,11 +238,11 @@ func testGetValidIdExistingRecord(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Get Test Business", "+972541234567")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	result := decodeBusinessUnit(t, resp)
 
 	if result.ID != created.ID {
@@ -255,14 +256,14 @@ func testGetInvalidIdExistingRecord(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Invalid ID Test", "+972541234567")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	resp := httpClient.GET(t, "/api/v1/business-units/id/invalid-id-format")
-	common.AssertStatusCode(t, resp, 400)
+	client.AssertStatusCode(t, resp, 400)
 
 	resp = httpClient.GET(t, "/api/v1/business-units/id/507f1f77bcf86cd799439011")
-	common.AssertStatusCode(t, resp, 404)
+	client.AssertStatusCode(t, resp, 404)
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }
@@ -281,7 +282,7 @@ func testGetValidSearchExistingRecords(t *testing.T) {
 	httpClient.POST(t, "/api/v1/business-units", bu3)
 
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=Tel%20Aviv&labels=Haircut")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	data, _, _, _ := decodePaginated(t, resp)
 
 	if len(data) < 2 {
@@ -292,15 +293,15 @@ func testGetValidSearchExistingRecords(t *testing.T) {
 func testGetInvalidSearchExistingRecords(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units/search?labels=Haircut")
-	common.AssertStatusCode(t, resp, 400)
-	common.AssertContains(t, resp, "cities")
+	client.AssertStatusCode(t, resp, 400)
+	client.AssertContains(t, resp, "cities")
 
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=Tel%20Aviv")
-	common.AssertStatusCode(t, resp, 400)
-	common.AssertContains(t, resp, "labels")
+	client.AssertStatusCode(t, resp, 400)
+	client.AssertContains(t, resp, "labels")
 
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=&labels=")
-	common.AssertStatusCode(t, resp, 400)
+	client.AssertStatusCode(t, resp, 400)
 }
 
 func testGetValidPaginationExistingRecords(t *testing.T) {
@@ -311,7 +312,7 @@ func testGetValidPaginationExistingRecords(t *testing.T) {
 	}
 
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=2&offset=0")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	data, totalCount, limit, offset := decodePaginated(t, resp)
 
 	if totalCount < 5 {
@@ -325,23 +326,23 @@ func testGetValidPaginationExistingRecords(t *testing.T) {
 	}
 
 	resp = httpClient.GET(t, "/api/v1/business-units?limit=2&offset=2")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 }
 
 func testGetInvalidPaginationExistingRecords(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=abc&offset=xyz")
-	common.AssertStatusCode(t, resp, 400)
+	client.AssertStatusCode(t, resp, 400)
 
 	resp = httpClient.GET(t, "/api/v1/business-units?limit=10&offset=-1")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 }
 
 func testGetVerifyCreatedAt(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("CreatedAt Test", "+972523353")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	if created.CreatedAt.IsZero() {
@@ -356,7 +357,7 @@ func testGetVerifyCreatedAt(t *testing.T) {
 	httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, getResp, 200)
+	client.AssertStatusCode(t, getResp, 200)
 	fetched := decodeBusinessUnit(t, getResp)
 
 	if !fetched.CreatedAt.Equal(originalCreatedAt) {
@@ -371,20 +372,20 @@ func testGetSearchPriorityOrdering(t *testing.T) {
 	bu1 := createValidBusinessUnit("Priority 1", "+972523354")
 	bu1["priority"] = 1
 	resp0 := httpClient.POST(t, "/api/v1/business-units", bu1)
-	common.AssertStatusCode(t, resp0, 201)
+	client.AssertStatusCode(t, resp0, 201)
 
 	bu2 := createValidBusinessUnit("Priority 5", "+972523355")
 	bu2["priority"] = 5
 	resp1 := httpClient.POST(t, "/api/v1/business-units", bu2)
-	common.AssertStatusCode(t, resp1, 201)
+	client.AssertStatusCode(t, resp1, 201)
 
 	bu3 := createValidBusinessUnit("Priority 3", "+972523356")
 	bu3["priority"] = 3
 	resp2 := httpClient.POST(t, "/api/v1/business-units", bu3)
-	common.AssertStatusCode(t, resp2, 201)
+	client.AssertStatusCode(t, resp2, 201)
 
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv&labels=haircut")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	results, _, _, _ := decodePaginated(t, resp)
 
 	if len(results) < 3 {
@@ -407,21 +408,21 @@ func testGetPaginationEdgeCases(t *testing.T) {
 	}
 
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=0&offset=0")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	data, _, _, _ := decodePaginated(t, resp)
 	if len(data) > 10 {
 		t.Errorf("limit=0 should return max 10 results, got %d results", len(data))
 	}
 
 	resp = httpClient.GET(t, "/api/v1/business-units?limit=1000&offset=0")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) > 100 {
 		t.Errorf("limit=1000 should be capped at reasonable max (e.g. 100), got %d results", len(data))
 	}
 
 	resp = httpClient.GET(t, "/api/v1/business-units?limit=10&offset=9999")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) != 0 {
 		t.Errorf("offset beyond total records should return empty array, got %d results", len(data))
@@ -432,7 +433,7 @@ func testPostValidRecord(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Valid Business", "+972512221")
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 
 	created := decodeBusinessUnit(t, resp)
 	if created.ID == "" {
@@ -496,7 +497,7 @@ func testPostWithExtraJsonKeys(t *testing.T) {
 	}
 
 	resp := httpClient.POST(t, "/api/v1/business-units", payload)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
@@ -550,7 +551,7 @@ func testPostWithWebsiteURL(t *testing.T) {
 	bu := createValidBusinessUnit("Website Test", "+972523336")
 	bu["website_urls"] = []string{"https://example.com", "https://facebook.com/page"}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	if len(created.WebsiteURLs) != 2 {
@@ -589,7 +590,7 @@ func testPostWithMaintainers(t *testing.T) {
 	bu := createValidBusinessUnit("Maintainers Test", "+97252333944")
 	bu["maintainers"] = map[string]string{"+97254111133": "lala", "+97254222233": "lele"}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	if len(created.Maintainers) != 2 {
@@ -600,7 +601,7 @@ func testPostWithMaintainers(t *testing.T) {
 	bu2 := createValidBusinessUnit("Invalid Maintainer Test", "+972523340")
 	bu2["maintainers"] = map[string]string{"not-a-phone": "lala", "+97254222233": "lele"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
-	common.AssertStatusCode(t, resp, 422)
+	client.AssertStatusCode(t, resp, 422)
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }
 
@@ -640,7 +641,7 @@ func testPostWithArrayMaxLengths(t *testing.T) {
 	}
 	bu3["labels"] = labels10
 	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }
@@ -650,7 +651,7 @@ func testPostWithNameBoundaries(t *testing.T) {
 	bu := createValidBusinessUnit("AB", "+972523344")
 	bu["name"] = "AB"
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
@@ -668,7 +669,7 @@ func testPostWithNameBoundaries(t *testing.T) {
 	bu3 := createValidBusinessUnit(name100, "+972525333415")
 	bu3["name"] = name100
 	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created = decodeBusinessUnit(t, resp)
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 
@@ -686,7 +687,7 @@ func testPostWithPriorityValues(t *testing.T) {
 	bu := createValidBusinessUnit("Priority Test", "+972523348")
 	bu["priority"] = 0
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	if created.Priority != config.DefaultDefaultBusinessPriority {
@@ -697,7 +698,7 @@ func testPostWithPriorityValues(t *testing.T) {
 	bu2 := createValidBusinessUnit("Negative Priority Test", "+972523349")
 	bu2["priority"] = -1
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created = decodeBusinessUnit(t, resp)
 
 	if created.Priority < 0 {
@@ -707,7 +708,7 @@ func testPostWithPriorityValues(t *testing.T) {
 	bu3 := createValidBusinessUnit("High Priority Test", "+972523350")
 	bu3["priority"] = 9999
 	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created = decodeBusinessUnit(t, resp)
 
 	if created.Priority > config.DefaultMaxBusinessPriority {
@@ -722,7 +723,7 @@ func testUpdateNonExistingRecord(t *testing.T) {
 		"name": "Updated Name",
 	}
 	resp := httpClient.PATCH(t, "/api/v1/business-units/id/507f1f77bcf86cd799439011", updates)
-	common.AssertStatusCode(t, resp, 404)
+	client.AssertStatusCode(t, resp, 404)
 }
 
 func testUpdateWithInvalidId(t *testing.T) {
@@ -731,31 +732,31 @@ func testUpdateWithInvalidId(t *testing.T) {
 		"name": "Updated Name",
 	}
 	resp := httpClient.PATCH(t, "/api/v1/business-units/id/invalid-id-format", updates)
-	common.AssertStatusCode(t, resp, 400)
+	client.AssertStatusCode(t, resp, 400)
 }
 
 func testUpdateDeletedRecord(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Update Deleted Test", "+972523331")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	deleteResp := httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, deleteResp, 204)
+	client.AssertStatusCode(t, deleteResp, 204)
 
 	updates := map[string]any{
 		"name": "Should Not Update",
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 404)
+	client.AssertStatusCode(t, resp, 404)
 }
 
 func testUpdateWithBadFormatKeys(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Update Bad Format Test", "+97252323332")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	updates := map[string]any{
@@ -789,17 +790,17 @@ func testUpdateWithGoodFormatKeys(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Original Name", "+972523335")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	updates := map[string]any{
 		"name": "Updated Name",
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, getResp, 200)
+	client.AssertStatusCode(t, getResp, 200)
 	fetched := decodeBusinessUnit(t, getResp)
 
 	if fetched.Name != sanitizer.SanitizeNameOrAddress(fmt.Sprint(updates["name"])) {
@@ -810,10 +811,10 @@ func testUpdateWithGoodFormatKeys(t *testing.T) {
 		"admin_phone": "+972546789012",
 	}
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	getResp = httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, getResp, 200)
+	client.AssertStatusCode(t, getResp, 200)
 	fetched = decodeBusinessUnit(t, getResp)
 
 	if fetched.AdminPhone != "+972546789012" {
@@ -824,10 +825,10 @@ func testUpdateWithGoodFormatKeys(t *testing.T) {
 		"time_zone": "America/New_York",
 	}
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	// getResp = httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	// common.AssertStatusCode(t, getResp, 200)
+	// client.AssertStatusCode(t, getResp, 200)
 	// fetched = decodeBusinessUnit(t, getResp)
 
 	// if fetched.TimeZone != "America/New_York" {
@@ -839,10 +840,10 @@ func testUpdateWithGoodFormatKeys(t *testing.T) {
 	// 	"labels": []string{"Massage", "Spa"},
 	// }
 	// resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	// common.AssertStatusCode(t, resp, 204)
+	// client.AssertStatusCode(t, resp, 204)
 
 	// getResp = httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	// common.AssertStatusCode(t, getResp, 200)
+	// client.AssertStatusCode(t, getResp, 200)
 	// fetched = decodeBusinessUnit(t, getResp)
 
 	// if len(fetched.Cities) != 2 || fetched.Cities[0] != "haifa" || fetched.Cities[1] != "eilat" {
@@ -859,15 +860,15 @@ func testUpdateWithEmptyJson(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Update Empty Test", "+972523333")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	updates := map[string]any{}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, getResp, 200)
+	client.AssertStatusCode(t, getResp, 200)
 	fetched := decodeBusinessUnit(t, getResp)
 
 	if fetched.Name != created.Name {
@@ -890,17 +891,17 @@ func testUpdateWebsiteURL(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("URL Update Test", "+972523351")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	updates := map[string]any{
 		"website_urls": []string{"https://newexample.com", "https://instagram.com/profile"},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, getResp, 200)
+	client.AssertStatusCode(t, getResp, 200)
 	fetched := decodeBusinessUnit(t, getResp)
 
 	if len(fetched.WebsiteURLs) != 2 {
@@ -925,17 +926,17 @@ func testUpdateMaintainers(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Maintainers Update Test", "+972523352")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	updates := map[string]any{
 		"maintainers": map[string]string{"+972543333333": "baba", "+972544444444": "yababa"},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, getResp, 200)
+	client.AssertStatusCode(t, getResp, 200)
 	fetched := decodeBusinessUnit(t, getResp)
 
 	if len(fetched.Maintainers) != 2 {
@@ -948,27 +949,27 @@ func testUpdateMaintainers(t *testing.T) {
 func testDeleteNonExistingRecord(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.DELETE(t, "/api/v1/business-units/id/507f1f77bcf86cd799439011")
-	common.AssertStatusCode(t, resp, 404)
+	client.AssertStatusCode(t, resp, 404)
 }
 
 func testDeleteWithInvalidId(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.DELETE(t, "/api/v1/business-units/id/invalid-id-format")
-	common.AssertStatusCode(t, resp, 400)
+	client.AssertStatusCode(t, resp, 400)
 }
 
 func testDeletedRecord(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Delete Twice Test", "+972523334")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	resp := httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	resp = httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, resp, 404)
+	client.AssertStatusCode(t, resp, 404)
 }
 
 func testGetSearchNormalization(t *testing.T) {
@@ -979,21 +980,21 @@ func testGetSearchNormalization(t *testing.T) {
 	httpClient.POST(t, "/api/v1/business-units", bu)
 
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv&labels=haircut")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	data, _, _, _ := decodePaginated(t, resp)
 	if len(data) < 1 {
 		t.Error("search should find business unit with normalized lowercase city/label")
 	}
 
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv&labels=HAIRCUT")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) < 1 {
 		t.Error("search should find business unit with normalized uppercase city/label")
 	}
 
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=jerusalem&labels=massage")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) < 1 {
 		t.Error("search should find business unit with mixed case normalization")
@@ -1013,14 +1014,14 @@ func testGetSearchMultipleCitiesLabels(t *testing.T) {
 	httpClient.POST(t, "/api/v1/business-units", bu2)
 
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv,haifa&labels=haircut,massage")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	data, _, _, _ := decodePaginated(t, resp)
 	if len(data) < 1 {
 		t.Error("search should support multiple cities and labels")
 	}
 
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv,jerusalem&labels=haircut,spa")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) < 2 {
 		t.Error("search should return results matching any city and any label")
@@ -1030,17 +1031,17 @@ func testGetSearchMultipleCitiesLabels(t *testing.T) {
 func testPostMalformedJSON(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	resp := httpClient.POSTRaw(t, "/api/v1/business-units", []byte(`{"name": "test", "invalid json`))
-	common.AssertStatusCode(t, resp, 400)
+	client.AssertStatusCode(t, resp, 400)
 
 	resp = httpClient.POSTRaw(t, "/api/v1/business-units", []byte(`not json at all`))
-	common.AssertStatusCode(t, resp, 400)
+	client.AssertStatusCode(t, resp, 400)
 }
 
 func testPostWithUSPhoneNumber(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("US Phone Test", "+12125551234")
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	if created.AdminPhone != "+12125551234" {
@@ -1054,7 +1055,7 @@ func testPostWithSpecialCharacters(t *testing.T) {
 	bu := createValidBusinessUnit("Café & Spa™", "+972523364")
 	bu["name"] = "Café & Spa™ 🎨"
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	if created.Name != sanitizer.SanitizeNameOrAddress(fmt.Sprint(bu["name"])) {
@@ -1066,7 +1067,7 @@ func testPostWithSpecialCharacters(t *testing.T) {
 	bu2["cities"] = []string{"תל אביב", "ירושלים"}
 	bu2["labels"] = []string{"תספורת", "עיצוב"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created = decodeBusinessUnit(t, resp)
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }
@@ -1079,28 +1080,28 @@ func testPostDuplicateDetection(t *testing.T) {
 	bu1["cities"] = []string{"Tel Aviv"}
 	bu1["labels"] = []string{"Haircut"}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu1)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created1 := decodeBusinessUnit(t, resp)
 
 	bu2 := createValidBusinessUnit("Different Salon", adminPhone)
 	bu2["cities"] = []string{"Tel Aviv"}
 	bu2["labels"] = []string{"Haircut"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created2 := decodeBusinessUnit(t, resp)
 
 	bu3 := createValidBusinessUnit("My Salon", adminPhone)
 	bu3["cities"] = []string{"Haifa"}
 	bu3["labels"] = []string{"Haircut"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created3 := decodeBusinessUnit(t, resp)
 
 	bu4 := createValidBusinessUnit("My Salon", adminPhone)
 	bu4["cities"] = []string{"Tel Aviv"}
 	bu4["labels"] = []string{"Massage"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu4)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created4 := decodeBusinessUnit(t, resp)
 
 	bu5 := createValidBusinessUnit("My Salon", adminPhone)
@@ -1139,7 +1140,7 @@ func testPostDuplicateDetection(t *testing.T) {
 	bu9["cities"] = []string{"Eilat", "Netanya"}
 	bu9["labels"] = []string{"Spa", "Styling"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu9)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created9 := decodeBusinessUnit(t, resp)
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created1.ID))
@@ -1153,7 +1154,7 @@ func testUpdateArraysToMaxLength(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Array Max Test", "+972523366")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 	cities51 := make([]string, 51)
 	for i := 0; i < 51; i++ {
@@ -1202,14 +1203,14 @@ func testUpdatePriorityEdgeCases(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Priority Update Test", "+972523367")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	updates := map[string]any{
 		"priority": 0,
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	fetched := decodeBusinessUnit(t, getResp)
@@ -1234,7 +1235,7 @@ func testUpdatePriorityEdgeCases(t *testing.T) {
 		"priority": 10000,
 	}
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 	getResp = httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	fetched = decodeBusinessUnit(t, getResp)
 	if fetched.Priority > config.DefaultMaxBusinessPriority {
@@ -1250,7 +1251,7 @@ func testUpdateClearOptionalFields(t *testing.T) {
 	bu["website_urls"] = []string{"https://example.com"}
 	bu["maintainers"] = map[string]string{"+972541111111": "shalom"}
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	if len(created.WebsiteURLs) == 0 {
@@ -1265,7 +1266,7 @@ func testUpdateClearOptionalFields(t *testing.T) {
 		"maintainers":  map[string]string{},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	fetched := decodeBusinessUnit(t, getResp)
@@ -1291,7 +1292,7 @@ func testPostWithMultipleSocialMediaURLs(t *testing.T) {
 		"https://linkedin.com/company/business",
 	}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	if len(created.WebsiteURLs) != 5 {
@@ -1325,7 +1326,7 @@ func testPostWithURLNormalization(t *testing.T) {
 		"https://example.com/path/",
 	}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	if len(created.WebsiteURLs) < 1 {
@@ -1355,7 +1356,7 @@ func testPostWithDuplicateURLs(t *testing.T) {
 		"https://facebook.com/page",
 	}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	if len(created.WebsiteURLs) > 3 {
@@ -1371,7 +1372,7 @@ func testUpdateAddURLs(t *testing.T) {
 	bu := createValidBusinessUnit("Add URLs Test", "+972523372")
 	bu["website_urls"] = []string{"https://example.com"}
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	if len(created.WebsiteURLs) != 1 {
@@ -1386,7 +1387,7 @@ func testUpdateAddURLs(t *testing.T) {
 		},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	fetched := decodeBusinessUnit(t, getResp)
@@ -1406,7 +1407,7 @@ func testUpdateRemoveAllURLs(t *testing.T) {
 		"https://facebook.com/page",
 	}
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	if len(created.WebsiteURLs) != 2 {
@@ -1417,7 +1418,7 @@ func testUpdateRemoveAllURLs(t *testing.T) {
 		"website_urls": []string{},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	fetched := decodeBusinessUnit(t, getResp)
@@ -1437,7 +1438,7 @@ func testUpdateReplaceURLs(t *testing.T) {
 		"https://facebook.com/oldpage",
 	}
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	updates := map[string]any{
@@ -1447,7 +1448,7 @@ func testUpdateReplaceURLs(t *testing.T) {
 		},
 	}
 	resp := httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 	fetched := decodeBusinessUnit(t, getResp)
@@ -1496,14 +1497,14 @@ func testUpdateMalformedJSON(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 	bu := createValidBusinessUnit("Malformed Update Test", "+972523369")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	resp := httpClient.PATCHRaw(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), []byte(`{"name": "test", invalid`))
-	common.AssertStatusCode(t, resp, 400)
+	client.AssertStatusCode(t, resp, 400)
 
 	resp = httpClient.PATCHRaw(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), []byte(`not json`))
-	common.AssertStatusCode(t, resp, 400)
+	client.AssertStatusCode(t, resp, 400)
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }
@@ -1520,7 +1521,7 @@ func testPostAdminPhoneValidation(t *testing.T) {
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error (400 or 422) for missing admin_phone, got %d", resp.StatusCode)
 	}
-	common.AssertContains(t, resp, "Phone")
+	client.AssertContains(t, resp, "Phone")
 
 	payload2 := map[string]any{
 		"name":        "Business With Empty Phone",
@@ -1550,7 +1551,7 @@ func testUpdateAdminPhoneValidation(t *testing.T) {
 
 	bu := createValidBusinessUnit("Admin Phone Update Test", "+972523371")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	updates3 := map[string]any{
@@ -1562,7 +1563,7 @@ func testUpdateAdminPhoneValidation(t *testing.T) {
 	}
 
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, getResp, 200)
+	client.AssertStatusCode(t, getResp, 200)
 	fetched := decodeBusinessUnit(t, getResp)
 
 	if fetched.AdminPhone != "+972523371" {
@@ -1573,10 +1574,10 @@ func testUpdateAdminPhoneValidation(t *testing.T) {
 		"admin_phone": "+972501234567",
 	}
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updates4)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	getResp = httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, getResp, 200)
+	client.AssertStatusCode(t, getResp, 200)
 	fetched = decodeBusinessUnit(t, getResp)
 
 	if fetched.AdminPhone != "+972501234567" {
@@ -1591,7 +1592,7 @@ func testPhoneNumberEdgeCases(t *testing.T) {
 
 	bu := createValidBusinessUnit("Phone With Spaces", "+972 50 1234567")
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 422)
+	client.AssertStatusCode(t, resp, 422)
 	created := decodeBusinessUnit(t, resp)
 	if strings.Contains(created.AdminPhone, " ") {
 		t.Logf("Admin phone wasn't sanitized/normalized: %s", created.AdminPhone)
@@ -1599,7 +1600,7 @@ func testPhoneNumberEdgeCases(t *testing.T) {
 
 	bu2 := createValidBusinessUnit("Phone With Dashes", "+972-50-1234567")
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
-	common.AssertStatusCode(t, resp, 422)
+	client.AssertStatusCode(t, resp, 422)
 	created = decodeBusinessUnit(t, resp)
 	if strings.Contains(created.AdminPhone, "-") {
 		t.Logf("Admin phone wasn't sanitized/normalized: %s", created.AdminPhone)
@@ -1669,7 +1670,7 @@ func testConcurrentUpdates(t *testing.T) {
 
 	bu := createValidBusinessUnit("Concurrent Update Test", "+972502000000")
 	createResp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, createResp, 201)
+	client.AssertStatusCode(t, createResp, 201)
 	created := decodeBusinessUnit(t, createResp)
 
 	var wg sync.WaitGroup
@@ -1712,14 +1713,14 @@ func testSearchPartialMatches(t *testing.T) {
 	httpClient.POST(t, "/api/v1/business-units", bu1)
 
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv&labels=haircut")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	results, _, _, _ := decodePaginated(t, resp)
 	if len(results) < 1 {
 		t.Error("Expected to find business unit with city match")
 	}
 
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv,jerusalem&labels=haircut,massage")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	results, _, _, _ = decodePaginated(t, resp)
 	if len(results) < 1 {
 		t.Error("Expected to find business unit with partial match")
@@ -1732,7 +1733,7 @@ func testMaintainersEdgeCases(t *testing.T) {
 	bu2 := createValidBusinessUnit("Duplicate Maintainers", "+972502000011")
 	bu2["maintainers"] = map[string]string{"+972541111111": "sh", "+972542222222": "mma"}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu2)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created2 := decodeBusinessUnit(t, resp)
 	if len(created2.Maintainers) > 2 {
 		t.Logf("Expected deduplication of maintainers, got %d maintainers", len(created2.Maintainers))
@@ -1742,7 +1743,7 @@ func testMaintainersEdgeCases(t *testing.T) {
 	bu3 := createValidBusinessUnit("Admin As Maintainer", "+972502000012")
 	bu3["maintainers"] = map[string]string{"+972502000012": "ya", "+972541111111": "da"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created3 := decodeBusinessUnit(t, resp)
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created3.ID))
 }
@@ -1789,7 +1790,7 @@ func testCityLabelNormalizationEdgeCases(t *testing.T) {
 	bu["cities"] = []string{"Tel-Aviv", "Tel Aviv", "TEL_AVIV"}
 	bu["labels"] = []string{"Hair-Cut", "Hair Cut", "HAIR_CUT"}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	if len(created.Cities) != 1 || created.Cities[0] != "tel_aviv" {
@@ -1811,7 +1812,7 @@ func testMaxLimitPagination(t *testing.T) {
 	}
 
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=10000&offset=0")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	data, count, limit, _ := decodePaginated(t, resp)
 
 	if limit > config.DefaultPaginationLimit {
@@ -1831,7 +1832,7 @@ func testPriorityRangeValidation(t *testing.T) {
 		bu := createValidBusinessUnit(fmt.Sprintf("Priority %d", priority), fmt.Sprintf("+97250%07d", 5000000+int(priority)))
 		bu["priority"] = priority
 		resp := httpClient.POST(t, "/api/v1/business-units", bu)
-		common.AssertStatusCode(t, resp, 201)
+		client.AssertStatusCode(t, resp, 201)
 		created := decodeBusinessUnit(t, resp)
 		if (priority <= 0 && created.Priority != config.DefaultDefaultBusinessPriority) ||
 			(priority > config.DefaultMaxBusinessPriority && created.Priority != config.DefaultMaxBusinessPriority) ||
@@ -1859,7 +1860,7 @@ func testTimezoneBoundaries(t *testing.T) {
 		bu := createValidBusinessUnit(fmt.Sprintf("TZ Test %s", tz), fmt.Sprintf("+97250%07d", 6000000+i))
 		bu["time_zone"] = tz
 		resp := httpClient.POST(t, "/api/v1/business-units", bu)
-		common.AssertStatusCode(t, resp, 201)
+		client.AssertStatusCode(t, resp, 201)
 		created := decodeBusinessUnit(t, resp)
 
 		if created.TimeZone != tz {
@@ -1892,7 +1893,7 @@ func testLargeScaleBusinessUnits(t *testing.T) {
 
 	// Verify pagination works with large dataset
 	resp := httpClient.GET(t, "/api/v1/business-units?limit=50&offset=0")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	data, total, _, _ := decodePaginated(t, resp)
 
 	if total < 100 {
@@ -1926,7 +1927,7 @@ func testSearchWithManyFilters(t *testing.T) {
 
 	// Search with multiple cities and labels
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=tel_aviv,haifa,beer_sheva&labels=haircut,styling")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	results, _, _, _ := decodePaginated(t, resp)
 
 	if len(results) < 2 {
@@ -1952,7 +1953,7 @@ func testSearchPerformance(t *testing.T) {
 	resp := httpClient.GET(t, searchURL)
 	duration := time.Since(start)
 
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 
 	if duration > 2*time.Second {
 		t.Logf("Search took %v (warning: might be slow)", duration)
@@ -1973,7 +1974,7 @@ func testComplexPriorityOrdering(t *testing.T) {
 
 	// Search and verify ordering
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=testcity&labels=testlabel")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	results, _, _, _ := decodePaginated(t, resp)
 
 	if len(results) < 10 {
@@ -2003,7 +2004,7 @@ func testURLDeduplicationComplex(t *testing.T) {
 	}
 
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	// Should deduplicate all variations to single URL
@@ -2048,7 +2049,7 @@ func testUpdateWithPartialOverlap(t *testing.T) {
 	bu1["cities"] = []string{"CityA", "CityB", "CityC"}
 	bu1["labels"] = []string{"LabelX", "LabelY", "LabelZ"}
 	resp1 := httpClient.POST(t, "/api/v1/business-units", bu1)
-	common.AssertStatusCode(t, resp1, 201)
+	client.AssertStatusCode(t, resp1, 201)
 	created1 := decodeBusinessUnit(t, resp1)
 
 	// Try to update to partially overlap: cities B, C, D and labels Y, Z, W
@@ -2083,7 +2084,7 @@ func testSearchCaseSensitivity(t *testing.T) {
 
 	for _, searchURL := range testCases {
 		resp := httpClient.GET(t, searchURL)
-		common.AssertStatusCode(t, resp, 200)
+		client.AssertStatusCode(t, resp, 200)
 		results, _, _, _ := decodePaginated(t, resp)
 
 		if len(results) < 1 {
@@ -2100,7 +2101,7 @@ func testBatchDeletion(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		bu := createValidBusinessUnit(fmt.Sprintf("Batch Delete %d", i), fmt.Sprintf("+97250%07d", 8700000+i))
 		resp := httpClient.POST(t, "/api/v1/business-units", bu)
-		common.AssertStatusCode(t, resp, 201)
+		client.AssertStatusCode(t, resp, 201)
 		created := decodeBusinessUnit(t, resp)
 		createdIDs = append(createdIDs, created.ID)
 	}
@@ -2108,13 +2109,13 @@ func testBatchDeletion(t *testing.T) {
 	// Delete all at once
 	for _, id := range createdIDs {
 		resp := httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", id))
-		common.AssertStatusCode(t, resp, 204)
+		client.AssertStatusCode(t, resp, 204)
 	}
 
 	// Verify all deleted
 	for _, id := range createdIDs {
 		resp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", id))
-		common.AssertStatusCode(t, resp, 404)
+		client.AssertStatusCode(t, resp, 404)
 	}
 }
 
@@ -2156,7 +2157,7 @@ func testUpdateAllFieldsSimultaneously(t *testing.T) {
 
 	bu := createValidBusinessUnit("Update All Fields", "+972508900001")
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	// Update every possible field
@@ -2172,7 +2173,7 @@ func testUpdateAllFieldsSimultaneously(t *testing.T) {
 	}
 
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), update)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	// Verify all fields updated
 	getResp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
@@ -2205,7 +2206,7 @@ func testCitiesLabelsIntersection(t *testing.T) {
 
 	// Search for intersection (city B, label Y) should find both
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=cityb&labels=labely")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	results, _, _, _ := decodePaginated(t, resp)
 
 	if len(results) < 2 {
@@ -2220,12 +2221,12 @@ func testGetByPhone(t *testing.T) {
 	adminPhone := "+972509300001"
 	bu1 := createValidBusinessUnit("Admin Phone Test", adminPhone)
 	resp := httpClient.POST(t, "/api/v1/business-units", bu1)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created1 := decodeBusinessUnit(t, resp)
 
 	searchURL := fmt.Sprintf("/api/v1/business-units/phone/%s", adminPhone)
 	searchResp := httpClient.GET(t, searchURL)
-	common.AssertStatusCode(t, searchResp, 200)
+	client.AssertStatusCode(t, searchResp, 200)
 	results := decodeBusinessUnits(t, searchResp)
 
 	if len(results) != 1 {
@@ -2240,12 +2241,12 @@ func testGetByPhone(t *testing.T) {
 	bu2 := createValidBusinessUnit("Maintainer Phone Test", "+972509300000")
 	bu2["maintainers"] = map[string]string{maintainerPhone: "TestMaintainer"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created2 := decodeBusinessUnit(t, resp)
 
 	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", maintainerPhone)
 	searchResp = httpClient.GET(t, searchURL)
-	common.AssertStatusCode(t, searchResp, 200)
+	client.AssertStatusCode(t, searchResp, 200)
 	results = decodeBusinessUnits(t, searchResp)
 
 	if len(results) != 1 {
@@ -2263,12 +2264,12 @@ func testGetByPhone(t *testing.T) {
 		"+972509300004": "ShouldStay",
 	}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu3)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created3 := decodeBusinessUnit(t, resp)
 
 	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", adminPhone3)
 	searchResp = httpClient.GET(t, searchURL)
-	common.AssertStatusCode(t, searchResp, 200)
+	client.AssertStatusCode(t, searchResp, 200)
 	results = decodeBusinessUnits(t, searchResp)
 
 	if len(results) != 1 {
@@ -2293,18 +2294,18 @@ func testGetByPhone(t *testing.T) {
 	bu4 := createValidBusinessUnit("Shared Maintainer 1", "+972509300006")
 	bu4["maintainers"] = map[string]string{sharedMaintainer: "SharedPerson"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu4)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created4 := decodeBusinessUnit(t, resp)
 
 	bu5 := createValidBusinessUnit("Shared Maintainer 2", "+972509300007")
 	bu5["maintainers"] = map[string]string{sharedMaintainer: "SharedPerson"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu5)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created5 := decodeBusinessUnit(t, resp)
 
 	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", sharedMaintainer)
 	searchResp = httpClient.GET(t, searchURL)
-	common.AssertStatusCode(t, searchResp, 200)
+	client.AssertStatusCode(t, searchResp, 200)
 	results = decodeBusinessUnits(t, searchResp)
 
 	if len(results) != 2 {
@@ -2323,18 +2324,18 @@ func testGetByPhone(t *testing.T) {
 	dualPhone := "+972509300008"
 	bu6 := createValidBusinessUnit("Dual Role Admin", dualPhone)
 	resp = httpClient.POST(t, "/api/v1/business-units", bu6)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created6 := decodeBusinessUnit(t, resp)
 
 	bu7 := createValidBusinessUnit("Dual Role Maintainer", "+972509300009")
 	bu7["maintainers"] = map[string]string{dualPhone: "DualPerson"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu7)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created7 := decodeBusinessUnit(t, resp)
 
 	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", dualPhone)
 	searchResp = httpClient.GET(t, searchURL)
-	common.AssertStatusCode(t, searchResp, 200)
+	client.AssertStatusCode(t, searchResp, 200)
 	results = decodeBusinessUnits(t, searchResp)
 
 	if len(results) != 2 {
@@ -2353,7 +2354,7 @@ func testGetByPhone(t *testing.T) {
 	nonExistentPhone := "+972509399999"
 	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", nonExistentPhone)
 	searchResp = httpClient.GET(t, searchURL)
-	common.AssertStatusCode(t, searchResp, 200)
+	client.AssertStatusCode(t, searchResp, 200)
 	results = decodeBusinessUnits(t, searchResp)
 
 	if len(results) != 0 {
@@ -2375,7 +2376,7 @@ func testEmptySearchResults(t *testing.T) {
 
 	// Search for non-existent combination
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=nonexistentcity&labels=nonexistentlabel")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	results, _, _, _ := decodePaginated(t, resp)
 
 	if len(results) != 0 {
@@ -2400,7 +2401,7 @@ func testUpdateToExistingData(t *testing.T) {
 
 	bu := createValidBusinessUnit("Update To Existing", "+972509400001")
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	// Update to exact same data
@@ -2412,7 +2413,7 @@ func testUpdateToExistingData(t *testing.T) {
 	}
 
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), update)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
 }
@@ -2429,7 +2430,7 @@ func testCreateWithMinimalFields(t *testing.T) {
 	}
 
 	resp := httpClient.POST(t, "/api/v1/business-units", minimal)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	// Verify defaults were applied
@@ -2449,7 +2450,7 @@ func testUpdatePriorityImpactOnSearch(t *testing.T) {
 	bu1["cities"] = []string{"TestCity"}
 	bu1["labels"] = []string{"TestLabel"}
 	resp1 := httpClient.POST(t, "/api/v1/business-units", bu1)
-	common.AssertStatusCode(t, resp1, 201)
+	client.AssertStatusCode(t, resp1, 201)
 	created1 := decodeBusinessUnit(t, resp1)
 
 	bu2 := createValidBusinessUnit("Priority Impact 2", "+972509600002")
@@ -2457,12 +2458,12 @@ func testUpdatePriorityImpactOnSearch(t *testing.T) {
 	bu2["cities"] = []string{"TestCity"}
 	bu2["labels"] = []string{"TestLabel"}
 	resp2 := httpClient.POST(t, "/api/v1/business-units", bu2)
-	common.AssertStatusCode(t, resp2, 201)
+	client.AssertStatusCode(t, resp2, 201)
 	created2 := decodeBusinessUnit(t, resp2)
 
 	// Search - bu2 should come first (higher priority)
 	resp := httpClient.GET(t, "/api/v1/business-units/search?cities=testcity&labels=testlabel")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	results, _, _, _ := decodePaginated(t, resp)
 
 	if len(results) >= 2 && results[0].Priority < results[1].Priority {
@@ -2475,7 +2476,7 @@ func testUpdatePriorityImpactOnSearch(t *testing.T) {
 
 	// Search again - bu1 should now come first
 	resp = httpClient.GET(t, "/api/v1/business-units/search?cities=testcity&labels=testlabel")
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	results, _, _, _ = decodePaginated(t, resp)
 
 	if len(results) >= 2 && results[0].ID != created1.ID {
@@ -2493,7 +2494,7 @@ func testMultipleCitiesSingleLabel(t *testing.T) {
 	bu["cities"] = []string{"Tel Aviv", "Haifa", "Jerusalem", "Beer Sheva", "Eilat"}
 	bu["labels"] = []string{"Haircut"}
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	// Search for any of the cities with the label
@@ -2505,7 +2506,7 @@ func testMultipleCitiesSingleLabel(t *testing.T) {
 
 	for _, searchURL := range searchTests {
 		resp := httpClient.GET(t, searchURL)
-		common.AssertStatusCode(t, resp, 200)
+		client.AssertStatusCode(t, resp, 200)
 		results, _, _, _ := decodePaginated(t, resp)
 
 		if len(results) < 1 {
@@ -2532,14 +2533,14 @@ func testMaxBusinessUnitsPerAdminPhoneCreate(t *testing.T) {
 		// Make each one unique by varying cities
 		bu["cities"] = []string{fmt.Sprintf("City%d", i)}
 		resp := httpClient.POST(t, "/api/v1/business-units", bu)
-		common.AssertStatusCode(t, resp, 201)
+		client.AssertStatusCode(t, resp, 201)
 		created := decodeBusinessUnit(t, resp)
 		createdIDs = append(createdIDs, created.ID)
 	}
 
 	// Verify we have 5 business units for this phone
 	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/phone/%s?limit=10&offset=0", adminPhone))
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	_, count, _, _ := decodePaginated(t, resp)
 	if count != 5 {
 		t.Errorf("expected 5 business units for phone, got %d", count)
@@ -2565,14 +2566,14 @@ func testMaxBusinessUnitsPerAdminPhoneUpdate(t *testing.T) {
 	// Create business unit with phone1
 	bu1 := createValidBusinessUnit("Business 1", phone1)
 	resp := httpClient.POST(t, "/api/v1/business-units", bu1)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created1 := decodeBusinessUnit(t, resp)
 
 	// Create business unit with phone2
 	bu2 := createValidBusinessUnit("Business 2", phone2)
 	bu2["cities"] = []string{"Different City"}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu2)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created2 := decodeBusinessUnit(t, resp)
 
 	// Update business unit 2's admin phone to phone1 (should work since we're under limit)
@@ -2580,11 +2581,11 @@ func testMaxBusinessUnitsPerAdminPhoneUpdate(t *testing.T) {
 		"admin_phone": phone1,
 	}
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created2.ID), updateReq)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 
 	// Verify both business units now have phone1
 	resp = httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/phone/%s?limit=10&offset=0", phone1))
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	_, count, _, _ := decodePaginated(t, resp)
 	if count != 2 {
 		t.Errorf("expected 2 business units for phone1 after update, got %d", count)
@@ -2607,7 +2608,7 @@ func testMaxMaintainersPerBusinessCreate(t *testing.T) {
 	bu["maintainers"] = maintainers
 
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	if len(created.Maintainers) != 10 {
@@ -2626,7 +2627,7 @@ func testMaxMaintainersPerBusinessCreate(t *testing.T) {
 	if resp.StatusCode != 422 && resp.StatusCode != 400 && resp.StatusCode != 409 {
 		t.Errorf("expected validation error (400/409/422) for 11 maintainers, got %d", resp.StatusCode)
 	}
-	common.AssertContains(t, resp, "Maintainers")
+	client.AssertContains(t, resp, "Maintainers")
 
 	// Cleanup
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
@@ -2644,7 +2645,7 @@ func testMaxMaintainersPerBusinessUpdate(t *testing.T) {
 	bu["maintainers"] = maintainers
 
 	resp := httpClient.POST(t, "/api/v1/business-units", bu)
-	common.AssertStatusCode(t, resp, 201)
+	client.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 
 	// Update to 10 maintainers (should succeed)
@@ -2657,9 +2658,9 @@ func testMaxMaintainersPerBusinessUpdate(t *testing.T) {
 	}
 
 	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID), updateReq)
-	common.AssertStatusCode(t, resp, 204)
+	client.AssertStatusCode(t, resp, 204)
 	resp = httpClient.GET(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))
-	common.AssertStatusCode(t, resp, 200)
+	client.AssertStatusCode(t, resp, 200)
 	updated := decodeBusinessUnit(t, resp)
 
 	if len(updated.Maintainers) != 10 {
@@ -2679,7 +2680,7 @@ func testMaxMaintainersPerBusinessUpdate(t *testing.T) {
 	if resp.StatusCode != 422 && resp.StatusCode != 400 && resp.StatusCode != 409 {
 		t.Errorf("expected validation error (400/409/422) for 11 maintainers, got %d", resp.StatusCode)
 	}
-	common.AssertContains(t, resp, "Maintainers")
+	client.AssertContains(t, resp, "Maintainers")
 
 	// Cleanup
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/business-units/id/%s", created.ID))

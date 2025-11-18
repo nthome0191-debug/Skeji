@@ -1,4 +1,4 @@
-package common
+package client
 
 import (
 	"bytes"
@@ -11,13 +11,13 @@ import (
 	"time"
 )
 
-type Client struct {
+type HttpClient struct {
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func NewClient(baseURL string) *Client {
-	return &Client{
+func NewHttpClient(baseURL string) *HttpClient {
+	return &HttpClient{
 		BaseURL: baseURL,
 		HTTPClient: &http.Client{
 			Timeout: 10 * time.Second,
@@ -34,42 +34,42 @@ func (r *Response) DecodeJSON(target any) error {
 	return json.Unmarshal(r.Body, target)
 }
 
-func (c *Client) GET(t *testing.T, path string) *Response {
+func (c *HttpClient) GET(t *testing.T, path string) *Response {
 	t.Helper()
 	return c.request(t, http.MethodGet, path, nil, nil)
 }
 
-func (c *Client) POST(t *testing.T, path string, body any) *Response {
+func (c *HttpClient) POST(t *testing.T, path string, body any) *Response {
 	t.Helper()
 	return c.request(t, http.MethodPost, path, body, nil)
 }
 
-func (c *Client) PATCH(t *testing.T, path string, body any) *Response {
+func (c *HttpClient) PATCH(t *testing.T, path string, body any) *Response {
 	t.Helper()
 	return c.request(t, http.MethodPatch, path, body, nil)
 }
 
-func (c *Client) DELETE(t *testing.T, path string) *Response {
+func (c *HttpClient) DELETE(t *testing.T, path string) *Response {
 	t.Helper()
 	return c.request(t, http.MethodDelete, path, nil, nil)
 }
 
-func (c *Client) POSTWithHeaders(t *testing.T, path string, body any, headers map[string]string) *Response {
+func (c *HttpClient) POSTWithHeaders(t *testing.T, path string, body any, headers map[string]string) *Response {
 	t.Helper()
 	return c.request(t, http.MethodPost, path, body, headers)
 }
 
-func (c *Client) POSTRaw(t *testing.T, path string, rawBody []byte) *Response {
+func (c *HttpClient) POSTRaw(t *testing.T, path string, rawBody []byte) *Response {
 	t.Helper()
 	return c.requestRaw(t, http.MethodPost, path, rawBody, nil)
 }
 
-func (c *Client) PATCHRaw(t *testing.T, path string, rawBody []byte) *Response {
+func (c *HttpClient) PATCHRaw(t *testing.T, path string, rawBody []byte) *Response {
 	t.Helper()
 	return c.requestRaw(t, http.MethodPatch, path, rawBody, nil)
 }
 
-func (c *Client) request(t *testing.T, method, path string, body any, headers map[string]string) *Response {
+func (c *HttpClient) request(t *testing.T, method, path string, body any, headers map[string]string) *Response {
 	t.Helper()
 
 	var reqBody io.Reader
@@ -112,7 +112,7 @@ func (c *Client) request(t *testing.T, method, path string, body any, headers ma
 	}
 }
 
-func (c *Client) requestRaw(t *testing.T, method, path string, rawBody []byte, headers map[string]string) *Response {
+func (c *HttpClient) requestRaw(t *testing.T, method, path string, rawBody []byte, headers map[string]string) *Response {
 	t.Helper()
 
 	var reqBody io.Reader
@@ -151,7 +151,7 @@ func (c *Client) requestRaw(t *testing.T, method, path string, rawBody []byte, h
 	}
 }
 
-func (c *Client) WaitForHealthy(t *testing.T, maxWait time.Duration) {
+func (c *HttpClient) WaitForHealthy(t *testing.T, maxWait time.Duration) {
 	t.Helper()
 
 	deadline := time.Now().Add(maxWait)

@@ -2,10 +2,11 @@ package common
 
 import (
 	"fmt"
+	"skeji/pkg/client"
 	"testing"
 )
 
-func ClearTestData(t *testing.T, httpClient *Client, tableName string) {
+func ClearTestData(t *testing.T, httpClient *client.HttpClient, tableName string) {
 	t.Helper()
 	totalCount := 1000
 	for totalCount > 0 {
