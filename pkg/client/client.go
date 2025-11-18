@@ -7,7 +7,10 @@ import (
 )
 
 type Client struct {
-	Mongo *MongoClient
+	Mongo              *MongoClient
+	BusinessUnitClient *BusinessUnitClient
+	ScheduleClient     *ScheduleClient
+	BookingClient      *BookingClient
 }
 
 func NewClient() *Client {
@@ -16,6 +19,18 @@ func NewClient() *Client {
 
 func (c *Client) SetMongo(log *logger.Logger, mongoURI string, mongoConnTimeout time.Duration) {
 	c.Mongo = NewCMongolient(log, mongoURI, mongoConnTimeout)
+}
+
+func (c *Client) SetBusinessUnitClient(baseUrl string) {
+	c.BusinessUnitClient = NewBusinessUnitClient(baseUrl)
+}
+
+func (c *Client) SetSchdeuleClient(baseUrl string) {
+	c.ScheduleClient = NewScheduleClient(baseUrl)
+}
+
+func (c *Client) SetBookingClient(baseUrl string) {
+	c.BookingClient = NewBookingClient(baseUrl)
 }
 
 func (c *Client) GracefulShutdown() {
