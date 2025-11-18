@@ -20,12 +20,12 @@ import (
 type BusinessUnitService interface {
 	Create(ctx context.Context, bu *model.BusinessUnit) error
 	GetByID(ctx context.Context, id string) (*model.BusinessUnit, error)
-	GetAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error)
+	GetAll(ctx context.Context, limit int, offset int64) ([]*model.BusinessUnit, int64, error)
 	Update(ctx context.Context, id string, updates *model.BusinessUnitUpdate) error
 	Delete(ctx context.Context, id string) error
 
-	GetByPhone(ctx context.Context, phone string, limit int, offset int) ([]*model.BusinessUnit, int64, error)
-	Search(ctx context.Context, cities []string, labels []string, limit int, offset int) ([]*model.BusinessUnit, int64, error)
+	GetByPhone(ctx context.Context, phone string, limit int, offset int64) ([]*model.BusinessUnit, int64, error)
+	Search(ctx context.Context, cities []string, labels []string, limit int, offset int64) ([]*model.BusinessUnit, int64, error)
 }
 
 type businessUnitService struct {
@@ -46,30 +46,14 @@ func NewBusinessUnitService(
 	}
 }
 
-func (s *businessUnitService) verifyDuplication(ctx context.Context, bu *model.BusinessUnit) error {
-	existing, err := s.repo.GetByPhone(ctx, bu.AdminPhone, 5000, 0) // todo: use the service get by phone
-	if err != nil {
-		return fmt.Errorf("failed to check for duplicates: %w", err)
-	}
-
-	for _, existingBU := range existing {
-		if existingBU.ID == bu.ID {
-			continue
-		}
-		if s.isDuplicate(bu, existingBU) {
-			return apperrors.Conflict(fmt.Sprintf(
-				"Business unit with similar details already exists (id: %s)",
-				existingBU.ID,
-			))
-		}
-	}
-	return nil
-}
-
 func (s *businessUnitService) Create(ctx context.Context, bu *model.BusinessUnit) error {
 	s.applyDefaults(bu)
 	s.sanitize(bu)
-	err := s.validate(bu)
+	err := s.verifyLimitPerPhoneAdmin(ctx, bu)
+	if err != nil {
+		return err
+	}
+	err = s.validate(bu)
 	if err != nil {
 		return err
 	}
@@ -127,7 +111,7 @@ func (s *businessUnitService) GetByID(ctx context.Context, id string) (*model.Bu
 	return bu, nil
 }
 
-func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, int64, error) {
+func (s *businessUnitService) GetAll(ctx context.Context, limit int, offset int64) ([]*model.BusinessUnit, int64, error) {
 	var count int64
 	var units []*model.BusinessUnit
 	var errCount, errFind error
@@ -241,7 +225,7 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *businessUnitService) GetByPhone(ctx context.Context, phone string, limit int, offset int) ([]*model.BusinessUnit, int64, error) {
+func (s *businessUnitService) GetByPhone(ctx context.Context, phone string, limit int, offset int64) ([]*model.BusinessUnit, int64, error) {
 	if phone == "" {
 		return nil, 0, apperrors.InvalidInput("Phone number cannot be empty")
 	}
@@ -289,7 +273,7 @@ func (s *businessUnitService) GetByPhone(ctx context.Context, phone string, limi
 	return units, count, nil
 }
 
-func (s *businessUnitService) Search(ctx context.Context, cities []string, labels []string, limit int, offset int) ([]*model.BusinessUnit, int64, error) {
+func (s *businessUnitService) Search(ctx context.Context, cities []string, labels []string, limit int, offset int64) ([]*model.BusinessUnit, int64, error) {
 	if len(cities) == 0 || len(labels) == 0 {
 		return nil, 0, apperrors.InvalidInput("Both search criteria (cities and labels) must be provided")
 	}
@@ -499,4 +483,49 @@ func (s *businessUnitService) populateCityLabelPairs(bu *model.BusinessUnit) {
 		}
 	}
 	bu.CityLabelPairs = pairs
+}
+
+func (s *businessUnitService) verifyDuplication(ctx context.Context, bu *model.BusinessUnit) (err error) {
+	total, err := s.repo.CountByPhone(ctx, bu.AdminPhone)
+	if err != nil {
+		return err
+	}
+	var offset int64 = 0
+	var chunk []*model.BusinessUnit
+	for offset < total {
+		chunk, err = s.repo.GetByPhone(ctx, bu.AdminPhone, config.DefaultPaginationLimit, offset)
+		if err != nil {
+			return fmt.Errorf("failed to check for duplicates: %w", err)
+		}
+		if len(chunk) == 0 {
+			break
+		}
+		for _, existingBU := range chunk {
+			if existingBU.ID == bu.ID {
+				continue
+			}
+			if s.isDuplicate(bu, existingBU) {
+				return apperrors.Conflict(fmt.Sprintf(
+					"Business unit with similar details already exists (id: %s)",
+					existingBU.ID,
+				))
+			}
+		}
+		offset += int64(len(chunk))
+	}
+	return nil
+}
+
+func (s *businessUnitService) verifyLimitPerPhoneAdmin(ctx context.Context, bu *model.BusinessUnit) (err error) {
+	_, total, err := s.GetByPhone(ctx, bu.AdminPhone, 10, 0)
+	if err != nil {
+		return err
+	}
+	if total >= int64(config.DefaultMaxBusinessUnitsPerAdminPhone) {
+		return apperrors.Conflict(fmt.Sprintf(
+			"Phone num exceeded maximum business units allowed (%s)",
+			bu.AdminPhone,
+		))
+	}
+	return nil
 }

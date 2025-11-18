@@ -19,7 +19,7 @@ type PaginatedResponse struct {
 	Data       any   `json:"data"`
 	TotalCount int64 `json:"total_count"`
 	Limit      int   `json:"limit"`
-	Offset     int   `json:"offset"`
+	Offset     int64 `json:"offset"`
 }
 
 func WriteJSON(w http.ResponseWriter, statusCode int, data any) error {
@@ -74,7 +74,7 @@ func WriteNoContent(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func WritePaginated(w http.ResponseWriter, data any, totalCount int64, limit int, offset int) error {
+func WritePaginated(w http.ResponseWriter, data any, totalCount int64, limit int, offset int64) error {
 	return WriteJSON(w, http.StatusOK, PaginatedResponse{
 		Data:       data,
 		TotalCount: totalCount,

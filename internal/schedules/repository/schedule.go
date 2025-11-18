@@ -31,10 +31,10 @@ type mongoScheduleRepository struct {
 type ScheduleRepository interface {
 	Create(ctx context.Context, sc *model.Schedule) error
 	FindByID(ctx context.Context, id string) (*model.Schedule, error)
-	FindAll(ctx context.Context, limit int, offset int) ([]*model.Schedule, error)
+	FindAll(ctx context.Context, limit int, offset int64) ([]*model.Schedule, error)
 	Update(ctx context.Context, id string, sc *model.Schedule) (*mongo.UpdateResult, error)
 	Delete(ctx context.Context, id string) error
-	Search(ctx context.Context, businessId string, city string, limit int, offset int) ([]*model.Schedule, error)
+	Search(ctx context.Context, businessId string, city string, limit int, offset int64) ([]*model.Schedule, error)
 	CountBySearch(ctx context.Context, businessId string, city string) (int64, error)
 	Count(ctx context.Context) (int64, error)
 	ExecuteTransaction(ctx context.Context, fn mongotx.TransactionFunc) error
@@ -112,7 +112,7 @@ func (r *mongoScheduleRepository) FindByID(ctx context.Context, id string) (*mod
 	return &sc, nil
 }
 
-func (r *mongoScheduleRepository) FindAll(ctx context.Context, limit int, offset int) ([]*model.Schedule, error) {
+func (r *mongoScheduleRepository) FindAll(ctx context.Context, limit int, offset int64) ([]*model.Schedule, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
@@ -202,7 +202,7 @@ func escapeRegexSpecialChars(s string) string {
 	})
 }
 
-func (r *mongoScheduleRepository) Search(ctx context.Context, businessId string, city string, limit int, offset int) ([]*model.Schedule, error) {
+func (r *mongoScheduleRepository) Search(ctx context.Context, businessId string, city string, limit int, offset int64) ([]*model.Schedule, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 

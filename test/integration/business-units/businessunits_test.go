@@ -112,13 +112,13 @@ func decodeBusinessUnits(t *testing.T, resp *common.Response) []model.BusinessUn
 	return result.Data
 }
 
-func decodePaginated(t *testing.T, resp *common.Response) (bu_model []model.BusinessUnit, count int, limit int, offset int) {
+func decodePaginated(t *testing.T, resp *common.Response) (bu_model []model.BusinessUnit, count int, limit int, offset int64) {
 	t.Helper()
 	var result struct {
 		Data       []model.BusinessUnit `json:"data"`
 		TotalCount int                  `json:"total_count"`
 		Limit      int                  `json:"limit"`
-		Offset     int                  `json:"offset"`
+		Offset     int64                `json:"offset"`
 	}
 	if err := resp.DecodeJSON(&result); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
@@ -1516,7 +1516,7 @@ func testPostAdminPhoneValidation(t *testing.T) {
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error (400 or 422) for missing admin_phone, got %d", resp.StatusCode)
 	}
-	common.AssertContains(t, resp, "AdminPhone")
+	common.AssertContains(t, resp, "Phone")
 
 	payload2 := map[string]any{
 		"name":        "Business With Empty Phone",
@@ -2255,7 +2255,7 @@ func testGetByPhone(t *testing.T) {
 	adminPhone3 := "+972509300003"
 	bu3 := createValidBusinessUnit("Admin in Maintainers Test", adminPhone3)
 	bu3["maintainers"] = map[string]string{
-		adminPhone3:         "ShouldBeRemoved",
+		adminPhone3:     "ShouldBeRemoved",
 		"+972509300004": "ShouldStay",
 	}
 	resp = httpClient.POST(t, "/api/v1/business-units", bu3)

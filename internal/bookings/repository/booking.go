@@ -30,10 +30,10 @@ type mongoBookingRepository struct {
 type BookingRepository interface {
 	Create(ctx context.Context, booking *model.Booking) error
 	FindByID(ctx context.Context, id string) (*model.Booking, error)
-	FindAll(ctx context.Context, limit int, offset int) ([]*model.Booking, error)
+	FindAll(ctx context.Context, limit int, offset int64) ([]*model.Booking, error)
 	Update(ctx context.Context, id string, booking *model.Booking) (*mongo.UpdateResult, error)
 	Delete(ctx context.Context, id string) error
-	FindByBusinessAndSchedule(ctx context.Context, businessID string, scheduleID string, startTime *time.Time, endTime *time.Time, limit int, offset int) ([]*model.Booking, error)
+	FindByBusinessAndSchedule(ctx context.Context, businessID string, scheduleID string, startTime *time.Time, endTime *time.Time, limit int, offset int64) ([]*model.Booking, error)
 	CountByBusinessAndSchedule(ctx context.Context, businessID string, scheduleID string, startTime *time.Time, endTime *time.Time) (int64, error)
 	Count(ctx context.Context) (int64, error)
 	ExecuteTransaction(ctx context.Context, fn mongotx.TransactionFunc) error
@@ -111,7 +111,7 @@ func (r *mongoBookingRepository) FindByID(ctx context.Context, id string) (*mode
 	return &booking, nil
 }
 
-func (r *mongoBookingRepository) FindAll(ctx context.Context, limit int, offset int) ([]*model.Booking, error) {
+func (r *mongoBookingRepository) FindAll(ctx context.Context, limit int, offset int64) ([]*model.Booking, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
@@ -195,7 +195,7 @@ func (r *mongoBookingRepository) FindByBusinessAndSchedule(
 	businessID string,
 	scheduleID string,
 	startTime, endTime *time.Time,
-	limit, offset int,
+	limit int, offset int64,
 ) ([]*model.Booking, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()

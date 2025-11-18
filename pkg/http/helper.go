@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-func ExtractLimitOffset(r *http.Request) (int, int, error) {
+func ExtractLimitOffset(r *http.Request) (int, int64, error) {
 	query := r.URL.Query()
 
 	limit := 0
@@ -19,13 +19,13 @@ func ExtractLimitOffset(r *http.Request) (int, int, error) {
 		limit = v
 	}
 
-	offset := 0
+	var offset int64 = 0
 	if s := query.Get("offset"); s != "" {
 		v, err := strconv.Atoi(s)
 		if err != nil {
 			return 0, 0, apperrors.InvalidInput("invalid offset parameter: " + s)
 		}
-		offset = v
+		offset = int64(v)
 	}
 
 	limit = config.NormalizePaginationLimit(limit)

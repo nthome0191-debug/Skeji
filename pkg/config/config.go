@@ -265,6 +265,6 @@ func NormalizePaginationLimit(limit int) int {
 	return limit
 }
 
-func NormalizeOffset(offset int) int {
+func NormalizeOffset(offset int64) int64 {
 	return max(0, offset)
 }

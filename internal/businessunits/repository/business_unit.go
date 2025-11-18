@@ -30,13 +30,13 @@ type mongoBusinessUnitRepository struct {
 type BusinessUnitRepository interface {
 	Create(ctx context.Context, bu *model.BusinessUnit) error
 	FindByID(ctx context.Context, id string) (*model.BusinessUnit, error)
-	FindAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, error)
+	FindAll(ctx context.Context, limit int, offset int64) ([]*model.BusinessUnit, error)
 	Update(ctx context.Context, id string, bu *model.BusinessUnit) (*mongo.UpdateResult, error)
 	Delete(ctx context.Context, id string) error
 
-	GetByPhone(ctx context.Context, phone string, limit int, offset int) ([]*model.BusinessUnit, error)
+	GetByPhone(ctx context.Context, phone string, limit int, offset int64) ([]*model.BusinessUnit, error)
 	CountByPhone(ctx context.Context, phone string) (int64, error)
-	SearchByCityLabelPairs(ctx context.Context, pairs []string, limit int, offset int) ([]*model.BusinessUnit, error)
+	SearchByCityLabelPairs(ctx context.Context, pairs []string, limit int, offset int64) ([]*model.BusinessUnit, error)
 	CountByCityLabelPairs(ctx context.Context, pairs []string) (int64, error)
 	Count(ctx context.Context) (int64, error)
 
@@ -114,7 +114,7 @@ func (r *mongoBusinessUnitRepository) FindByID(ctx context.Context, id string) (
 	return &bu, nil
 }
 
-func (r *mongoBusinessUnitRepository) FindAll(ctx context.Context, limit int, offset int) ([]*model.BusinessUnit, error) {
+func (r *mongoBusinessUnitRepository) FindAll(ctx context.Context, limit int, offset int64) ([]*model.BusinessUnit, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
@@ -193,7 +193,7 @@ func (r *mongoBusinessUnitRepository) Delete(ctx context.Context, id string) err
 	return nil
 }
 
-func (r *mongoBusinessUnitRepository) SearchByCityLabelPairs(ctx context.Context, pairs []string, limit int, offset int) ([]*model.BusinessUnit, error) {
+func (r *mongoBusinessUnitRepository) SearchByCityLabelPairs(ctx context.Context, pairs []string, limit int, offset int64) ([]*model.BusinessUnit, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
@@ -231,7 +231,7 @@ func (r *mongoBusinessUnitRepository) CountByCityLabelPairs(ctx context.Context,
 	return count, nil
 }
 
-func (r *mongoBusinessUnitRepository) GetByPhone(ctx context.Context, phone string, limit int, offset int) ([]*model.BusinessUnit, error) {
+func (r *mongoBusinessUnitRepository) GetByPhone(ctx context.Context, phone string, limit int, offset int64) ([]*model.BusinessUnit, error) {
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 

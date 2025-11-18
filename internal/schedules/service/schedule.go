@@ -20,10 +20,10 @@ import (
 type ScheduleService interface {
 	Create(ctx context.Context, sc *model.Schedule) error
 	GetByID(ctx context.Context, id string) (*model.Schedule, error)
-	GetAll(ctx context.Context, limit int, offset int) ([]*model.Schedule, int64, error)
+	GetAll(ctx context.Context, limit int, offset int64) ([]*model.Schedule, int64, error)
 	Update(ctx context.Context, id string, updates *model.ScheduleUpdate) error
 	Delete(ctx context.Context, id string) error
-	Search(ctx context.Context, businessID string, city string, limit int, offset int) ([]*model.Schedule, int64, error)
+	Search(ctx context.Context, businessID string, city string, limit int, offset int64) ([]*model.Schedule, int64, error)
 }
 
 type scheduleService struct {
@@ -47,12 +47,16 @@ func NewScheduleService(
 func (s *scheduleService) Create(ctx context.Context, sc *model.Schedule) error {
 	s.applyDefaults(sc)
 	s.sanitize(sc)
-	err := s.validate(sc)
+	err := s.verifyLimitPerBusinessUnit(ctx, sc)
+	if err != nil {
+		return err
+	}
+	err = s.validate(sc)
 	if err != nil {
 		return err
 	}
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-		err = s.verifyDeplication(sessCtx, sc)
+		err = s.verifyDuplication(sessCtx, sc)
 		if err != nil {
 			return err
 		}
@@ -99,7 +103,7 @@ func (s *scheduleService) GetByID(ctx context.Context, id string) (*model.Schedu
 	return sc, nil
 }
 
-func (s *scheduleService) GetAll(ctx context.Context, limit int, offset int) ([]*model.Schedule, int64, error) {
+func (s *scheduleService) GetAll(ctx context.Context, limit int, offset int64) ([]*model.Schedule, int64, error) {
 
 	var count int64
 	var schedules []*model.Schedule
@@ -145,7 +149,6 @@ func (s *scheduleService) Update(ctx context.Context, id string, updates *model.
 	if id == "" {
 		return apperrors.InvalidInput("Schedule ID cannot be empty")
 	}
-
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, scheduleerrors.ErrNotFound) {
@@ -162,9 +165,13 @@ func (s *scheduleService) Update(ctx context.Context, id string, updates *model.
 	if err != nil {
 		return err
 	}
+	err = s.verifyLimitPerBusinessUnitPerCity(ctx, merged)
+	if err != nil {
+		return err
+	}
 
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
-		err = s.verifyDeplication(sessCtx, merged)
+		err = s.verifyDuplication(sessCtx, merged)
 		if err != nil {
 			return err
 		}
@@ -211,7 +218,7 @@ func (s *scheduleService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *scheduleService) Search(ctx context.Context, businessID string, city string, limit int, offset int) ([]*model.Schedule, int64, error) {
+func (s *scheduleService) Search(ctx context.Context, businessID string, city string, limit int, offset int64) ([]*model.Schedule, int64, error) {
 	if businessID == "" {
 		return nil, 0, apperrors.InvalidInput("Business_id must be provided, city is optional")
 	}
@@ -368,10 +375,10 @@ func (s *scheduleService) validate(sc *model.Schedule) error {
 	return nil
 }
 
-func (s *scheduleService) verifyDeplication(ctx context.Context, sc *model.Schedule) error {
+func (s *scheduleService) verifyDuplication(ctx context.Context, sc *model.Schedule) error {
 	// For duplicate checking, we fetch with a reasonable limit
 	// In practice, a business shouldn't have more than 1000 schedules in a single city
-	const maxSchedulesPerCity = 1000
+	const maxSchedulesPerCity = config.DefaultPaginationLimit
 	existingSchedules, err := s.repo.Search(ctx, sc.BusinessID, sc.City, maxSchedulesPerCity, 0)
 	if err != nil {
 		return apperrors.Internal("Failed to check for duplicate schedules", err)
@@ -386,6 +393,29 @@ func (s *scheduleService) verifyDeplication(ctx context.Context, sc *model.Sched
 		if strings.EqualFold(e.Name, sc.Name) && strings.EqualFold(e.City, sc.City) {
 			return apperrors.Conflict("Another schedule with the same name and city already exists for this business")
 		}
+	}
+	return nil
+}
+
+func (s *scheduleService) verifyLimitPerBusinessUnit(ctx context.Context, sc *model.Schedule) error {
+	_, total, err := s.Search(ctx, sc.BusinessID, "", 10, 0)
+	if err != nil {
+		return err
+	}
+	if total >= int64(config.DefaultMaxSchedulesPerBusinessUnits) {
+		return apperrors.Conflict("Business unit exceeded num of allowed schedules")
+	}
+
+	return s.verifyLimitPerBusinessUnitPerCity(ctx, sc)
+}
+
+func (s *scheduleService) verifyLimitPerBusinessUnitPerCity(ctx context.Context, sc *model.Schedule) error {
+	_, total, err := s.Search(ctx, sc.BusinessID, sc.City, 10, 0)
+	if err != nil {
+		return err
+	}
+	if total >= int64(config.DefaultMaxSchedulesPerBusinessUnitsPerCity) {
+		return apperrors.Conflict("Business unit exceeded num of allowed schedules per city")
 	}
 	return nil
 }
