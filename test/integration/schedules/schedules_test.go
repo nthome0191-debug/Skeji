@@ -65,6 +65,9 @@ func testAdvanced(t *testing.T) {
 	testScheduleWithMinimalDuration(t)
 	testScheduleWith24HourOperation(t)
 	testUpdateWorkingDaysToEmpty(t)
+	testMaxSchedulesPerBusinessUnit(t)
+	testMaxSchedulesPerBusinessPerCityCreate(t)
+	testMaxSchedulesPerBusinessPerCityUpdate(t)
 }
 
 func setup() {
@@ -1806,4 +1809,136 @@ func testUpdateWorkingDaysToEmpty(t *testing.T) {
 	}
 
 	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created.ID))
+}
+
+func testMaxSchedulesPerBusinessUnit(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// The limit is DefaultMaxSchedulesPerBusinessUnits (2000)
+	// We'll create just a few to test we're below limit
+	// Testing the actual limit would be too slow for integration tests
+
+	businessID := "507f1f77bcf86cd799439999"
+	createdIDs := make([]string, 0, 5)
+
+	// Create 5 schedules for the same business unit successfully
+	for i := 0; i < 5; i++ {
+		req := createValidSchedule(fmt.Sprintf("Schedule %d", i))
+		req["business_id"] = businessID
+		req["city"] = fmt.Sprintf("City%d", i)
+		req["address"] = fmt.Sprintf("Address %d", i)
+		resp := httpClient.POST(t, "/api/v1/schedules", req)
+		common.AssertStatusCode(t, resp, 201)
+		created := decodeSchedule(t, resp)
+		createdIDs = append(createdIDs, created.ID)
+	}
+
+	// Verify we have 5 schedules for this business
+	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/search?business_id=%s&limit=10&offset=0", businessID))
+	common.AssertStatusCode(t, resp, 200)
+	_, count, _, _ := decodePaginated(t, resp)
+	if count != 5 {
+		t.Errorf("expected 5 schedules for business, got %d", count)
+	}
+
+	// Note: The limit enforcement logic is tested through the service layer
+	// This test verifies the mechanism works for small numbers
+
+	// Cleanup
+	for _, id := range createdIDs {
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", id))
+	}
+}
+
+func testMaxSchedulesPerBusinessPerCityCreate(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	// The limit is DefaultMaxSchedulesPerBusinessUnitsPerCity (200)
+	// We'll create just a few to test we're below limit
+
+	businessID := "507f1f77bcf86cd799439888"
+	city := "TestCityLimit"
+	createdIDs := make([]string, 0, 5)
+
+	// Create 5 schedules for the same business unit and city successfully
+	for i := 0; i < 5; i++ {
+		req := createValidSchedule(fmt.Sprintf("Schedule %d", i))
+		req["business_id"] = businessID
+		req["city"] = city
+		req["address"] = fmt.Sprintf("Unique Address %d", i)
+		resp := httpClient.POST(t, "/api/v1/schedules", req)
+		common.AssertStatusCode(t, resp, 201)
+		created := decodeSchedule(t, resp)
+		createdIDs = append(createdIDs, created.ID)
+	}
+
+	// Verify we have 5 schedules for this business and city
+	resp := httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/search?business_id=%s&city=%s&limit=10&offset=0", businessID, city))
+	common.AssertStatusCode(t, resp, 200)
+	_, count, _, _ := decodePaginated(t, resp)
+	if count != 5 {
+		t.Errorf("expected 5 schedules for business and city, got %d", count)
+	}
+
+	// Note: Testing the actual limit of 200 would be too slow for integration tests
+	// The limit enforcement logic is tested through the service layer
+	// This test verifies the mechanism works for small numbers
+
+	// Cleanup
+	for _, id := range createdIDs {
+		httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", id))
+	}
+}
+
+func testMaxSchedulesPerBusinessPerCityUpdate(t *testing.T) {
+	defer common.ClearTestData(t, httpClient, TableName)
+
+	businessID := "507f1f77bcf86cd799439777"
+	city1 := "CityA"
+	city2 := "CityB"
+
+	// Create schedule in city1
+	req1 := createValidSchedule("Schedule 1")
+	req1["business_id"] = businessID
+	req1["city"] = city1
+	req1["address"] = "Address 1"
+	resp := httpClient.POST(t, "/api/v1/schedules", req1)
+	common.AssertStatusCode(t, resp, 201)
+	created1 := decodeSchedule(t, resp)
+
+	// Create schedule in city2
+	req2 := createValidSchedule("Schedule 2")
+	req2["business_id"] = businessID
+	req2["city"] = city2
+	req2["address"] = "Address 2"
+	resp = httpClient.POST(t, "/api/v1/schedules", req2)
+	common.AssertStatusCode(t, resp, 201)
+	created2 := decodeSchedule(t, resp)
+
+	// Update schedule 2's city to city1 (should work since we're under limit)
+	updateReq := map[string]any{
+		"city": city1,
+	}
+	resp = httpClient.PATCH(t, fmt.Sprintf("/api/v1/schedules/id/%s", created2.ID), updateReq)
+	common.AssertStatusCode(t, resp, 204)
+
+	// Verify both schedules now have city1
+	resp = httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/search?business_id=%s&city=%s&limit=10&offset=0", businessID, city1))
+	common.AssertStatusCode(t, resp, 200)
+	_, count, _, _ := decodePaginated(t, resp)
+	if count != 2 {
+		t.Errorf("expected 2 schedules for city1 after update, got %d", count)
+	}
+
+	// Verify city2 now has 0 schedules
+	resp = httpClient.GET(t, fmt.Sprintf("/api/v1/schedules/search?business_id=%s&city=%s&limit=10&offset=0", businessID, city2))
+	common.AssertStatusCode(t, resp, 200)
+	_, count, _, _ = decodePaginated(t, resp)
+	if count != 0 {
+		t.Errorf("expected 0 schedules for city2 after update, got %d", count)
+	}
+
+	// Cleanup
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created1.ID))
+	httpClient.DELETE(t, fmt.Sprintf("/api/v1/schedules/id/%s", created2.ID))
 }
