@@ -1,0 +1,54 @@
+package client
+
+import (
+	"fmt"
+	"net/url"
+)
+
+type BookingClient struct {
+	httpClient *HttpClient
+}
+
+func NewBookingClient(baseUrl string) *BookingClient {
+	return &BookingClient{
+		httpClient: NewHttpClient(baseUrl),
+	}
+}
+
+func (c *BookingClient) Create(body any) (*Response, error) {
+	return c.httpClient.POST("/api/v1/bookings", body)
+}
+
+func (c *BookingClient) GetAll(limit int, offset int64) (*Response, error) {
+	path := fmt.Sprintf("/api/v1/bookings?limit=%d&offset=%d", limit, offset)
+	return c.httpClient.GET(path)
+}
+
+func (c *BookingClient) Search(cities []string, labels []string, limit int, offset int64) (*Response, error) {
+	q := url.Values{}
+	for _, cty := range cities {
+		q.Add("cities", cty)
+	}
+	for _, label := range labels {
+		q.Add("labels", label)
+	}
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	q.Set("offset", fmt.Sprintf("%d", offset))
+	path := "/api/v1/bookings/search?" + q.Encode()
+	return c.httpClient.GET(path)
+}
+
+func (c *BookingClient) GetByID(id string) (*Response, error) {
+	path := "/api/v1/bookings/id/" + url.PathEscape(id)
+	return c.httpClient.GET(path)
+}
+
+func (c *BookingClient) Update(id string, body any) (*Response, error) {
+	path := "/api/v1/bookings/id/" + url.PathEscape(id)
+	return c.httpClient.PATCH(path, body)
+}
+
+func (c *BookingClient) Delete(id string) (*Response, error) {
+	path := "/api/v1/bookings/id/" + url.PathEscape(id)
+	return c.httpClient.DELETE(path)
+}
