@@ -17,6 +17,7 @@ const ServiceName = "business-units"
 // @BasePath /
 func main() {
 	cfg := config.Load(ServiceName)
+	cfg.SetMongo()
 
 	cfg.Log.Info("Starting Business Units service")
 	businessUnitService := initServices(cfg)

@@ -17,6 +17,7 @@ const ServiceName = "schedules"
 // @BasePath /
 func main() {
 	cfg := config.Load(ServiceName)
+	cfg.SetMongo()
 
 	cfg.Log.Info("Starting Schedules service")
 	scheduleService := initServices(cfg)

@@ -17,6 +17,7 @@ const ServiceName = "bookings"
 // @BasePath /
 func main() {
 	cfg := config.Load(ServiceName)
+	cfg.SetMongo()
 
 	cfg.Log.Info("Starting Bookings service")
 	bookingService := initServices(cfg)

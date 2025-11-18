@@ -16,6 +16,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
 	cfg := config.Load(JobName)
+	cfg.SetMongo()
 	cfg.Log.Info("Starting Mongo migration job")
 	defer cfg.GracefulShutdown()
 	migrateMongo(ctx, cfg)

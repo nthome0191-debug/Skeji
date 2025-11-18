@@ -32,3 +32,7 @@ func NewCMongolient(log *logger.Logger, mongoURI string, mongoConnTimeout time.D
 	log.Info("Successfully connected to MongoDB")
 	return &MongoClient{Client: client}
 }
+
+func (m *MongoClient) GracefulShutdown(ctx context.Context) {
+	m.Client.Disconnect(ctx)
+}

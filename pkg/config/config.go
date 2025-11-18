@@ -1,7 +1,6 @@
 package config
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"regexp"
@@ -90,13 +89,17 @@ func Load(serviceName string) *Config {
 		}),
 		Client: client.NewClient(),
 	}
-	cfg.Client.SetMongo(cfg.Log, cfg.MongoURI, cfg.MongoConnTimeout)
+
 	err := cfg.Validate()
 	if err != nil {
 		cfg.Log.Fatal(err.Error())
 	}
 	cfg.LogConfiguration()
 	return cfg
+}
+
+func (cfg *Config) SetMongo() {
+	cfg.Client.SetMongo(cfg.Log, cfg.MongoURI, cfg.MongoConnTimeout)
 }
 
 func (cfg *Config) Validate() error {
@@ -245,15 +248,7 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 }
 
 func (cfg *Config) GracefulShutdown() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	err := cfg.Client.Mongo.Client.Disconnect(ctx)
-	if err != nil {
-		cfg.Log.Error("Failed to disconnect MongoDB client", "error", err)
-	} else {
-		cfg.Log.Info("MongoDB client disconnected successfully")
-	}
+	cfg.Client.GracefulShutdown()
 }
 
 func NormalizePaginationLimit(limit int) int {
