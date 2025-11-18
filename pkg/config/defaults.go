@@ -42,12 +42,11 @@ const (
 	DefaultMinBusinessPriority     = 0
 	DefaultMaxBusinessPriority     = 1000
 
-	DefaultMaxMaintainersPerBusiness           = 10
-	MaxCitiesForBusiness                       = 50
-	MaxLabelsForBusiness                       = 10
-	DefaultMaxBusinessUnitsPerAdminPhone       = 200
-	DefaultMaxSchedulesPerBusinessUnitsPerCity = 200
-	DefaultMaxSchedulesPerBusinessUnits        = 2000
+	DefaultMaxMaintainersPerBusiness     = 10
+	MaxCitiesForBusiness                 = 50
+	MaxLabelsForBusiness                 = 10
+	DefaultMaxBusinessUnitsPerAdminPhone = 10
+	DefaultMaxSchedulesPerBusinessUnits  = 10
 
 	DefaultDefaultMeetingDurationMin     = 45
 	DefaultDefaultBreakDurationMin       = 15

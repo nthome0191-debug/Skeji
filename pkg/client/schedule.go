@@ -24,16 +24,17 @@ func (c *ScheduleClient) GetAll(limit int, offset int64) (*Response, error) {
 	return c.httpClient.GET(path)
 }
 
-func (c *ScheduleClient) Search(cities []string, labels []string, limit int, offset int64) (*Response, error) {
+func (c *ScheduleClient) Search(businessID string, city string, limit int, offset int64) (*Response, error) {
 	q := url.Values{}
-	for _, cty := range cities {
-		q.Add("cities", cty)
+	q.Set("business_id", businessID)
+
+	if city != "" {
+		q.Set("city", city)
 	}
-	for _, label := range labels {
-		q.Add("labels", label)
-	}
+
 	q.Set("limit", fmt.Sprintf("%d", limit))
 	q.Set("offset", fmt.Sprintf("%d", offset))
+
 	path := "/api/v1/schedules/search?" + q.Encode()
 	return c.httpClient.GET(path)
 }

@@ -24,16 +24,21 @@ func (c *BookingClient) GetAll(limit int, offset int64) (*Response, error) {
 	return c.httpClient.GET(path)
 }
 
-func (c *BookingClient) Search(cities []string, labels []string, limit int, offset int64) (*Response, error) {
+func (c *BookingClient) Search(businessID string, scheduleID string, startTime string, endTime string, limit int, offset int64) (*Response, error) {
 	q := url.Values{}
-	for _, cty := range cities {
-		q.Add("cities", cty)
+	q.Set("business_id", businessID)
+	q.Set("schedule_id", scheduleID)
+
+	if startTime != "" {
+		q.Set("start_time", startTime)
 	}
-	for _, label := range labels {
-		q.Add("labels", label)
+	if endTime != "" {
+		q.Set("end_time", endTime)
 	}
+
 	q.Set("limit", fmt.Sprintf("%d", limit))
 	q.Set("offset", fmt.Sprintf("%d", offset))
+
 	path := "/api/v1/bookings/search?" + q.Encode()
 	return c.httpClient.GET(path)
 }

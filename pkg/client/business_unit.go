@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 type BusinessUnitClient struct {
@@ -26,14 +27,11 @@ func (c *BusinessUnitClient) GetAll(limit int, offset int64) (*Response, error) 
 
 func (c *BusinessUnitClient) Search(cities []string, labels []string, limit int, offset int64) (*Response, error) {
 	q := url.Values{}
-	for _, c := range cities {
-		q.Add("cities", c)
-	}
-	for _, l := range labels {
-		q.Add("labels", l)
-	}
+	q.Set("cities", strings.Join(cities, ","))
+	q.Set("labels", strings.Join(labels, ","))
 	q.Set("limit", fmt.Sprintf("%d", limit))
 	q.Set("offset", fmt.Sprintf("%d", offset))
+
 	path := "/api/v1/business-units/search?" + q.Encode()
 	return c.httpClient.GET(path)
 }

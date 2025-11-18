@@ -165,7 +165,7 @@ func (s *scheduleService) Update(ctx context.Context, id string, updates *model.
 	if err != nil {
 		return err
 	}
-	err = s.verifyLimitPerBusinessUnitPerCity(ctx, merged)
+	err = s.verifyLimitPerBusinessUnit(ctx, merged)
 	if err != nil {
 		return err
 	}
@@ -406,16 +406,5 @@ func (s *scheduleService) verifyLimitPerBusinessUnit(ctx context.Context, sc *mo
 		return apperrors.Conflict("Business unit exceeded num of allowed schedules")
 	}
 
-	return s.verifyLimitPerBusinessUnitPerCity(ctx, sc)
-}
-
-func (s *scheduleService) verifyLimitPerBusinessUnitPerCity(ctx context.Context, sc *model.Schedule) error {
-	_, total, err := s.Search(ctx, sc.BusinessID, sc.City, 10, 0)
-	if err != nil {
-		return err
-	}
-	if total >= int64(config.DefaultMaxSchedulesPerBusinessUnitsPerCity) {
-		return apperrors.Conflict("Business unit exceeded num of allowed schedules per city")
-	}
 	return nil
 }
