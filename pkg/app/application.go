@@ -36,7 +36,7 @@ func (a *Application) SetApp(appHandler contracts.Handler) {
 
 func (a *Application) setHealthHandler() {
 	healthRouter := httprouter.New()
-	healthHandler := NewHealthHandler(a.cfg.Client.Mongo, a.cfg.Log)
+	healthHandler := NewHealthHandler(a.cfg.Client.Mongo.Client, a.cfg.Log)
 	healthHandler.RegisterRoutes(healthRouter)
 
 	var healthHTTPHandler http.Handler = healthRouter

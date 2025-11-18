@@ -23,7 +23,7 @@ func main() {
 }
 
 func migrateMongo(ctx context.Context, cfg *config.Config) {
-	if err := mongoMigration.RunMigration(ctx, cfg.Client.Mongo); err != nil {
+	if err := mongoMigration.RunMigration(ctx, cfg.Client.Mongo.Client); err != nil {
 		log.Fatalf("Migration failed: %v", err)
 	}
 }

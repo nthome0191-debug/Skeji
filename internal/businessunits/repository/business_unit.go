@@ -44,12 +44,12 @@ type BusinessUnitRepository interface {
 }
 
 func NewMongoBusinessUnitRepository(cfg *config.Config) BusinessUnitRepository {
-	db := cfg.Client.Mongo.Database(cfg.MongoDatabaseName)
+	db := cfg.Client.Mongo.Client.Database(cfg.MongoDatabaseName)
 	return &mongoBusinessUnitRepository{
 		cfg:        cfg,
 		db:         db,
 		collection: db.Collection(CollectionName),
-		txManager:  mongotx.NewTransactionManager(cfg.Client.Mongo),
+		txManager:  mongotx.NewTransactionManager(cfg.Client.Mongo.Client),
 	}
 }
 

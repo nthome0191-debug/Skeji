@@ -248,7 +248,7 @@ func (cfg *Config) GracefulShutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	err := cfg.Client.Mongo.Disconnect(ctx)
+	err := cfg.Client.Mongo.Client.Disconnect(ctx)
 	if err != nil {
 		cfg.Log.Error("Failed to disconnect MongoDB client", "error", err)
 	} else {

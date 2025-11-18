@@ -40,12 +40,12 @@ type BookingRepository interface {
 }
 
 func NewMongoBookingRepository(cfg *config.Config) BookingRepository {
-	db := cfg.Client.Mongo.Database(cfg.MongoDatabaseName)
+	db := cfg.Client.Mongo.Client.Database(cfg.MongoDatabaseName)
 	return &mongoBookingRepository{
 		cfg:        cfg,
 		db:         db,
 		collection: db.Collection(CollectionName),
-		txManager:  mongotx.NewTransactionManager(cfg.Client.Mongo),
+		txManager:  mongotx.NewTransactionManager(cfg.Client.Mongo.Client),
 	}
 }
 
