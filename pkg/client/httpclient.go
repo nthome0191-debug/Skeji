@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"testing"
 	"time"
 )
 
@@ -34,99 +33,65 @@ func (r *Response) DecodeJSON(target any) error {
 	return json.Unmarshal(r.Body, target)
 }
 
-func (c *HttpClient) GET(t *testing.T, path string) *Response {
-	t.Helper()
-	return c.request(t, http.MethodGet, path, nil, nil)
+func (c *HttpClient) GET(path string) (*Response, error) {
+	return c.request(http.MethodGet, path, nil, nil)
 }
 
-func (c *HttpClient) POST(t *testing.T, path string, body any) *Response {
-	t.Helper()
-	return c.request(t, http.MethodPost, path, body, nil)
+func (c *HttpClient) POST(path string, body any) (*Response, error) {
+	return c.request(http.MethodPost, path, body, nil)
 }
 
-func (c *HttpClient) PATCH(t *testing.T, path string, body any) *Response {
-	t.Helper()
-	return c.request(t, http.MethodPatch, path, body, nil)
+func (c *HttpClient) PATCH(path string, body any) (*Response, error) {
+	return c.request(http.MethodPatch, path, body, nil)
 }
 
-func (c *HttpClient) DELETE(t *testing.T, path string) *Response {
-	t.Helper()
-	return c.request(t, http.MethodDelete, path, nil, nil)
+func (c *HttpClient) DELETE(path string) (*Response, error) {
+	return c.request(http.MethodDelete, path, nil, nil)
 }
 
-func (c *HttpClient) POSTWithHeaders(t *testing.T, path string, body any, headers map[string]string) *Response {
-	t.Helper()
-	return c.request(t, http.MethodPost, path, body, headers)
+func (c *HttpClient) POSTWithHeaders(path string, body any, headers map[string]string) (*Response, error) {
+	return c.request(http.MethodPost, path, body, headers)
 }
 
-func (c *HttpClient) POSTRaw(t *testing.T, path string, rawBody []byte) *Response {
-	t.Helper()
-	return c.requestRaw(t, http.MethodPost, path, rawBody, nil)
+func (c *HttpClient) POSTRaw(path string, rawBody []byte) (*Response, error) {
+	return c.requestRaw(http.MethodPost, path, rawBody, nil)
 }
 
-func (c *HttpClient) PATCHRaw(t *testing.T, path string, rawBody []byte) *Response {
-	t.Helper()
-	return c.requestRaw(t, http.MethodPatch, path, rawBody, nil)
+func (c *HttpClient) PATCHRaw(path string, rawBody []byte) (*Response, error) {
+	return c.requestRaw(http.MethodPatch, path, rawBody, nil)
 }
 
-func (c *HttpClient) request(t *testing.T, method, path string, body any, headers map[string]string) *Response {
-	t.Helper()
-
+func (c *HttpClient) request(method, path string, body any, headers map[string]string) (*Response, error) {
 	var reqBody io.Reader
+
 	if body != nil {
 		jsonData, err := json.Marshal(body)
 		if err != nil {
-			t.Fatalf("failed to marshal request body: %v", err)
+			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}
 		reqBody = bytes.NewBuffer(jsonData)
 	}
 
-	url := c.BaseURL + path
-	req, err := http.NewRequestWithContext(context.Background(), method, url, reqBody)
-	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		t.Fatalf("request failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("failed to read response body: %v", err)
-	}
-
-	return &Response{
-		Response: resp,
-		Body:     respBody,
-	}
+	return c.do(method, path, reqBody, body != nil, headers)
 }
 
-func (c *HttpClient) requestRaw(t *testing.T, method, path string, rawBody []byte, headers map[string]string) *Response {
-	t.Helper()
-
+func (c *HttpClient) requestRaw(method, path string, rawBody []byte, headers map[string]string) (*Response, error) {
 	var reqBody io.Reader
 	if rawBody != nil {
 		reqBody = bytes.NewBuffer(rawBody)
 	}
+	return c.do(method, path, reqBody, rawBody != nil, headers)
+}
 
+func (c *HttpClient) do(method, path string, reqBody io.Reader, hasBody bool, headers map[string]string) (*Response, error) {
 	url := c.BaseURL + path
+
 	req, err := http.NewRequestWithContext(context.Background(), method, url, reqBody)
 	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	if rawBody != nil {
+	if hasBody {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
@@ -136,24 +101,22 @@ func (c *HttpClient) requestRaw(t *testing.T, method, path string, rawBody []byt
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Fatalf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	return &Response{
 		Response: resp,
 		Body:     respBody,
-	}
+	}, nil
 }
 
-func (c *HttpClient) WaitForHealthy(t *testing.T, maxWait time.Duration) {
-	t.Helper()
-
+func (c *HttpClient) WaitForHealthy(maxWait time.Duration) error {
 	deadline := time.Now().Add(maxWait)
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -162,8 +125,7 @@ func (c *HttpClient) WaitForHealthy(t *testing.T, maxWait time.Duration) {
 		resp, err := c.HTTPClient.Get(c.BaseURL + "/health")
 		if err == nil && resp.StatusCode == http.StatusOK {
 			resp.Body.Close()
-			t.Log("Service is healthy")
-			return
+			return nil
 		}
 		if resp != nil {
 			resp.Body.Close()
@@ -171,50 +133,10 @@ func (c *HttpClient) WaitForHealthy(t *testing.T, maxWait time.Duration) {
 		<-ticker.C
 	}
 
-	t.Fatalf("service did not become healthy within %v", maxWait)
+	return fmt.Errorf("service did not become healthy within %v", maxWait)
 }
 
-func AssertStatusCode(t *testing.T, resp *Response, expected int) {
-	t.Helper()
-	if resp.StatusCode != expected {
-		if resp.Body == nil {
-			resp.Body = []byte{}
-		}
-		t.Fatalf("expected status %d, got %d. Body: %s", expected, resp.StatusCode, string(resp.Body))
-	}
-}
-
-func AssertContains(t *testing.T, resp *Response, substr string) {
-	t.Helper()
-	body := string(resp.Body)
-	if !contains(body, substr) {
-		t.Fatalf("response body does not contain %q. Body: %s", substr, body)
-	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > 0 && containsSubstring(s, substr)))
-}
-
-func containsSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
-
-func PrintResponse(t *testing.T, resp *Response) {
-	t.Helper()
-	t.Logf("Status: %d", resp.StatusCode)
-	t.Logf("Body: %s", string(resp.Body))
-	t.Logf("Headers: %v", resp.Header)
-}
-
-func GetErrorMessage(t *testing.T, resp *Response) string {
-	t.Helper()
+func GetErrorMessage(resp *Response) string {
 	var errResp struct {
 		Error   string `json:"error"`
 		Message string `json:"message"`
@@ -223,6 +145,7 @@ func GetErrorMessage(t *testing.T, resp *Response) string {
 	if err := resp.DecodeJSON(&errResp); err != nil {
 		return fmt.Sprintf("failed to unmarshal error: %v", err)
 	}
+
 	if errResp.Message != "" {
 		return errResp.Message
 	}
