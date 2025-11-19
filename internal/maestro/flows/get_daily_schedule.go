@@ -8,12 +8,6 @@ import (
 	"time"
 )
 
-const (
-	MAX_CONCURRENT_API_CALLS = 40
-)
-
-var requestLimiter = make(chan struct{}, MAX_CONCURRENT_API_CALLS)
-
 type DailyScheduleBusinessUnitScheduleBookingsParticipant struct {
 	Name  string `json:"name"`
 	Phone string `json:"phone"`
@@ -51,9 +45,9 @@ func GetDailySchedule(ctx *maestro.MaestroContext) error {
 
 	cities := ctx.ExtractStringList("cities")
 	labels := ctx.ExtractStringList("labels")
-	start, end := fetchAndApplyTimeFrame(ctx)
+	start, end := fetchAndApplyTimeFrameForView(ctx)
 
-	reqAcquire()
+	maestro.ReqAcquire()
 	resp, err := ctx.Client.BusinessUnitClient.GetByPhone(
 		phone,
 		cities,
@@ -61,7 +55,7 @@ func GetDailySchedule(ctx *maestro.MaestroContext) error {
 		config.DefaultMaxBusinessUnitsPerAdminPhone,
 		0,
 	)
-	reqRelease()
+	maestro.ReqRelease()
 	if err != nil {
 		return err
 	}
@@ -107,14 +101,14 @@ func fillBusinessUnits(
 				cityWg.Add(1)
 				go func() {
 					defer cityWg.Done()
-					reqAcquire()
+					maestro.ReqAcquire()
 					resp, err := ctx.Client.ScheduleClient.Search(
 						unit.ID,
 						city,
 						config.DefaultMaxSchedulesPerBusinessUnits,
 						0,
 					)
-					reqRelease()
+					maestro.ReqRelease()
 					if err != nil {
 						errMu.Lock()
 						if firstErr == nil {
@@ -179,7 +173,7 @@ func fillSchedules(
 				Bookings: []*DailyScheduleBusinessUnitScheduleBooking{},
 			}
 
-			reqAcquire()
+			maestro.ReqAcquire()
 			resp, err := ctx.Client.BookingClient.Search(
 				unitID,
 				schedule.ID,
@@ -188,7 +182,7 @@ func fillSchedules(
 				20,
 				0,
 			)
-			reqRelease()
+			maestro.ReqRelease()
 			if err != nil {
 				errMu.Lock()
 				if firstErr == nil {
@@ -245,7 +239,7 @@ func fillParticipants(b *DailyScheduleBusinessUnitScheduleBooking, participants 
 	}
 }
 
-func fetchAndApplyTimeFrame(ctx *maestro.MaestroContext) (time.Time, time.Time) {
+func fetchAndApplyTimeFrameForView(ctx *maestro.MaestroContext) (time.Time, time.Time) {
 	now := time.Now()
 
 	start, err := ctx.ExtractTime("start")
@@ -269,7 +263,7 @@ func fetchAndApplyTimeFrame(ctx *maestro.MaestroContext) (time.Time, time.Time) 
 	}
 
 	if end.Before(start.Add(1 * time.Hour)) {
-		end = start.Add(2 * time.Hour)
+		end = start.Add(1 * time.Hour)
 	}
 
 	if end.After(start.Add(24 * time.Hour)) {
@@ -278,6 +272,3 @@ func fetchAndApplyTimeFrame(ctx *maestro.MaestroContext) (time.Time, time.Time) 
 
 	return start, end
 }
-
-func reqAcquire() { requestLimiter <- struct{}{} }
-func reqRelease() { <-requestLimiter }
