@@ -75,7 +75,7 @@ func (c *BookingClient) DecodeBooking(resp *Response) (*model.Booking, error) {
 	}
 	err := resp.DecodeJSON(&result)
 	if err != nil {
-		return nil, fmt.Errorf("could not decode booking json:\n%+v\n%s", resp, err)
+		return nil, fmt.Errorf("booking json:\n%+v\n%s", resp.ToString(), err)
 	}
 	return &result.Data, nil
 }
@@ -84,16 +84,16 @@ func (c *BookingClient) DecodeBookings(resp *Response) ([]*model.Booking, *Metad
 	var paginated map[string]any
 	err := resp.DecodeJSON(&paginated)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not decode paginated resp:\n%+v\n%s", resp, err)
+		return nil, nil, fmt.Errorf("could not decode paginated resp:\n%+v\n%s", resp.ToString(), err)
 	}
 	byteArr, err := json.Marshal(paginated["data"])
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not encode bookings json:\n%+v\n%s", resp, err)
+		return nil, nil, fmt.Errorf("could not encode bookings json:\n%+v\n%s", resp.ToString(), err)
 	}
 	var bookings []*model.Booking
 	err = json.Unmarshal(byteArr, &bookings)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not decode booking list:\n%+v\n%s", resp, err)
+		return nil, nil, fmt.Errorf("could not decode booking list:\n%+v\n%s", resp.ToString(), err)
 	}
 	metadata := &Metadata{
 		TotalCount: int64(paginated["total_count"].(float64)),

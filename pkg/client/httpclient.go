@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -37,6 +38,25 @@ type Metadata struct {
 
 func (r *Response) DecodeJSON(target any) error {
 	return json.Unmarshal(r.Body, target)
+}
+
+func (r *Response) ToString() string {
+	if r == nil {
+		return "<nil response>"
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "Status: %s\n", r.Status)
+
+	b.WriteString("Headers:\n")
+	for k, v := range r.Header {
+		fmt.Fprintf(&b, "  %s: %v\n", k, v)
+	}
+
+	b.WriteString("Body:\n")
+	b.Write(r.Body)
+
+	return b.String()
 }
 
 func (c *HttpClient) GET(path string) (*Response, error) {

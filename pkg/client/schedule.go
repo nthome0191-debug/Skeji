@@ -69,7 +69,7 @@ func (c *ScheduleClient) DecodeSchedule(resp *Response) (*model.Schedule, error)
 	var schedule *model.Schedule
 	err := resp.DecodeJSON(&schedule)
 	if err != nil {
-		return nil, fmt.Errorf("could not decode schedule json:\n%+v\n%s", resp, err)
+		return nil, fmt.Errorf("could not decode schedule json:\n%+v\n%s", resp.ToString(), err)
 	}
 	return schedule, nil
 }
@@ -78,18 +78,18 @@ func (c *ScheduleClient) DecodeSchedules(resp *Response) ([]*model.Schedule, *Me
 	var paginated map[string]any
 	err := resp.DecodeJSON(&paginated)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not decode paginated resp:\n%+v\n%s", resp, err)
+		return nil, nil, fmt.Errorf("could not decode paginated resp:\n%+v\n%s", resp.ToString(), err)
 	}
 
 	byteArr, err := json.Marshal(paginated["data"])
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not encode schedules json:\n%+v\n%s", resp, err)
+		return nil, nil, fmt.Errorf("could not encode schedules json:\n%+v\n%s", resp.ToString(), err)
 	}
 
 	var schedules []*model.Schedule
 	err = json.Unmarshal(byteArr, &schedules)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not decode schedule list:\n%+v\n%s", resp, err)
+		return nil, nil, fmt.Errorf("could not decode schedule list:\n%+v\n%s", resp.ToString(), err)
 	}
 
 	metadata := &Metadata{

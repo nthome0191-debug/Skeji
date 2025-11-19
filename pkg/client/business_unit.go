@@ -76,7 +76,7 @@ func (c *BusinessUnitClient) DecodeBusinessUnit(resp *Response) (*model.Business
 	var bu *model.BusinessUnit
 	err := resp.DecodeJSON(&bu)
 	if err != nil {
-		return nil, fmt.Errorf("could not decode business unit json:\n%+v\n%s", resp, err)
+		return nil, fmt.Errorf("could not decode business unit json:\n%+v\n%s", resp.ToString(), err)
 	}
 	return bu, nil
 }
@@ -85,18 +85,18 @@ func (c *BusinessUnitClient) DecodeBusinessUnits(resp *Response) ([]*model.Busin
 	var paginated map[string]any
 	err := resp.DecodeJSON(&paginated)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not decode paginated resp:\n%+v\n%s", resp, err)
+		return nil, nil, fmt.Errorf("could not decode paginated resp:\n%+v\n%s", resp.ToString(), err)
 	}
 
 	byteArr, err := json.Marshal(paginated["data"])
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not encode business units json:\n%+v\n%s", resp, err)
+		return nil, nil, fmt.Errorf("could not encode business units json:\n%+v\n%s", resp.ToString(), err)
 	}
 
 	var units []*model.BusinessUnit
 	err = json.Unmarshal(byteArr, &units)
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not decode business unit list:\n%+v\n%s", resp, err)
+		return nil, nil, fmt.Errorf("could not decode business unit list:\n%+v\n%s", resp.ToString(), err)
 	}
 
 	metadata := &Metadata{
