@@ -20,8 +20,8 @@ const (
 )
 
 var (
-	cfg                *config.Config
-	httpClient         *client.HttpClient
+	cfg                 *config.Config
+	httpClient          *client.HttpClient
 	businessUnitsClient *client.BusinessUnitClient
 )
 
@@ -280,6 +280,9 @@ func testGetInvalidIdExistingRecord(t *testing.T) {
 	common.AssertStatusCode(t, resp, 400)
 
 	resp, err = businessUnitsClient.GetByID("507f1f77bcf86cd799439011")
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 404)
 
 	_, err = businessUnitsClient.Delete(created.ID)
@@ -367,6 +370,9 @@ func testGetValidPaginationExistingRecords(t *testing.T) {
 	}
 
 	resp, err = businessUnitsClient.GetAll(2, 2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 200)
 }
 
@@ -489,6 +495,9 @@ func testGetPaginationEdgeCases(t *testing.T) {
 	}
 
 	resp, err = businessUnitsClient.GetAll(1000, 0)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 200)
 	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) > 100 {
@@ -496,6 +505,9 @@ func testGetPaginationEdgeCases(t *testing.T) {
 	}
 
 	resp, err = businessUnitsClient.GetAll(10, 9999)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 200)
 	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) != 0 {
@@ -541,12 +553,18 @@ func testPostInvalidRecord(t *testing.T) {
 	bu2 := createValidBusinessUnit("Invalid Timezone", "+972512222")
 	bu2["time_zone"] = "Invalid/Timezone"
 	resp, err = businessUnitsClient.Create(bu2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected status 422 or 400 for invalid timezone, got %d", resp.StatusCode)
 	}
 
 	bu3 := createValidBusinessUnit("A", "+972512223")
 	resp, err = businessUnitsClient.Create(bu3)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected status 422 or 400 for short name, got %d", resp.StatusCode)
 	}
@@ -554,6 +572,9 @@ func testPostInvalidRecord(t *testing.T) {
 	bu4 := createValidBusinessUnit("No Cities", "+972512224")
 	bu4["cities"] = []string{}
 	resp, err = businessUnitsClient.Create(bu4)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected status 422 or 400 for empty cities, got %d", resp.StatusCode)
 	}
@@ -561,6 +582,9 @@ func testPostInvalidRecord(t *testing.T) {
 	bu5 := createValidBusinessUnit("No Labels", "+972512225")
 	bu5["labels"] = []string{}
 	resp, err = businessUnitsClient.Create(bu5)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected status 422 or 400 for empty labels, got %d", resp.StatusCode)
 	}
@@ -613,6 +637,9 @@ func testPostWithMissingRelevantKeys(t *testing.T) {
 		"admin_phone": "+972512228",
 	}
 	resp, err = businessUnitsClient.Create(payload2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for missing cities, got %d", resp.StatusCode)
 	}
@@ -623,6 +650,9 @@ func testPostWithMissingRelevantKeys(t *testing.T) {
 		"admin_phone": "+972512229",
 	}
 	resp, err = businessUnitsClient.Create(payload3)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for missing labels, got %d", resp.StatusCode)
 	}
@@ -633,6 +663,9 @@ func testPostWithMissingRelevantKeys(t *testing.T) {
 		"labels": []string{"Haircut"},
 	}
 	resp, err = businessUnitsClient.Create(payload4)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for missing admin_phone, got %d", resp.StatusCode)
 	}
@@ -663,6 +696,9 @@ func testPostWithWebsiteURL(t *testing.T) {
 	bu2 := createValidBusinessUnit("Too Many URLs Test", "+972523337")
 	bu2["website_urls"] = []string{"https://example1.com", "https://example2.com", "https://example3.com", "https://example4.com", "https://example5.com", "https://example6.com"}
 	resp, err = businessUnitsClient.Create(bu2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for too many URLs, got %d", resp.StatusCode)
 	}
@@ -671,6 +707,9 @@ func testPostWithWebsiteURL(t *testing.T) {
 	bu3 := createValidBusinessUnit("Invalid URL Test", "+972523338")
 	bu3["website_urls"] = []string{"http://example.com"}
 	resp, err = businessUnitsClient.Create(bu3)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for non-https URL, got %d", resp.StatusCode)
 	}
@@ -678,6 +717,9 @@ func testPostWithWebsiteURL(t *testing.T) {
 	bu4 := createValidBusinessUnit("Malformed URL Test", "+972523339")
 	bu4["website_urls"] = []string{"not-a-url"}
 	resp, err = businessUnitsClient.Create(bu4)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for malformed URL, got %d", resp.StatusCode)
 	}
@@ -705,6 +747,9 @@ func testPostWithMaintainers(t *testing.T) {
 	bu2 := createValidBusinessUnit("Invalid Maintainer Test", "+972523340")
 	bu2["maintainers"] = map[string]string{"not-a-phone": "lala", "+97254222233": "lele"}
 	resp, err = businessUnitsClient.Create(bu2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 422)
 	_, err = businessUnitsClient.Delete(created.ID)
 	if err != nil {
@@ -735,6 +780,9 @@ func testPostWithArrayMaxLengths(t *testing.T) {
 	}
 	bu2["labels"] = labels
 	resp, err = businessUnitsClient.Create(bu2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for 11 labels (max 10), got %d", resp.StatusCode)
 	}
@@ -751,6 +799,9 @@ func testPostWithArrayMaxLengths(t *testing.T) {
 	}
 	bu3["labels"] = labels10
 	resp, err = businessUnitsClient.Create(bu3)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 	_, err = businessUnitsClient.Delete(created.ID)
@@ -777,6 +828,9 @@ func testPostWithNameBoundaries(t *testing.T) {
 	bu2 := createValidBusinessUnit("X", "+972525333415")
 	bu2["name"] = "X"
 	resp, err = businessUnitsClient.Create(bu2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for 1-char name (min 2), got %d", resp.StatusCode)
 	}
@@ -788,6 +842,9 @@ func testPostWithNameBoundaries(t *testing.T) {
 	bu3 := createValidBusinessUnit(name100, "+972525333415")
 	bu3["name"] = name100
 	resp, err = businessUnitsClient.Create(bu3)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created = decodeBusinessUnit(t, resp)
 	_, err = businessUnitsClient.Delete(created.ID)
@@ -799,6 +856,9 @@ func testPostWithNameBoundaries(t *testing.T) {
 	bu4 := createValidBusinessUnit(name101, "+972525333415")
 	bu4["name"] = name101
 	resp, err = businessUnitsClient.Create(bu4)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for 101-char name (max 100), got %d", resp.StatusCode)
 	}
@@ -826,6 +886,9 @@ func testPostWithPriorityValues(t *testing.T) {
 	bu2 := createValidBusinessUnit("Negative Priority Test", "+972523349")
 	bu2["priority"] = -1
 	resp, err = businessUnitsClient.Create(bu2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created = decodeBusinessUnit(t, resp)
 
@@ -836,6 +899,9 @@ func testPostWithPriorityValues(t *testing.T) {
 	bu3 := createValidBusinessUnit("High Priority Test", "+972523350")
 	bu3["priority"] = 9999
 	resp, err = businessUnitsClient.Create(bu3)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created = decodeBusinessUnit(t, resp)
 
@@ -923,6 +989,9 @@ func testUpdateWithBadFormatKeys(t *testing.T) {
 		"time_zone": "Invalid/Zone",
 	}
 	resp, err = businessUnitsClient.Update(created.ID, updates)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("Note: invalid timezone in update returned %d", resp.StatusCode)
 	}
@@ -931,6 +1000,9 @@ func testUpdateWithBadFormatKeys(t *testing.T) {
 		"name": "A",
 	}
 	resp, err = businessUnitsClient.Update(created.ID, updates)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("Note: short name in update returned %d", resp.StatusCode)
 	}
@@ -975,9 +1047,15 @@ func testUpdateWithGoodFormatKeys(t *testing.T) {
 		"admin_phone": "+972546789012",
 	}
 	resp, err = businessUnitsClient.Update(created.ID, updates)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 204)
 
 	getResp, err = businessUnitsClient.GetByID(created.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, getResp, 200)
 	fetched = decodeBusinessUnit(t, getResp)
 
@@ -989,9 +1067,15 @@ func testUpdateWithGoodFormatKeys(t *testing.T) {
 		"time_zone": "America/New_York",
 	}
 	resp, err = businessUnitsClient.Update(created.ID, updates)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 204)
 
 	// getResp, err = businessUnitsClient.GetByID(created.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	// common.AssertStatusCode(t, getResp, 200)
 	// fetched = decodeBusinessUnit(t, getResp)
 
@@ -1004,9 +1088,15 @@ func testUpdateWithGoodFormatKeys(t *testing.T) {
 	// 	"labels": []string{"Massage", "Spa"},
 	// }
 	// resp, err = businessUnitsClient.Update(created.ID, updates)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	// common.AssertStatusCode(t, resp, 204)
 
 	// getResp, err = businessUnitsClient.GetByID(created.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	// common.AssertStatusCode(t, getResp, 200)
 	// fetched = decodeBusinessUnit(t, getResp)
 
@@ -1103,6 +1193,9 @@ func testUpdateWebsiteURL(t *testing.T) {
 		"website_urls": []string{"http://invalid.com"},
 	}
 	resp, err = businessUnitsClient.Update(created.ID, updates)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for non-https URL, got %d", resp.StatusCode)
 	}
@@ -1184,6 +1277,9 @@ func testDeletedRecord(t *testing.T) {
 	common.AssertStatusCode(t, resp, 204)
 
 	resp, err = businessUnitsClient.Delete(created.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 404)
 }
 
@@ -1312,6 +1408,9 @@ func testPostWithSpecialCharacters(t *testing.T) {
 	bu2["cities"] = []string{"תל אביב", "ירושלים"}
 	bu2["labels"] = []string{"תספורת", "עיצוב"}
 	resp, err = businessUnitsClient.Create(bu2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created = decodeBusinessUnit(t, resp)
 	_, err = businessUnitsClient.Delete(created.ID)
@@ -1338,6 +1437,9 @@ func testPostDuplicateDetection(t *testing.T) {
 	bu2["cities"] = []string{"Tel Aviv"}
 	bu2["labels"] = []string{"Haircut"}
 	resp, err = businessUnitsClient.Create(bu2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created2 := decodeBusinessUnit(t, resp)
 
@@ -1345,6 +1447,9 @@ func testPostDuplicateDetection(t *testing.T) {
 	bu3["cities"] = []string{"Haifa"}
 	bu3["labels"] = []string{"Haircut"}
 	resp, err = businessUnitsClient.Create(bu3)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created3 := decodeBusinessUnit(t, resp)
 
@@ -1352,6 +1457,9 @@ func testPostDuplicateDetection(t *testing.T) {
 	bu4["cities"] = []string{"Tel Aviv"}
 	bu4["labels"] = []string{"Massage"}
 	resp, err = businessUnitsClient.Create(bu4)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created4 := decodeBusinessUnit(t, resp)
 
@@ -1359,6 +1467,9 @@ func testPostDuplicateDetection(t *testing.T) {
 	bu5["cities"] = []string{"Tel Aviv"}
 	bu5["labels"] = []string{"Haircut"}
 	resp, err = businessUnitsClient.Create(bu5)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 409 && resp.StatusCode != 400 {
 		t.Errorf("expected conflict for exact duplicate, got %d", resp.StatusCode)
 	}
@@ -1367,6 +1478,9 @@ func testPostDuplicateDetection(t *testing.T) {
 	bu6["cities"] = []string{"Tel Aviv", "Haifa"}
 	bu6["labels"] = []string{"Haircut"}
 	resp, err = businessUnitsClient.Create(bu6)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 409 && resp.StatusCode != 400 {
 		t.Errorf("expected conflict for cities overlap (subset), got %d", resp.StatusCode)
 	}
@@ -1375,6 +1489,9 @@ func testPostDuplicateDetection(t *testing.T) {
 	bu7["cities"] = []string{"Tel Aviv"}
 	bu7["labels"] = []string{"Haircut", "Massage"}
 	resp, err = businessUnitsClient.Create(bu7)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 409 && resp.StatusCode != 400 {
 		t.Errorf("expected conflict for labels overlap (subset), got %d", resp.StatusCode)
 	}
@@ -1383,6 +1500,9 @@ func testPostDuplicateDetection(t *testing.T) {
 	bu8["cities"] = []string{"tel_aviv"}
 	bu8["labels"] = []string{"haircut"}
 	resp, err = businessUnitsClient.Create(bu8)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 409 && resp.StatusCode != 400 {
 		t.Errorf("expected conflict for case-insensitive duplicate, got %d", resp.StatusCode)
 	}
@@ -1391,6 +1511,9 @@ func testPostDuplicateDetection(t *testing.T) {
 	bu9["cities"] = []string{"Eilat", "Netanya"}
 	bu9["labels"] = []string{"Spa", "Styling"}
 	resp, err = businessUnitsClient.Create(bu9)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created9 := decodeBusinessUnit(t, resp)
 
@@ -1399,11 +1522,17 @@ func testPostDuplicateDetection(t *testing.T) {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	_, err = businessUnitsClient.Delete(created2.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	_, err = businessUnitsClient.Delete(created3.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	_, err = businessUnitsClient.Delete(created4.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	_, err = businessUnitsClient.Delete(created9.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
@@ -1442,6 +1571,9 @@ func testUpdateArraysToMaxLength(t *testing.T) {
 		"labels": labels11,
 	}
 	resp, err = businessUnitsClient.Update(created.ID, updates)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for 11 labels, got %d", resp.StatusCode)
 	}
@@ -1450,6 +1582,9 @@ func testUpdateArraysToMaxLength(t *testing.T) {
 		"cities": []string{},
 	}
 	resp, err = businessUnitsClient.Update(created.ID, updates)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for empty cities, got %d", resp.StatusCode)
 	}
@@ -1458,6 +1593,9 @@ func testUpdateArraysToMaxLength(t *testing.T) {
 		"labels": []string{},
 	}
 	resp, err = businessUnitsClient.Update(created.ID, updates)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for empty labels, got %d", resp.StatusCode)
 	}
@@ -1500,10 +1638,16 @@ func testUpdatePriorityEdgeCases(t *testing.T) {
 		"priority": -5,
 	}
 	resp, err = businessUnitsClient.Update(created.ID, updates)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 204 {
 		t.Errorf("expected 204 for negative prioriyty, got %d", resp.StatusCode)
 	}
 	getResp, err = businessUnitsClient.GetByID(created.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	fetched = decodeBusinessUnit(t, getResp)
 	if fetched.Priority < 0 {
 		t.Errorf("expected priority >= 0 after normalization, got %d", fetched.Priority)
@@ -1513,8 +1657,14 @@ func testUpdatePriorityEdgeCases(t *testing.T) {
 		"priority": 10000,
 	}
 	resp, err = businessUnitsClient.Update(created.ID, updates)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 204)
 	getResp, err = businessUnitsClient.GetByID(created.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	fetched = decodeBusinessUnit(t, getResp)
 	if fetched.Priority > config.DefaultMaxBusinessPriority {
 		t.Errorf("expected priority <= %d, got %d", config.DefaultMaxBusinessPriority, fetched.Priority)
@@ -1892,6 +2042,9 @@ func testPostAdminPhoneValidation(t *testing.T) {
 		"admin_phone": "",
 	}
 	resp, err = businessUnitsClient.Create(payload2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error (400 or 422) for empty admin_phone, got %d", resp.StatusCode)
 	}
@@ -1903,6 +2056,9 @@ func testPostAdminPhoneValidation(t *testing.T) {
 		"admin_phone": "   ",
 	}
 	resp, err = businessUnitsClient.Create(payload3)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error (400 or 422) for whitespace-only admin_phone, got %d", resp.StatusCode)
 	}
@@ -1945,9 +2101,15 @@ func testUpdateAdminPhoneValidation(t *testing.T) {
 		"admin_phone": "+972501234567",
 	}
 	resp, err = businessUnitsClient.Update(created.ID, updates4)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 204)
 
 	getResp, err = businessUnitsClient.GetByID(created.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, getResp, 200)
 	fetched = decodeBusinessUnit(t, getResp)
 
@@ -1969,7 +2131,7 @@ func testPhoneNumberEdgeCases(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
-	common.AssertStatusCode(t, resp, 422)
+	common.AssertStatusCode(t, resp, 201)
 	created := decodeBusinessUnit(t, resp)
 	if strings.Contains(created.AdminPhone, " ") {
 		t.Logf("Admin phone wasn't sanitized/normalized: %s", created.AdminPhone)
@@ -1977,7 +2139,10 @@ func testPhoneNumberEdgeCases(t *testing.T) {
 
 	bu2 := createValidBusinessUnit("Phone With Dashes", "+972-50-1234567")
 	resp, err = businessUnitsClient.Create(bu2)
-	common.AssertStatusCode(t, resp, 422)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
+	common.AssertStatusCode(t, resp, 201)
 	created = decodeBusinessUnit(t, resp)
 	if strings.Contains(created.AdminPhone, "-") {
 		t.Logf("Admin phone wasn't sanitized/normalized: %s", created.AdminPhone)
@@ -1985,6 +2150,9 @@ func testPhoneNumberEdgeCases(t *testing.T) {
 
 	bu3 := createValidBusinessUnit("Min Phone", "+9728")
 	resp, err = businessUnitsClient.Create(bu3)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode == 201 {
 		created := decodeBusinessUnit(t, resp)
 		_, err := businessUnitsClient.Delete(created.ID)
@@ -1995,6 +2163,9 @@ func testPhoneNumberEdgeCases(t *testing.T) {
 
 	bu4 := createValidBusinessUnit("Max Phone", "+123456789012345")
 	resp, err = businessUnitsClient.Create(bu4)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode == 201 {
 		created := decodeBusinessUnit(t, resp)
 		_, err = businessUnitsClient.Delete(created.ID)
@@ -2011,18 +2182,29 @@ func testConcurrentCreation(t *testing.T) {
 	results := make([]int, 5)
 	ids := make([]string, 5)
 
+	// channel to safely collect errors from goroutines
+	errCh := make(chan error, 5)
+
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
+
 		go func(index int) {
 			defer wg.Done()
-			bu := createValidBusinessUnit("Concurrent Business", fmt.Sprintf("+97250%07d", 2000000+index))
+
+			bu := createValidBusinessUnit("Concurrent Business",
+				fmt.Sprintf("+97250%07d", 2000000+index))
+
 			bu["cities"] = []string{"Tel Aviv"}
 			bu["labels"] = []string{"Test"}
+
 			resp, err := businessUnitsClient.Create(bu)
 			if err != nil {
-				t.Fatalf("HTTP request failed: %v", err)
+				errCh <- fmt.Errorf("request failed for index %d: %v", index, err)
+				return
 			}
+
 			results[index] = resp.StatusCode
+
 			if resp.StatusCode == 201 {
 				created := decodeBusinessUnit(t, resp)
 				ids[index] = created.ID
@@ -2031,24 +2213,32 @@ func testConcurrentCreation(t *testing.T) {
 	}
 
 	wg.Wait()
+	close(errCh)
 
-	successCount := 0
-	for _, status := range results {
-		if status == 201 {
-			successCount++
+	for err := range errCh {
+		t.Error(err)
+	}
+
+	// Check success count
+	success := 0
+	for _, s := range results {
+		if s == 201 {
+			success++
 		}
 	}
 
-	if successCount != 5 {
-		t.Logf("Concurrent creation: %d/5 succeeded (expected all to succeed with different phones)", successCount)
+	if success != 5 {
+		t.Errorf("Expected 5 successful creations, got %d", success)
 	}
 
 	// Cleanup
 	for _, id := range ids {
 		if id != "" {
-			_, err := businessUnitsClient.Delete(id)
+			if _, err := businessUnitsClient.Delete(id); err != nil {
 			if err != nil {
-				t.Fatalf("HTTP request failed: %v", err)
+				t.Errorf("Request failed: %v", err)
+			}
+				t.Errorf("cleanup failed for ID %s: %v", id, err)
 			}
 		}
 	}
@@ -2060,45 +2250,59 @@ func testConcurrentUpdates(t *testing.T) {
 	bu := createValidBusinessUnit("Concurrent Update Test", "+972502000000")
 	createResp, err := businessUnitsClient.Create(bu)
 	if err != nil {
-		t.Fatalf("HTTP request failed: %v", err)
+		t.Fatalf("initial create failed: %v", err)
 	}
 	common.AssertStatusCode(t, createResp, 201)
+
 	created := decodeBusinessUnit(t, createResp)
 
 	var wg sync.WaitGroup
+	errCh := make(chan error, 10)
 	results := make([]int, 10)
 
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
+
 		go func(index int) {
 			defer wg.Done()
+
 			update := map[string]any{
 				"name": fmt.Sprintf("Updated Name %d", index),
 			}
+
 			resp, err := businessUnitsClient.Update(created.ID, update)
 			if err != nil {
-				t.Fatalf("HTTP request failed: %v", err)
+				errCh <- fmt.Errorf("update %d failed: %v", index, err)
+				return
 			}
+
 			results[index] = resp.StatusCode
 		}(i)
 	}
 
 	wg.Wait()
+	close(errCh)
 
-	successCount := 0
-	for _, status := range results {
-		if status == 204 {
-			successCount++
+	for err := range errCh {
+		t.Error(err)
+	}
+
+	success := 0
+	for _, s := range results {
+		if s == 204 {
+			success++
 		}
 	}
 
-	if successCount != 10 {
-		t.Logf("Concurrent updates: %d/10 succeeded", successCount)
+	if success != 10 {
+		t.Errorf("Expected all 10 updates to succeed (204), got %d", success)
 	}
 
-	_, err = businessUnitsClient.Delete(created.ID)
+	if _, err := businessUnitsClient.Delete(created.ID); err != nil {
 	if err != nil {
-		t.Fatalf("HTTP request failed: %v", err)
+		t.Errorf("Request failed: %v", err)
+	}
+		t.Errorf("cleanup failed: %v", err)
 	}
 }
 
@@ -2153,6 +2357,9 @@ func testMaintainersEdgeCases(t *testing.T) {
 	bu3 := createValidBusinessUnit("Admin As Maintainer", "+972502000012")
 	bu3["maintainers"] = map[string]string{"+972502000012": "ya", "+972541111111": "da"}
 	resp, err = businessUnitsClient.Create(bu3)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created3 := decodeBusinessUnit(t, resp)
 	_, err = businessUnitsClient.Delete(created3.ID)
@@ -2691,6 +2898,9 @@ func testUpdateAllFieldsSimultaneously(t *testing.T) {
 	}
 
 	resp, err = businessUnitsClient.Update(created.ID, update)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 204)
 
 	// Verify all fields updated
@@ -2780,6 +2990,9 @@ func testGetByPhone(t *testing.T) {
 	bu2 := createValidBusinessUnit("Maintainer Phone Test", "+972509300000")
 	bu2["maintainers"] = map[string]string{maintainerPhone: "TestMaintainer"}
 	resp, err = businessUnitsClient.Create(bu2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created2 := decodeBusinessUnit(t, resp)
 
@@ -2803,6 +3016,9 @@ func testGetByPhone(t *testing.T) {
 		"+972509300004": "ShouldStay",
 	}
 	resp, err = businessUnitsClient.Create(bu3)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created3 := decodeBusinessUnit(t, resp)
 
@@ -2833,12 +3049,18 @@ func testGetByPhone(t *testing.T) {
 	bu4 := createValidBusinessUnit("Shared Maintainer 1", "+972509300006")
 	bu4["maintainers"] = map[string]string{sharedMaintainer: "SharedPerson"}
 	resp, err = businessUnitsClient.Create(bu4)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created4 := decodeBusinessUnit(t, resp)
 
 	bu5 := createValidBusinessUnit("Shared Maintainer 2", "+972509300007")
 	bu5["maintainers"] = map[string]string{sharedMaintainer: "SharedPerson"}
 	resp, err = businessUnitsClient.Create(bu5)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created5 := decodeBusinessUnit(t, resp)
 
@@ -2863,12 +3085,18 @@ func testGetByPhone(t *testing.T) {
 	dualPhone := "+972509300008"
 	bu6 := createValidBusinessUnit("Dual Role Admin", dualPhone)
 	resp, err = businessUnitsClient.Create(bu6)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created6 := decodeBusinessUnit(t, resp)
 
 	bu7 := createValidBusinessUnit("Dual Role Maintainer", "+972509300009")
 	bu7["maintainers"] = map[string]string{dualPhone: "DualPerson"}
 	resp, err = businessUnitsClient.Create(bu7)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created7 := decodeBusinessUnit(t, resp)
 
@@ -2906,16 +3134,25 @@ func testGetByPhone(t *testing.T) {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	_, err = businessUnitsClient.Delete(created2.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	_, err = businessUnitsClient.Delete(created3.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	_, err = businessUnitsClient.Delete(created4.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	_, err = businessUnitsClient.Delete(created5.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	_, err = businessUnitsClient.Delete(created6.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	_, err = businessUnitsClient.Delete(created7.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
@@ -2973,6 +3210,9 @@ func testUpdateToExistingData(t *testing.T) {
 	}
 
 	resp, err = businessUnitsClient.Update(created.ID, update)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 204)
 
 	_, err = businessUnitsClient.Delete(created.ID)
@@ -3069,6 +3309,9 @@ func testUpdatePriorityImpactOnSearch(t *testing.T) {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	_, err = businessUnitsClient.Delete(created2.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 }
 
 func testMultipleCitiesSingleLabel(t *testing.T) {
@@ -3178,6 +3421,9 @@ func testMaxBusinessUnitsPerAdminPhoneUpdate(t *testing.T) {
 	bu2 := createValidBusinessUnit("Business 2", phone2)
 	bu2["cities"] = []string{"Different City"}
 	resp, err = businessUnitsClient.Create(bu2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created2 := decodeBusinessUnit(t, resp)
 
@@ -3186,6 +3432,9 @@ func testMaxBusinessUnitsPerAdminPhoneUpdate(t *testing.T) {
 		"admin_phone": phone1,
 	}
 	resp, err = businessUnitsClient.Update(created2.ID, updateReq)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 204)
 
 	// Verify both business units now have phone1
@@ -3202,6 +3451,9 @@ func testMaxBusinessUnitsPerAdminPhoneUpdate(t *testing.T) {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	_, err = businessUnitsClient.Delete(created2.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 }
 
 func testMaxMaintainersPerBusinessCreate(t *testing.T) {
@@ -3235,6 +3487,9 @@ func testMaxMaintainersPerBusinessCreate(t *testing.T) {
 	bu2["maintainers"] = maintainers2
 
 	resp, err = businessUnitsClient.Create(bu2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 && resp.StatusCode != 409 {
 		t.Errorf("expected validation error (400/409/422) for 11 maintainers, got %d", resp.StatusCode)
 	}
@@ -3275,8 +3530,14 @@ func testMaxMaintainersPerBusinessUpdate(t *testing.T) {
 	}
 
 	resp, err = businessUnitsClient.Update(created.ID, updateReq)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 204)
 	resp, err = businessUnitsClient.GetByID(created.ID)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 200)
 	updated := decodeBusinessUnit(t, resp)
 
@@ -3294,6 +3555,9 @@ func testMaxMaintainersPerBusinessUpdate(t *testing.T) {
 	}
 
 	resp, err = businessUnitsClient.Update(created.ID, updateReq2)
+	if err != nil {
+		t.Errorf("Request failed: %v", err)
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 && resp.StatusCode != 409 {
 		t.Errorf("expected validation error (400/409/422) for 11 maintainers, got %d", resp.StatusCode)
 	}
