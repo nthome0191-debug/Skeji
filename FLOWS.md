@@ -7,7 +7,7 @@ Result should be:
 
 business-units:
     - name: BlueOcean
-      label: spa
+      labels: spa, relax
       schedules:
         - name: Main Branch
           label: spa
