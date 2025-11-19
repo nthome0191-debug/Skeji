@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"net/url"
+	"skeji/pkg/model"
 )
 
 type BookingClient struct {
@@ -56,6 +57,24 @@ func (c *BookingClient) Update(id string, body any) (*Response, error) {
 func (c *BookingClient) Delete(id string) (*Response, error) {
 	path := "/api/v1/bookings/id/" + url.PathEscape(id)
 	return c.httpClient.DELETE(path)
+}
+
+func (c *BookingClient) DecodeBooking(resp *Response) (*model.Booking, error) {
+	var booking *model.Booking
+	err := resp.DecodeJSON(booking)
+	if err != nil {
+		return nil, fmt.Errorf("coulf not decode booking json:\n%+v\n%s", resp, err)
+	}
+	return booking, nil
+}
+
+func (c *BookingClient) DecodeBookings(resp *Response) ([]*model.Booking, error) {
+	var bookings []*model.Booking
+	err := resp.DecodeJSON(bookings)
+	if err != nil {
+		return nil, fmt.Errorf("coulf not decode bookings json:\n%+v\n%s", resp, err)
+	}
+	return bookings, nil
 }
 
 func (c *BookingClient) CreateRaw(rawBody []byte) (*Response, error) {
