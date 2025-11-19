@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"skeji/pkg/model"
-	"strings"
 )
 
 type BusinessUnitClient struct {
@@ -27,10 +26,17 @@ func (c *BusinessUnitClient) GetAll(limit int, offset int64) (*Response, error) 
 	return c.httpClient.GET(path)
 }
 
+// Search supports repeated list params (cities=x&cities=y)
 func (c *BusinessUnitClient) Search(cities []string, labels []string, limit int, offset int64) (*Response, error) {
 	q := url.Values{}
-	q.Set("cities", strings.Join(cities, ","))
-	q.Set("labels", strings.Join(labels, ","))
+
+	for _, cty := range cities {
+		q.Add("cities", cty)
+	}
+	for _, lbl := range labels {
+		q.Add("labels", lbl)
+	}
+
 	q.Set("limit", fmt.Sprintf("%d", limit))
 	q.Set("offset", fmt.Sprintf("%d", offset))
 
@@ -38,13 +44,26 @@ func (c *BusinessUnitClient) Search(cities []string, labels []string, limit int,
 	return c.httpClient.GET(path)
 }
 
-func (c *BusinessUnitClient) GetByPhone(phone string, limit int, offset int64) (*Response, error) {
+// UPDATED: Now supports cities + labels
+func (c *BusinessUnitClient) GetByPhone(phone string, cities []string, labels []string, limit int, offset int64) (*Response, error) {
+	q := url.Values{}
+
+	for _, cty := range cities {
+		q.Add("cities", cty)
+	}
+	for _, lbl := range labels {
+		q.Add("labels", lbl)
+	}
+
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	q.Set("offset", fmt.Sprintf("%d", offset))
+
 	path := fmt.Sprintf(
-		"/api/v1/business-units/phone/%s?limit=%d&offset=%d",
+		"/api/v1/business-units/phone/%s?%s",
 		url.PathEscape(phone),
-		limit,
-		offset,
+		q.Encode(),
 	)
+
 	return c.httpClient.GET(path)
 }
 

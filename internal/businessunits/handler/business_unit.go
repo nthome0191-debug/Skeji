@@ -84,10 +84,12 @@ func (h *BusinessUnitHandler) GetByID(w http.ResponseWriter, r *http.Request, ps
 }
 
 // @Summary Get business units by phone
-// @Description Returns all business units where the phone is either the admin or a maintainer
+// @Description Returns all business units where the phone is either the admin or a maintainer. Also supports optional filtering by cities and labels.
 // @Tags BusinessUnits
 // @Produce json
 // @Param phone path string true "Phone Number"
+// @Param cities query []string false "Filter by cities"
+// @Param labels query []string false "Filter by labels"
 // @Param limit query int false "Limit"
 // @Param offset query int false "Offset"
 // @Success 200 {object} httputil.PaginatedResponse
@@ -97,6 +99,10 @@ func (h *BusinessUnitHandler) GetByID(w http.ResponseWriter, r *http.Request, ps
 func (h *BusinessUnitHandler) GetByPhone(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	phone := ps.ByName("phone")
 
+	// Extract cities[] and labels[]
+	cities := r.URL.Query()["cities"]
+	labels := r.URL.Query()["labels"]
+
 	limit, offset, err := httputil.ExtractLimitOffset(r)
 	if err != nil {
 		if writeErr := httputil.WriteError(w, err); writeErr != nil {
@@ -105,7 +111,7 @@ func (h *BusinessUnitHandler) GetByPhone(w http.ResponseWriter, r *http.Request,
 		return
 	}
 
-	units, totalCount, err := h.service.GetByPhone(r.Context(), phone, limit, offset)
+	units, totalCount, err := h.service.GetByPhone(r.Context(), phone, cities, labels, limit, offset)
 	if err != nil {
 		if writeErr := httputil.WriteError(w, err); writeErr != nil {
 			h.log.Error("failed to write error response", "handler", "GetByPhone", "operation", "WriteError", "error", writeErr)

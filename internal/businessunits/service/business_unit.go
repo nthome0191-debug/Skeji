@@ -24,7 +24,7 @@ type BusinessUnitService interface {
 	Update(ctx context.Context, id string, updates *model.BusinessUnitUpdate) error
 	Delete(ctx context.Context, id string) error
 
-	GetByPhone(ctx context.Context, phone string, limit int, offset int64) ([]*model.BusinessUnit, int64, error)
+	GetByPhone(ctx context.Context, phone string, cities []string, labels []string, limit int, offset int64) ([]*model.BusinessUnit, int64, error)
 	Search(ctx context.Context, cities []string, labels []string, limit int, offset int64) ([]*model.BusinessUnit, int64, error)
 }
 
@@ -225,10 +225,12 @@ func (s *businessUnitService) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *businessUnitService) GetByPhone(ctx context.Context, phone string, limit int, offset int64) ([]*model.BusinessUnit, int64, error) {
+func (s *businessUnitService) GetByPhone(ctx context.Context, phone string, cities []string, labels []string, limit int, offset int64) ([]*model.BusinessUnit, int64, error) {
 	if phone == "" {
 		return nil, 0, apperrors.InvalidInput("Phone number cannot be empty")
 	}
+	phone = sanitizer.SanitizePhone(phone)
+	labels, cities = s.sanitizeSearchRequest(labels, cities)
 
 	var count int64
 	var units []*model.BusinessUnit
@@ -239,7 +241,7 @@ func (s *businessUnitService) GetByPhone(ctx context.Context, phone string, limi
 	go func() {
 		defer wg.Done()
 		var err error
-		count, err = s.repo.CountByPhone(ctx, phone)
+		count, err = s.repo.CountByPhone(ctx, phone, cities, labels)
 		if err != nil {
 			s.cfg.Log.Error("Failed to count business units by phone", "phone", phone, "error", err)
 			errCount = apperrors.Internal("Failed to count business units by phone", err)
@@ -249,7 +251,7 @@ func (s *businessUnitService) GetByPhone(ctx context.Context, phone string, limi
 	go func() {
 		defer wg.Done()
 		var err error
-		units, err = s.repo.GetByPhone(ctx, phone, limit, offset)
+		units, err = s.repo.GetByPhone(ctx, phone, cities, labels, limit, offset)
 		if err != nil {
 			s.cfg.Log.Error("Failed to get business units by phone",
 				"phone", phone,
@@ -487,14 +489,14 @@ func (s *businessUnitService) populateCityLabelPairs(bu *model.BusinessUnit) {
 }
 
 func (s *businessUnitService) verifyDuplication(ctx context.Context, bu *model.BusinessUnit) (err error) {
-	total, err := s.repo.CountByPhone(ctx, bu.AdminPhone)
+	total, err := s.repo.CountByPhone(ctx, bu.AdminPhone, bu.Cities, bu.Labels)
 	if err != nil {
 		return err
 	}
 	var offset int64 = 0
 	var chunk []*model.BusinessUnit
 	for offset < total {
-		chunk, err = s.repo.GetByPhone(ctx, bu.AdminPhone, config.DefaultPaginationLimit, offset)
+		chunk, err = s.repo.GetByPhone(ctx, bu.AdminPhone, bu.Cities, bu.Labels, config.DefaultPaginationLimit, offset)
 		if err != nil {
 			return fmt.Errorf("failed to check for duplicates: %w", err)
 		}
@@ -518,7 +520,7 @@ func (s *businessUnitService) verifyDuplication(ctx context.Context, bu *model.B
 }
 
 func (s *businessUnitService) verifyLimitPerPhoneAdmin(ctx context.Context, bu *model.BusinessUnit) (err error) {
-	_, total, err := s.GetByPhone(ctx, bu.AdminPhone, 10, 0)
+	_, total, err := s.GetByPhone(ctx, bu.AdminPhone, bu.Cities, bu.Labels, 10, 0)
 	if err != nil {
 		return err
 	}

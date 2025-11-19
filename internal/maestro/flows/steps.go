@@ -21,7 +21,7 @@ const (
 
 func ListPhoneRelatedBusinessUnits(ctx *maestro.MaestroContext) error {
 	phone := ctx.Input[PHONE].(string)
-	resp, err := ctx.Client.BusinessUnitClient.GetByPhone(phone, config.DefaultMaxBusinessUnitsPerAdminPhone, 0)
+	resp, err := ctx.Client.BusinessUnitClient.GetByPhone(phone, []string{}, []string{}, config.DefaultMaxBusinessUnitsPerAdminPhone, 0)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func ListBusinessUnitsRelatedCityRelatedSchedulesRelatedBookings(ctx *maestro.Ma
 			}
 		}
 	}
-	ctx.Process["bu_id_to_city_to_schedule_id_to_bookings"] = bookings
+	ctx.Process[BU_ID_TO_CITY_TO_SCHEDULE_ID_TO_BOOKINGS] = bookings
 	return nil
 }
 

@@ -34,8 +34,8 @@ type BusinessUnitRepository interface {
 	Update(ctx context.Context, id string, bu *model.BusinessUnit) (*mongo.UpdateResult, error)
 	Delete(ctx context.Context, id string) error
 
-	GetByPhone(ctx context.Context, phone string, limit int, offset int64) ([]*model.BusinessUnit, error)
-	CountByPhone(ctx context.Context, phone string) (int64, error)
+	GetByPhone(ctx context.Context, phone string, cities []string, labels []string, limit int, offset int64) ([]*model.BusinessUnit, error)
+	CountByPhone(ctx context.Context, phone string, cities []string, labels []string) (int64, error)
 	SearchByCityLabelPairs(ctx context.Context, pairs []string, limit int, offset int64) ([]*model.BusinessUnit, error)
 	CountByCityLabelPairs(ctx context.Context, pairs []string) (int64, error)
 	Count(ctx context.Context) (int64, error)
@@ -231,7 +231,15 @@ func (r *mongoBusinessUnitRepository) CountByCityLabelPairs(ctx context.Context,
 	return count, nil
 }
 
-func (r *mongoBusinessUnitRepository) GetByPhone(ctx context.Context, phone string, limit int, offset int64) ([]*model.BusinessUnit, error) {
+func (r *mongoBusinessUnitRepository) GetByPhone(
+	ctx context.Context,
+	phone string,
+	cities []string,
+	labels []string,
+	limit int,
+	offset int64,
+) ([]*model.BusinessUnit, error) {
+
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
@@ -240,6 +248,14 @@ func (r *mongoBusinessUnitRepository) GetByPhone(ctx context.Context, phone stri
 			{"admin_phone": phone},
 			{fmt.Sprintf("maintainers.%s", phone): bson.M{"$exists": true}},
 		},
+	}
+
+	if len(cities) > 0 {
+		filter["cities"] = bson.M{"$in": cities}
+	}
+
+	if len(labels) > 0 {
+		filter["labels"] = bson.M{"$in": labels}
 	}
 
 	opts := options.Find().
@@ -254,13 +270,20 @@ func (r *mongoBusinessUnitRepository) GetByPhone(ctx context.Context, phone stri
 	defer cursor.Close(ctx)
 
 	var businessUnits []*model.BusinessUnit
-	if err = cursor.All(ctx, &businessUnits); err != nil {
+	if err := cursor.All(ctx, &businessUnits); err != nil {
 		return nil, fmt.Errorf("failed to decode search results: %w", err)
 	}
+
 	return businessUnits, nil
 }
 
-func (r *mongoBusinessUnitRepository) CountByPhone(ctx context.Context, phone string) (int64, error) {
+func (r *mongoBusinessUnitRepository) CountByPhone(
+	ctx context.Context,
+	phone string,
+	cities []string,
+	labels []string,
+) (int64, error) {
+
 	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
 	defer cancel()
 
@@ -271,10 +294,19 @@ func (r *mongoBusinessUnitRepository) CountByPhone(ctx context.Context, phone st
 		},
 	}
 
+	if len(cities) > 0 {
+		filter["cities"] = bson.M{"$in": cities}
+	}
+
+	if len(labels) > 0 {
+		filter["labels"] = bson.M{"$in": labels}
+	}
+
 	count, err := r.collection.CountDocuments(ctx, filter)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count business units for phone [%s]: %w", phone, err)
 	}
+
 	return count, nil
 }
 
