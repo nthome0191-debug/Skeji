@@ -66,36 +66,43 @@ func (c *ScheduleClient) UpdateRaw(id string, rawBody []byte) (*Response, error)
 }
 
 func (c *ScheduleClient) DecodeSchedule(resp *Response) (*model.Schedule, error) {
-	var schedule *model.Schedule
-	err := resp.DecodeJSON(&schedule)
-	if err != nil {
+	var wrapper struct {
+		Data json.RawMessage `json:"data"`
+	}
+
+	if err := json.Unmarshal(resp.Body, &wrapper); err != nil {
+		return nil, fmt.Errorf("could not decode schedule wrapper:\n%+v\n%s", resp.ToString(), err)
+	}
+
+	var schedule model.Schedule
+	if err := json.Unmarshal(wrapper.Data, &schedule); err != nil {
 		return nil, fmt.Errorf("could not decode schedule json:\n%+v\n%s", resp.ToString(), err)
 	}
-	return schedule, nil
+
+	return &schedule, nil
 }
 
 func (c *ScheduleClient) DecodeSchedules(resp *Response) ([]*model.Schedule, *Metadata, error) {
-	var paginated map[string]any
-	err := resp.DecodeJSON(&paginated)
-	if err != nil {
+	var wrapper struct {
+		Data       json.RawMessage `json:"data"`
+		TotalCount int64           `json:"total_count"`
+		Limit      int             `json:"limit"`
+		Offset     int64           `json:"offset"`
+	}
+
+	if err := json.Unmarshal(resp.Body, &wrapper); err != nil {
 		return nil, nil, fmt.Errorf("could not decode paginated resp:\n%+v\n%s", resp.ToString(), err)
 	}
 
-	byteArr, err := json.Marshal(paginated["data"])
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not encode schedules json:\n%+v\n%s", resp.ToString(), err)
-	}
-
 	var schedules []*model.Schedule
-	err = json.Unmarshal(byteArr, &schedules)
-	if err != nil {
+	if err := json.Unmarshal(wrapper.Data, &schedules); err != nil {
 		return nil, nil, fmt.Errorf("could not decode schedule list:\n%+v\n%s", resp.ToString(), err)
 	}
 
 	metadata := &Metadata{
-		TotalCount: int64(paginated["total_count"].(float64)),
-		Limit:      int(paginated["limit"].(float64)),
-		Offset:     int64(paginated["offset"].(float64)),
+		TotalCount: wrapper.TotalCount,
+		Limit:      wrapper.Limit,
+		Offset:     wrapper.Offset,
 	}
 
 	return schedules, metadata, nil

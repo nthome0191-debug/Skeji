@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	phoneRegex    = regexp.MustCompile(`^(?:|\+[1-9]\d{7,14})$`)
+	phoneRegex    = regexp.MustCompile(`^\+?[0-9\s-]+$`)
 	validTimeZone = regexp.MustCompile(`^[A-Za-z0-9_\-/]+$`)
 )
 

@@ -36,9 +36,9 @@ type Metadata struct {
 	Offset     int64
 }
 
-func (r *Response) DecodeJSON(target any) error {
-	return json.Unmarshal(r.Body, target)
-}
+// func (r *Response) DecodeJSON(target any) error {
+// 	return json.Unmarshal(r.Body, target)
+// }
 
 func (r *Response) ToString() string {
 	if r == nil {
@@ -168,7 +168,7 @@ func GetErrorMessage(resp *Response) string {
 		Message string `json:"message"`
 		Code    string `json:"code"`
 	}
-	if err := resp.DecodeJSON(&errResp); err != nil {
+	if err := json.Unmarshal(resp.Body, &errResp); err != nil {
 		return fmt.Sprintf("failed to unmarshal error: %v", err)
 	}
 

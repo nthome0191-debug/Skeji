@@ -1,6 +1,7 @@
 package common
 
 import (
+	"encoding/json"
 	"fmt"
 	"skeji/pkg/client"
 	"testing"
@@ -55,7 +56,7 @@ func ClearTestData(t *testing.T, httpClient *client.HttpClient, tableName string
 			Data []map[string]any `json:"data"`
 		}
 
-		if err := resp.DecodeJSON(&result); err != nil {
+		if err := json.Unmarshal(resp.Body, &result); err != nil {
 			t.Logf("Failed to decode JSON for resource %s: %v", tableName, err)
 			return
 		}
@@ -80,7 +81,7 @@ func ClearTestData(t *testing.T, httpClient *client.HttpClient, tableName string
 			Limit      int              `json:"limit"`
 			Offset     int              `json:"offset"`
 		}
-		if err := resp.DecodeJSON(&res); err != nil {
+		if err := json.Unmarshal(resp.Body, &res); err != nil {
 			t.Fatalf("failed to decode response: %v", err)
 		}
 		totalCount = res.TotalCount

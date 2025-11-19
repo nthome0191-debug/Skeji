@@ -21,8 +21,8 @@ const (
 )
 
 var (
-	cfg            *config.Config
-	httpClient     *client.HttpClient
+	cfg             *config.Config
+	httpClient      *client.HttpClient
 	schedulesClient *client.ScheduleClient
 )
 
@@ -271,6 +271,9 @@ func testGetInvalidIdExistingRecord(t *testing.T) {
 	common.AssertStatusCode(t, resp, 400)
 
 	resp, err = schedulesClient.GetByID("507f1f77bcf86cd799439011")
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 404)
 
 	_, err = schedulesClient.Delete(created.ID)
@@ -286,20 +289,34 @@ func testGetValidSearchExistingRecords(t *testing.T) {
 	req1 := createValidSchedule("Acro Tower Branch")
 	req1["business_id"] = adminBusiness
 	req1["city"] = "Tel Aviv"
-	_, err := schedulesClient.Create(req1)
+	resp, err := schedulesClient.Create(req1)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
+	}
+	sch1, err := schedulesClient.DecodeSchedule(resp)
+	if err != nil {
+		t.Errorf("failed to decode schedule entity: %v", err)
+	}
+	if sch1.ID == "" {
+		t.Errorf("failed to create schedule")
 	}
 
 	req2 := createValidSchedule("Azrieli Branch")
 	req2["business_id"] = adminBusiness
 	req2["city"] = "Jerusalem"
-	_, err = schedulesClient.Create(req2)
+	resp, err = schedulesClient.Create(req2)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
+	sch2, err := schedulesClient.DecodeSchedule(resp)
+	if err != nil {
+		t.Errorf("failed to decode schedule entity: %v", err)
+	}
+	if sch2.ID == "" {
+		t.Errorf("failed to create schedule")
+	}
 
-	resp, err := schedulesClient.Search("507f1f77bcf86cd799439011", "", 1000, 0)
+	resp, err = schedulesClient.Search("507f1f77bcf86cd799439011", "", 1000, 0)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -309,7 +326,10 @@ func testGetValidSearchExistingRecords(t *testing.T) {
 		t.Errorf("expected at least 2 results for business_id search, got %d", len(all))
 	}
 
-	resp, err = schedulesClient.Search("507f1f77bcf86cd799439011&city=Tel%20Aviv", "", 1000, 0)
+	resp, err = schedulesClient.Search("507f1f77bcf86cd799439011", "Tel%20Aviv", 1000, 0)
+	if err != nil {
+		t.Fatalf("HTTP request failed: %v", err)
+	}
 	common.AssertStatusCode(t, resp, 200)
 	filtered := decodeSchedules(t, resp)
 	if len(filtered) < 1 {
@@ -327,6 +347,9 @@ func testGetInvalidSearchExistingRecords(t *testing.T) {
 	common.AssertContains(t, resp, "business_id")
 
 	resp, err = httpClient.GET("/api/v1/schedules/search?business_id=")
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 400)
 }
 
@@ -359,6 +382,9 @@ func testGetValidPaginationExistingRecords(t *testing.T) {
 	}
 
 	resp, err = schedulesClient.GetAll(2, 2)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 }
 
@@ -371,6 +397,9 @@ func testGetInvalidPaginationExistingRecords(t *testing.T) {
 	common.AssertStatusCode(t, resp, 400)
 
 	resp, err = httpClient.GET("/api/v1/schedules?limit=10&offset=-1")
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 }
 
@@ -432,6 +461,9 @@ func testGetPaginationEdgeCases(t *testing.T) {
 	}
 
 	resp, err = schedulesClient.GetAll(1000, 0)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) > 100 {
@@ -439,6 +471,9 @@ func testGetPaginationEdgeCases(t *testing.T) {
 	}
 
 	resp, err = schedulesClient.GetAll(10, 9999)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) != 0 {
@@ -485,6 +520,9 @@ func testPostInvalidRecord(t *testing.T) {
 	req2 := createValidSchedule("Missing City")
 	delete(req2, "city")
 	resp, err = schedulesClient.Create(req2)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for missing city, got %d", resp.StatusCode)
 	}
@@ -492,6 +530,9 @@ func testPostInvalidRecord(t *testing.T) {
 	req3 := createValidSchedule("Missing Address")
 	delete(req3, "address")
 	resp, err = schedulesClient.Create(req3)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for missing address, got %d", resp.StatusCode)
 	}
@@ -499,11 +540,17 @@ func testPostInvalidRecord(t *testing.T) {
 	req4 := createValidSchedule("Empty Working Days")
 	req4["working_days"] = []string{}
 	resp, err = schedulesClient.Create(req4)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 201)
 
 	req5 := createValidSchedule("Bad Time Format")
 	req5["start_of_day"] = "25:61"
 	resp, err = schedulesClient.Create(req5)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for bad start_of_day, got %d", resp.StatusCode)
 	}
@@ -511,6 +558,9 @@ func testPostInvalidRecord(t *testing.T) {
 	req6 := createValidSchedule("Bad TZ")
 	req6["time_zone"] = "Invalid/Timezone"
 	resp, err = schedulesClient.Create(req6)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("expected validation error for invalid timezone, got %d", resp.StatusCode)
 	}
@@ -525,6 +575,9 @@ func testPostMalformedJSON(t *testing.T) {
 	common.AssertStatusCode(t, resp, 400)
 
 	resp, err = schedulesClient.CreateRaw([]byte(`not json at all`))
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 400)
 }
 
@@ -629,6 +682,9 @@ func testUpdateWithBadFormatKeys(t *testing.T) {
 
 	updates = map[string]any{"start_of_day": "99:99"}
 	resp, err = schedulesClient.Update(created.ID, updates)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	if resp.StatusCode != 422 && resp.StatusCode != 400 {
 		t.Errorf("invalid start_of_day in update returned %d", resp.StatusCode)
 	}
@@ -670,9 +726,15 @@ func testUpdateWithGoodFormatKeys(t *testing.T) {
 	city := "Jerusalem"
 	updates = map[string]any{"city": city}
 	resp, err = schedulesClient.Update(created.ID, updates)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 204)
 
 	getResp, err = schedulesClient.GetByID(created.ID)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	fetched = decodeSchedule(t, getResp)
 	if fetched.City != sanitizer.SanitizeCityOrLabel(city) {
 		t.Errorf("expected city 'Jerusalem', got %s", fetched.City)
@@ -685,9 +747,15 @@ func testUpdateWithGoodFormatKeys(t *testing.T) {
 		"time_zone":    "Asia/Jerusalem",
 	}
 	resp, err = schedulesClient.Update(created.ID, updates)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 204)
 
 	getResp, err = schedulesClient.GetByID(created.ID)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	fetched = decodeSchedule(t, getResp)
 	if fetched.StartOfDay != "10:00" || fetched.EndOfDay != "19:00" {
 		t.Errorf("expected hours 10:00-19:00, got %s-%s", fetched.StartOfDay, fetched.EndOfDay)
@@ -756,6 +824,9 @@ func testUpdateMalformedJSON(t *testing.T) {
 	common.AssertStatusCode(t, resp, 400)
 
 	resp, err = schedulesClient.UpdateRaw(created.ID, []byte(`not json`))
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 400)
 
 	_, err = schedulesClient.Delete(created.ID)
@@ -799,6 +870,9 @@ func testDeletedRecord(t *testing.T) {
 	common.AssertStatusCode(t, resp, 204)
 
 	resp, err = schedulesClient.Delete(created.ID)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 404)
 }
 
@@ -960,6 +1034,9 @@ func testPostOptionalFieldsBoundaries(t *testing.T) {
 	req1 = createValidSchedule("Meeting Duration Min")
 	req1["default_meeting_duration_min"] = 5
 	resp1, err = schedulesClient.Create(req1)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp1, 201)
 
 	req2 := createValidSchedule("Meeting Duration Max")
@@ -1461,22 +1538,29 @@ func testDuplicateScheduleDetection(t *testing.T) {
 func testConcurrentScheduleCreation(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	var wg sync.WaitGroup
-	results := make([]int, 5)
-	ids := make([]string, 5)
-
 	conc := 5
+	var wg sync.WaitGroup
 
-	for i := range conc {
+	results := make([]int, conc)
+	ids := make([]string, conc)
+
+	errCh := make(chan error, conc)
+
+	for i := 0; i < conc; i++ {
 		wg.Add(1)
+
 		go func(index int) {
 			defer wg.Done()
+
 			req := createValidSchedule(fmt.Sprintf("Concurrent Schedule %d", index))
 			resp, err := schedulesClient.Create(req)
 			if err != nil {
-				t.Fatalf("HTTP request failed: %v", err)
+				errCh <- fmt.Errorf("create failed for schedule %d: %w", index, err)
+				return
 			}
+
 			results[index] = resp.StatusCode
+
 			if resp.StatusCode == 201 {
 				created := decodeSchedule(t, resp)
 				ids[index] = created.ID
@@ -1485,6 +1569,12 @@ func testConcurrentScheduleCreation(t *testing.T) {
 	}
 
 	wg.Wait()
+	close(errCh)
+
+	// Collect errors from goroutines
+	for err := range errCh {
+		t.Error(err)
+	}
 
 	successCount := 0
 	for _, status := range results {
@@ -1494,15 +1584,16 @@ func testConcurrentScheduleCreation(t *testing.T) {
 	}
 
 	if successCount != conc {
-		t.Errorf("Concurrent schedule creation: %d/5 succeeded", successCount)
+		t.Errorf("Concurrent schedule creation: %d/%d succeeded", successCount, conc)
 	}
 
+	// Cleanup
 	for _, id := range ids {
-		if id != "" {
-			_, err := schedulesClient.Delete(id)
-			if err != nil {
-				t.Fatalf("HTTP request failed: %v", err)
-			}
+		if id == "" {
+			continue
+		}
+		if _, err := schedulesClient.Delete(id); err != nil {
+			t.Errorf("cleanup failed for schedule %s: %v", id, err)
 		}
 	}
 }
@@ -1554,6 +1645,9 @@ func testExceptionsEdgeCases(t *testing.T) {
 	req2 := createValidSchedule("Duplicate Exceptions")
 	req2["exceptions"] = []string{"2025-12-25", "2025-12-25", "2025-12-26"}
 	resp, err = schedulesClient.Create(req2)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	if resp.StatusCode == 201 {
 		created := decodeSchedule(t, resp)
 		if len(created.Exceptions) != 2 {
@@ -1763,22 +1857,37 @@ func testBreakDurationZero(t *testing.T) {
 func testLargeScaleSchedules(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	// Create 50 schedules for same business
 	businessID := "507f1f77bcf86cd799439011"
 	createdIDs := []string{}
+	successCount := 0
+	failCount := 0
 
+	// Attempt to create 50 schedules — expect only 10 to succeed
 	for i := 0; i < 50; i++ {
 		req := createValidSchedule(fmt.Sprintf("Large Scale Schedule %d", i))
 		req["business_id"] = businessID
 		req["city"] = fmt.Sprintf("City%d", i%10)
+
 		resp, err := schedulesClient.Create(req)
 		if err != nil {
 			t.Fatalf("HTTP request failed: %v", err)
 		}
+
 		if resp.StatusCode == 201 {
 			created := decodeSchedule(t, resp)
 			createdIDs = append(createdIDs, created.ID)
+			successCount++
+		} else {
+			failCount++
 		}
+	}
+
+	// Assert business rule enforcement
+	if successCount != 10 {
+		t.Fatalf("expected exactly 10 schedules to be created, got %d", successCount)
+	}
+	if failCount != 40 {
+		t.Fatalf("expected 40 schedules to fail creation, got %d", failCount)
 	}
 
 	// Verify pagination
@@ -1786,17 +1895,18 @@ func testLargeScaleSchedules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
+
 	common.AssertStatusCode(t, resp, 200)
 	data, total, _, _ := decodePaginated(t, resp)
 
-	if total < 50 {
-		t.Errorf("expected at least 50 schedules, got %d", total)
+	if total != 10 {
+		t.Errorf("expected total = 10 schedules, got %d", total)
 	}
-	if len(data) != 25 {
-		t.Errorf("expected 25 items per page, got %d", len(data))
+	if len(data) != 10 { // because total < limit
+		t.Errorf("expected page size = 10, got %d", len(data))
 	}
 
-	// Cleanup
+	// Cleanup only the successfully created ones
 	for _, id := range createdIDs {
 		_, err = schedulesClient.Delete(id)
 		if err != nil {
@@ -1830,6 +1940,9 @@ func testSearchPaginationLargeDataset(t *testing.T) {
 
 	// Get second page
 	resp, err = httpClient.GET(fmt.Sprintf("/api/v1/schedules/search?business_id=%s&limit=10&offset=10", businessID))
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 }
 
@@ -2199,31 +2312,45 @@ func testConcurrentScheduleUpdates(t *testing.T) {
 	req := createValidSchedule("Concurrent Update Test")
 	createResp, err := schedulesClient.Create(req)
 	if err != nil {
-		t.Fatalf("HTTP request failed: %v", err)
+		t.Fatalf("initial create failed: %v", err)
 	}
 	common.AssertStatusCode(t, createResp, 201)
+
 	created := decodeSchedule(t, createResp)
 
 	var wg sync.WaitGroup
 	results := make([]int, 10)
+	errCh := make(chan error, 10)
 
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
+
 		go func(index int) {
 			defer wg.Done()
+
 			update := map[string]any{
 				"name": fmt.Sprintf("Updated Name %d", index),
 			}
+
 			resp, err := schedulesClient.Update(created.ID, update)
 			if err != nil {
-				t.Fatalf("HTTP request failed: %v", err)
+				errCh <- fmt.Errorf("update %d failed: %w", index, err)
+				return
 			}
+
 			results[index] = resp.StatusCode
 		}(i)
 	}
 
 	wg.Wait()
+	close(errCh)
 
+	// Collect goroutine errors
+	for err := range errCh {
+		t.Error(err)
+	}
+
+	// Count successes
 	successCount := 0
 	for _, status := range results {
 		if status == 204 {
@@ -2232,37 +2359,48 @@ func testConcurrentScheduleUpdates(t *testing.T) {
 	}
 
 	if successCount != 10 {
-		t.Logf("Concurrent updates: %d/10 succeeded", successCount)
+		t.Errorf("concurrent updates: %d/10 succeeded", successCount)
 	}
 
-	_, err = schedulesClient.Delete(created.ID)
-	if err != nil {
-		t.Fatalf("HTTP request failed: %v", err)
+	if _, err := schedulesClient.Delete(created.ID); err != nil {
+		t.Errorf("cleanup failed: %v", err)
 	}
 }
 
 func testBatchScheduleCreation(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
 
-	// Create 20 schedules in batch
 	createdIDs := []string{}
+	successCount := 0
+	failCount := 0
+
+	// Create 20 schedules for the same business
 	for i := 0; i < 20; i++ {
 		req := createValidSchedule(fmt.Sprintf("Batch Schedule %d", i))
+
 		resp, err := schedulesClient.Create(req)
 		if err != nil {
 			t.Fatalf("HTTP request failed: %v", err)
 		}
+
 		if resp.StatusCode == 201 {
 			created := decodeSchedule(t, resp)
 			createdIDs = append(createdIDs, created.ID)
+			successCount++
+		} else {
+			failCount++
 		}
 	}
 
-	if len(createdIDs) != 20 {
-		t.Errorf("expected 20 schedules created, got %d", len(createdIDs))
+	// Assertions matching new business rule
+	if successCount != 10 {
+		t.Errorf("expected 10 schedules allowed per business, got %d", successCount)
+	}
+	if failCount != 10 {
+		t.Errorf("expected 10 failures after exceeding the limit, got %d", failCount)
 	}
 
-	// Cleanup
+	// Cleanup only created ones
 	for _, id := range createdIDs {
 		_, err := schedulesClient.Delete(id)
 		if err != nil {
@@ -2479,6 +2617,9 @@ func testMaxSchedulesPerBusinessPerCityUpdate(t *testing.T) {
 	req2["city"] = city2
 	req2["address"] = "Address 2"
 	resp, err = schedulesClient.Create(req2)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created2 := decodeSchedule(t, resp)
 
@@ -2487,10 +2628,16 @@ func testMaxSchedulesPerBusinessPerCityUpdate(t *testing.T) {
 		"city": city1,
 	}
 	resp, err = schedulesClient.Update(created2.ID, updateReq)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 204)
 
 	// Verify both schedules now have city1
 	resp, err = httpClient.GET(fmt.Sprintf("/api/v1/schedules/search?business_id=%s&city=%s&limit=10&offset=0", businessID, city1))
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 	_, count, _, _ := decodePaginated(t, resp)
 	if count != 2 {
@@ -2499,6 +2646,9 @@ func testMaxSchedulesPerBusinessPerCityUpdate(t *testing.T) {
 
 	// Verify city2 now has 0 schedules
 	resp, err = httpClient.GET(fmt.Sprintf("/api/v1/schedules/search?business_id=%s&city=%s&limit=10&offset=0", businessID, city2))
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 	_, count, _, _ = decodePaginated(t, resp)
 	if count != 0 {
@@ -2511,4 +2661,7 @@ func testMaxSchedulesPerBusinessPerCityUpdate(t *testing.T) {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	_, err = schedulesClient.Delete(created2.ID)
+	if err != nil {
+		t.Error(err.Error())
+	}
 }

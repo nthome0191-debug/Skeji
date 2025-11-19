@@ -70,35 +70,44 @@ func (c *BookingClient) UpdateRaw(id string, rawBody []byte) (*Response, error) 
 }
 
 func (c *BookingClient) DecodeBooking(resp *Response) (*model.Booking, error) {
-	var result struct {
-		Data model.Booking `json:"data"`
+	var wrapper struct {
+		Data json.RawMessage `json:"data"`
 	}
-	err := resp.DecodeJSON(&result)
-	if err != nil {
-		return nil, fmt.Errorf("booking json:\n%+v\n%s", resp.ToString(), err)
+
+	if err := json.Unmarshal(resp.Body, &wrapper); err != nil {
+		return nil, fmt.Errorf("could not decode booking wrapper:\n%+v\n%s", resp.ToString(), err)
 	}
-	return &result.Data, nil
+
+	var booking model.Booking
+	if err := json.Unmarshal(wrapper.Data, &booking); err != nil {
+		return nil, fmt.Errorf("could not decode booking json:\n%+v\n%s", resp.ToString(), err)
+	}
+
+	return &booking, nil
 }
 
 func (c *BookingClient) DecodeBookings(resp *Response) ([]*model.Booking, *Metadata, error) {
-	var paginated map[string]any
-	err := resp.DecodeJSON(&paginated)
-	if err != nil {
+	var wrapper struct {
+		Data       json.RawMessage `json:"data"`
+		TotalCount int64           `json:"total_count"`
+		Limit      int             `json:"limit"`
+		Offset     int64           `json:"offset"`
+	}
+
+	if err := json.Unmarshal(resp.Body, &wrapper); err != nil {
 		return nil, nil, fmt.Errorf("could not decode paginated resp:\n%+v\n%s", resp.ToString(), err)
 	}
-	byteArr, err := json.Marshal(paginated["data"])
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not encode bookings json:\n%+v\n%s", resp.ToString(), err)
-	}
+
 	var bookings []*model.Booking
-	err = json.Unmarshal(byteArr, &bookings)
-	if err != nil {
+	if err := json.Unmarshal(wrapper.Data, &bookings); err != nil {
 		return nil, nil, fmt.Errorf("could not decode booking list:\n%+v\n%s", resp.ToString(), err)
 	}
+
 	metadata := &Metadata{
-		TotalCount: int64(paginated["total_count"].(float64)),
-		Limit:      int(paginated["limit"].(float64)),
-		Offset:     int64(paginated["offset"].(float64)),
+		TotalCount: wrapper.TotalCount,
+		Limit:      wrapper.Limit,
+		Offset:     wrapper.Offset,
 	}
+
 	return bookings, metadata, nil
 }

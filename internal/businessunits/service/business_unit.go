@@ -375,6 +375,7 @@ func (s *businessUnitService) applyDefaults(bu *model.BusinessUnit) {
 
 func (s *businessUnitService) sanitize(bu *model.BusinessUnit) {
 	bu.Name = sanitizer.SanitizeNameOrAddress(bu.Name)
+	bu.AdminPhone = sanitizer.SanitizePhone(bu.AdminPhone)
 	bu.Cities = sanitizer.SanitizeSlice(bu.Cities, sanitizer.SanitizeCityOrLabel)
 	bu.Labels = sanitizer.SanitizeSlice(bu.Labels, sanitizer.SanitizeCityOrLabel)
 	bu.Maintainers = sanitizer.SanitizeMaintainersMap(bu.Maintainers, bu.AdminPhone)

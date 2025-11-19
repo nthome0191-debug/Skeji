@@ -73,36 +73,43 @@ func (c *BusinessUnitClient) UpdateRaw(id string, rawBody []byte) (*Response, er
 }
 
 func (c *BusinessUnitClient) DecodeBusinessUnit(resp *Response) (*model.BusinessUnit, error) {
-	var bu *model.BusinessUnit
-	err := resp.DecodeJSON(&bu)
-	if err != nil {
+	var wrapper struct {
+		Data json.RawMessage `json:"data"`
+	}
+
+	if err := json.Unmarshal(resp.Body, &wrapper); err != nil {
+		return nil, fmt.Errorf("could not decode business unit wrapper:\n%+v\n%s", resp.ToString(), err)
+	}
+
+	var bu model.BusinessUnit
+	if err := json.Unmarshal(wrapper.Data, &bu); err != nil {
 		return nil, fmt.Errorf("could not decode business unit json:\n%+v\n%s", resp.ToString(), err)
 	}
-	return bu, nil
+
+	return &bu, nil
 }
 
 func (c *BusinessUnitClient) DecodeBusinessUnits(resp *Response) ([]*model.BusinessUnit, *Metadata, error) {
-	var paginated map[string]any
-	err := resp.DecodeJSON(&paginated)
-	if err != nil {
+	var wrapper struct {
+		Data       json.RawMessage `json:"data"`
+		TotalCount int64           `json:"total_count"`
+		Limit      int             `json:"limit"`
+		Offset     int64           `json:"offset"`
+	}
+
+	if err := json.Unmarshal(resp.Body, &wrapper); err != nil {
 		return nil, nil, fmt.Errorf("could not decode paginated resp:\n%+v\n%s", resp.ToString(), err)
 	}
 
-	byteArr, err := json.Marshal(paginated["data"])
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not encode business units json:\n%+v\n%s", resp.ToString(), err)
-	}
-
 	var units []*model.BusinessUnit
-	err = json.Unmarshal(byteArr, &units)
-	if err != nil {
+	if err := json.Unmarshal(wrapper.Data, &units); err != nil {
 		return nil, nil, fmt.Errorf("could not decode business unit list:\n%+v\n%s", resp.ToString(), err)
 	}
 
 	metadata := &Metadata{
-		TotalCount: int64(paginated["total_count"].(float64)),
-		Limit:      int(paginated["limit"].(float64)),
-		Offset:     int64(paginated["offset"].(float64)),
+		TotalCount: wrapper.TotalCount,
+		Limit:      wrapper.Limit,
+		Offset:     wrapper.Offset,
 	}
 
 	return units, metadata, nil

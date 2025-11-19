@@ -98,6 +98,13 @@ func SanitizePriority(cfg *config.Config, priority int64) int64 {
 	return priority
 }
 
+func SanitizePhone(phone string) string {
+	p := strings.TrimSpace(phone)
+	p = strings.ReplaceAll(p, "-", "")
+	p = strings.Join(strings.Fields(p), "")
+	return p
+}
+
 func SanitizeURL(input string) string {
 	s := strings.TrimSpace(strings.ToLower(input))
 	if s == "" {
@@ -143,17 +150,17 @@ func SanitizeParticipantsMap(mp map[string]string) map[string]string {
 	return SanitizeMap(
 		mp,
 		SanitizeNameOrAddress,
-		func(str string) string { return str },
+		SanitizePhone,
 	)
 }
 
-func SanitizeMaintainersMap(mp map[string]string, ownerPhone string) map[string]string {
+func SanitizeMaintainersMap(mp map[string]string, phone string) map[string]string {
 	sanitized := SanitizeMap(
 		mp,
-		func(str string) string { return str },
+		SanitizePhone,
 		SanitizeNameOrAddress,
 	)
-	delete(sanitized, ownerPhone)
+	delete(sanitized, phone)
 	return sanitized
 }
 

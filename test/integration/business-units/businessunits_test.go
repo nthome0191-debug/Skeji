@@ -335,10 +335,19 @@ func testGetInvalidSearchExistingRecords(t *testing.T) {
 	common.AssertContains(t, resp, "cities")
 
 	resp, err = httpClient.GET("/api/v1/business-units/search?cities=Tel%20Aviv")
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 400)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertContains(t, resp, "labels")
 
 	resp, err = httpClient.GET("/api/v1/business-units/search?cities=&labels=")
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 400)
 }
 
@@ -385,6 +394,9 @@ func testGetInvalidPaginationExistingRecords(t *testing.T) {
 	common.AssertStatusCode(t, resp, 400)
 
 	resp, err = httpClient.GET("/api/v1/business-units?limit=10&offset=-1")
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 }
 
@@ -1304,13 +1316,22 @@ func testGetSearchNormalization(t *testing.T) {
 	}
 
 	resp, err = httpClient.GET("/api/v1/business-units/search?cities=tel_aviv&labels=HAIRCUT")
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) < 1 {
 		t.Error("search should find business unit with normalized uppercase city/label")
+		if err != nil {
+			t.Error(err.Error())
+		}
 	}
 
 	resp, err = httpClient.GET("/api/v1/business-units/search?cities=jerusalem&labels=massage")
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) < 1 {
@@ -1347,6 +1368,9 @@ func testGetSearchMultipleCitiesLabels(t *testing.T) {
 	}
 
 	resp, err = httpClient.GET("/api/v1/business-units/search?cities=tel_aviv,jerusalem&labels=haircut,spa")
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 	data, _, _, _ = decodePaginated(t, resp)
 	if len(data) < 2 {
@@ -1363,6 +1387,9 @@ func testPostMalformedJSON(t *testing.T) {
 	common.AssertStatusCode(t, resp, 400)
 
 	resp, err = businessUnitsClient.CreateRaw([]byte(`not json at all`))
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 400)
 }
 
@@ -2010,6 +2037,9 @@ func testUpdateMalformedJSON(t *testing.T) {
 	common.AssertStatusCode(t, resp, 400)
 
 	resp, err = businessUnitsClient.UpdateRaw(created.ID, []byte(`not json`))
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 400)
 
 	_, err = businessUnitsClient.Delete(created.ID)
@@ -2235,9 +2265,6 @@ func testConcurrentCreation(t *testing.T) {
 	for _, id := range ids {
 		if id != "" {
 			if _, err := businessUnitsClient.Delete(id); err != nil {
-			if err != nil {
-				t.Errorf("Request failed: %v", err)
-			}
 				t.Errorf("cleanup failed for ID %s: %v", id, err)
 			}
 		}
@@ -2299,9 +2326,6 @@ func testConcurrentUpdates(t *testing.T) {
 	}
 
 	if _, err := businessUnitsClient.Delete(created.ID); err != nil {
-	if err != nil {
-		t.Errorf("Request failed: %v", err)
-	}
 		t.Errorf("cleanup failed: %v", err)
 	}
 }
@@ -2328,6 +2352,9 @@ func testSearchPartialMatches(t *testing.T) {
 	}
 
 	resp, err = httpClient.GET("/api/v1/business-units/search?cities=tel_aviv,jerusalem&labels=haircut,massage")
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 	results, _, _, _ = decodePaginated(t, resp)
 	if len(results) < 1 {
@@ -2840,33 +2867,51 @@ func testConcurrentSearches(t *testing.T) {
 
 	// Create some business units
 	for i := 0; i < 10; i++ {
-		bu := createValidBusinessUnit(fmt.Sprintf("Concurrent Search %d", i), fmt.Sprintf("+97250%07d", 8800000+i))
+		bu := createValidBusinessUnit(
+			fmt.Sprintf("Concurrent Search %d", i),
+			fmt.Sprintf("+97250%07d", 8800000+i),
+		)
 		bu["cities"] = []string{"TestCity"}
 		bu["labels"] = []string{"TestLabel"}
-		_, err := businessUnitsClient.Create(bu)
+
+		resp, err := businessUnitsClient.Create(bu)
 		if err != nil {
-			t.Fatalf("HTTP request failed: %v", err)
+			t.Fatalf("create failed: %v", err)
 		}
+		common.AssertStatusCode(t, resp, 201)
 	}
 
-	// Run concurrent searches
 	var wg sync.WaitGroup
 	results := make([]int, 10)
+	errCh := make(chan error, 10)
 
+	// Run concurrent searches
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
+
 		go func(index int) {
 			defer wg.Done()
-			resp, err := httpClient.GET("/api/v1/business-units/search?cities=testcity&labels=testlabel")
+
+			resp, err := httpClient.GET(
+				"/api/v1/business-units/search?cities=testcity&labels=testlabel",
+			)
 			if err != nil {
-				t.Fatalf("HTTP request failed: %v", err)
+				errCh <- fmt.Errorf("search %d failed: %w", index, err)
+				return
 			}
+
 			results[index] = resp.StatusCode
 		}(i)
 	}
 
 	wg.Wait()
+	close(errCh)
 
+	for err := range errCh {
+		t.Error(err)
+	}
+
+	// All searches should return 200
 	for i, status := range results {
 		if status != 200 {
 			t.Errorf("concurrent search %d returned status %d", i, status)
@@ -2998,6 +3043,9 @@ func testGetByPhone(t *testing.T) {
 
 	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", maintainerPhone)
 	searchResp, err = httpClient.GET(searchURL)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, searchResp, 200)
 	results = decodeBusinessUnits(t, searchResp)
 
@@ -3024,6 +3072,9 @@ func testGetByPhone(t *testing.T) {
 
 	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", adminPhone3)
 	searchResp, err = httpClient.GET(searchURL)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, searchResp, 200)
 	results = decodeBusinessUnits(t, searchResp)
 
@@ -3066,6 +3117,9 @@ func testGetByPhone(t *testing.T) {
 
 	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", sharedMaintainer)
 	searchResp, err = httpClient.GET(searchURL)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, searchResp, 200)
 	results = decodeBusinessUnits(t, searchResp)
 
@@ -3102,6 +3156,9 @@ func testGetByPhone(t *testing.T) {
 
 	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", dualPhone)
 	searchResp, err = httpClient.GET(searchURL)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, searchResp, 200)
 	results = decodeBusinessUnits(t, searchResp)
 
@@ -3121,6 +3178,9 @@ func testGetByPhone(t *testing.T) {
 	nonExistentPhone := "+972509399999"
 	searchURL = fmt.Sprintf("/api/v1/business-units/phone/%s", nonExistentPhone)
 	searchResp, err = httpClient.GET(searchURL)
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, searchResp, 200)
 	results = decodeBusinessUnits(t, searchResp)
 
@@ -3297,6 +3357,9 @@ func testUpdatePriorityImpactOnSearch(t *testing.T) {
 
 	// Search again - bu1 should now come first
 	resp, err = httpClient.GET("/api/v1/business-units/search?cities=testcity&labels=testlabel")
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 	results, _, _, _ = decodePaginated(t, resp)
 
@@ -3439,6 +3502,9 @@ func testMaxBusinessUnitsPerAdminPhoneUpdate(t *testing.T) {
 
 	// Verify both business units now have phone1
 	resp, err = httpClient.GET(fmt.Sprintf("/api/v1/business-units/phone/%s?limit=10&offset=0", phone1))
+	if err != nil {
+		t.Error(err.Error())
+	}
 	common.AssertStatusCode(t, resp, 200)
 	_, count, _, _ := decodePaginated(t, resp)
 	if count != 2 {
