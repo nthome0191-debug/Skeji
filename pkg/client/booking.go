@@ -57,3 +57,12 @@ func (c *BookingClient) Delete(id string) (*Response, error) {
 	path := "/api/v1/bookings/id/" + url.PathEscape(id)
 	return c.httpClient.DELETE(path)
 }
+
+func (c *BookingClient) CreateRaw(rawBody []byte) (*Response, error) {
+	return c.httpClient.POSTRaw("/api/v1/bookings", rawBody)
+}
+
+func (c *BookingClient) UpdateRaw(id string, rawBody []byte) (*Response, error) {
+	path := "/api/v1/bookings/id/" + url.PathEscape(id)
+	return c.httpClient.PATCHRaw(path, rawBody)
+}

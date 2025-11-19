@@ -19,8 +19,9 @@ const (
 )
 
 var (
-	cfg        *config.Config
-	httpClient *client.HttpClient
+	cfg            *config.Config
+	httpClient     *client.HttpClient
+	bookingsClient *client.BookingClient
 )
 
 func TestMain(t *testing.T) {
@@ -83,6 +84,7 @@ func setup() {
 		serverURL = "http://localhost:8080"
 	}
 	httpClient = client.NewHttpClient(serverURL)
+	bookingsClient = client.NewBookingClient(serverURL)
 }
 
 func teardown() {
@@ -208,7 +210,7 @@ func testDelete(t *testing.T) {
 
 func testGetEmptyTable(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
-	resp, err := httpClient.GET("/api/v1/bookings/id=507f1f77bcf86cd799439011")
+	resp, err := bookingsClient.GetByID("507f1f77bcf86cd799439011")
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -217,7 +219,7 @@ func testGetEmptyTable(t *testing.T) {
 
 func testGetAllPaginatedEmpty(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
-	resp, err := httpClient.GET("/api/v1/bookings?limit=10&offset=0")
+	resp, err := bookingsClient.GetAll(10, 0)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -233,7 +235,7 @@ func testCreateValid(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Haircut", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -280,7 +282,7 @@ func testCreateValid(t *testing.T) {
 			mPhone, mName, created.ManagedBy[mPhone])
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testCreateInvalidTimeRange(t *testing.T) {
@@ -289,7 +291,7 @@ func testCreateInvalidTimeRange(t *testing.T) {
 	end := start.Add(-1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Invalid Time", start, end)
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -303,12 +305,12 @@ func testCreateOverlapConflict(t *testing.T) {
 	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Haircut", now, now.Add(1*time.Hour))
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Haircut 2", now.Add(30*time.Minute), now.Add(2*time.Hour))
 
-	resp1, err := httpClient.POST("/api/v1/bookings", payload1)
+	resp1, err := bookingsClient.Create(payload1)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp1, 201)
-	resp2, err := httpClient.POST("/api/v1/bookings", payload2)
+	resp2, err := bookingsClient.Create(payload2)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -324,7 +326,7 @@ func testCreateInvalidParticipantFormat(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Bad Participants", start, end)
 	payload["participants"] = map[string]string{"Invalid": "notaphone"}
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -335,7 +337,7 @@ func testCreateInvalidParticipantFormat(t *testing.T) {
 
 func testCreateMalformedJSON(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
-	resp, err := httpClient.POSTRaw("/api/v1/bookings", []byte(`{"bad": json`))
+	resp, err := bookingsClient.CreateRaw([]byte(`{"bad": json`))
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -347,14 +349,14 @@ func testCreateAndGetByID(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Massage", start, end)
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBooking(t, createResp)
 
-	getResp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	getResp, err := bookingsClient.GetByID(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -363,12 +365,12 @@ func testCreateAndGetByID(t *testing.T) {
 	if fetched.ID != created.ID {
 		t.Errorf("expected same ID, got %s != %s", fetched.ID, created.ID)
 	}
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testGetInvalidID(t *testing.T) {
 	defer common.ClearTestData(t, httpClient, TableName)
-	resp, err := httpClient.GET("/api/v1/bookings/id/invalid-id")
+	resp, err := bookingsClient.GetByID("invalid-id")
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -393,7 +395,7 @@ func testSearchRange(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(2 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Range Search", start, end)
-	httpClient.POST("/api/v1/bookings", payload)
+	bookingsClient.Create(payload)
 	resp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012&start_time=%s&end_time=%s",
 		start.Format(time.RFC3339), end.Format(time.RFC3339)))
 	if err != nil {
@@ -412,7 +414,7 @@ func testUpdateValid(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Update Test", start, end)
 
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -422,13 +424,13 @@ func testUpdateValid(t *testing.T) {
 	update := map[string]any{
 		"service_label": "Updated Label",
 	}
-	resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err := bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 204)
 
-	getResp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	getResp, err := bookingsClient.GetByID(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -454,13 +456,13 @@ func testUpdateTimeOverlap(t *testing.T) {
 	now := time.Now().Add(1 * time.Hour)
 	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "First", now, now.Add(1*time.Hour))
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Second", now.Add(2*time.Hour), now.Add(3*time.Hour))
-	resp1, err := httpClient.POST("/api/v1/bookings", payload1)
+	resp1, err := bookingsClient.Create(payload1)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp1, 201)
 	decodeBooking(t, resp1)
-	resp2, err := httpClient.POST("/api/v1/bookings", payload2)
+	resp2, err := bookingsClient.Create(payload2)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -471,7 +473,7 @@ func testUpdateTimeOverlap(t *testing.T) {
 		"start_time": now.Add(30 * time.Minute).Format(time.RFC3339),
 		"end_time":   now.Add(90 * time.Minute).Format(time.RFC3339),
 	}
-	resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created2.ID), update)
+	resp, err := bookingsClient.Update(created2.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -485,13 +487,13 @@ func testUpdateMalformedJSON(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Bad JSON Update", start, end)
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	created := decodeBooking(t, createResp)
 
-	resp, err := httpClient.PATCHRaw(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), []byte(`{"bad":json`))
+	resp, err := bookingsClient.UpdateRaw(created.ID, []byte(`{"bad":json`))
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -499,7 +501,7 @@ func testUpdateMalformedJSON(t *testing.T) {
 }
 
 func testDeleteNonExisting(t *testing.T) {
-	resp, err := httpClient.DELETE("/api/v1/bookings/id/507f1f77bcf86cd799439011")
+	resp, err := bookingsClient.Delete("507f1f77bcf86cd799439011")
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -507,7 +509,7 @@ func testDeleteNonExisting(t *testing.T) {
 }
 
 func testDeleteInvalidID(t *testing.T) {
-	resp, err := httpClient.DELETE("/api/v1/bookings/id/invalid-id")
+	resp, err := bookingsClient.Delete("invalid-id")
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -519,14 +521,14 @@ func testCreateAndDelete(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Delete Test", start, end)
 
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBooking(t, createResp)
 
-	delResp, err := httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	delResp, err := bookingsClient.Delete(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -538,20 +540,20 @@ func testDoubleDelete(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Double Delete", start, end)
 
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, createResp, 201)
 	created := decodeBooking(t, createResp)
 
-	delResp, err := httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	delResp, err := bookingsClient.Delete(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, delResp, 204)
 
-	delResp2, err := httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	delResp2, err := bookingsClient.Delete(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -566,7 +568,7 @@ func testCreateCapacityBoundaries(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Min Capacity", start, end)
 	payload["capacity"] = 1
 	payload["participants"] = map[string]string{"Alice": "+972501234567"}
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -578,7 +580,7 @@ func testCreateCapacityBoundaries(t *testing.T) {
 
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Max Capacity", start.Add(2*time.Hour), end.Add(2*time.Hour))
 	payload2["capacity"] = 200
-	resp2, err := httpClient.POST("/api/v1/bookings", payload2)
+	resp2, err := bookingsClient.Create(payload2)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -590,7 +592,7 @@ func testCreateCapacityBoundaries(t *testing.T) {
 
 	payload3 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Over Max", start.Add(4*time.Hour), end.Add(4*time.Hour))
 	payload3["capacity"] = 201
-	resp3, err := httpClient.POST("/api/v1/bookings", payload3)
+	resp3, err := bookingsClient.Create(payload3)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -606,7 +608,7 @@ func testCreateZeroCapacity(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Zero Capacity", start, end)
 	payload["capacity"] = 0
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -624,7 +626,7 @@ func testCreateNegativeCapacity(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Negative Capacity", start, end)
 	payload["capacity"] = -5
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -646,7 +648,7 @@ func testCreateCapacityExceededByParticipants(t *testing.T) {
 		"Charlie": "+972542222222",
 	}
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -662,7 +664,7 @@ func testCreateEmptyParticipants(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Empty Participants", start, end)
 	payload["participants"] = map[string]string{}
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -684,7 +686,7 @@ func testCreateMaxParticipants(t *testing.T) {
 	}
 	payload["participants"] = participants
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -710,7 +712,7 @@ func testCreateTooManyParticipants(t *testing.T) {
 	}
 	payload["participants"] = participants
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -737,7 +739,7 @@ func testCreateDuplicateParticipants(t *testing.T) {
 		"Bob":   "+972541111111",
 	}
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -767,7 +769,7 @@ func testCreateMultipleCountryPhones(t *testing.T) {
 
 	payload["participants"] = origParticipants
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -793,14 +795,14 @@ func testCreateServiceLabelBoundaries(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "AB", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 201)
 
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "A", start.Add(2*time.Hour), end.Add(2*time.Hour))
-	resp2, err := httpClient.POST("/api/v1/bookings", payload2)
+	resp2, err := bookingsClient.Create(payload2)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -813,7 +815,7 @@ func testCreateServiceLabelBoundaries(t *testing.T) {
 		longLabel += "A"
 	}
 	payload3 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", longLabel, start.Add(4*time.Hour), end.Add(4*time.Hour))
-	resp3, err := httpClient.POST("/api/v1/bookings", payload3)
+	resp3, err := bookingsClient.Create(payload3)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -821,7 +823,7 @@ func testCreateServiceLabelBoundaries(t *testing.T) {
 
 	tooLongLabel := longLabel + "A"
 	payload4 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", tooLongLabel, start.Add(6*time.Hour), end.Add(6*time.Hour))
-	resp4, err := httpClient.POST("/api/v1/bookings", payload4)
+	resp4, err := bookingsClient.Create(payload4)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -837,7 +839,7 @@ func testCreateServiceLabelSpecialChars(t *testing.T) {
 
 	rawLabel := "תספורת ✂️ Hair Cut™"
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", rawLabel, start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -856,7 +858,7 @@ func testCreatePastTime(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Past Time", start, end)
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -872,7 +874,7 @@ func testCreateMidnightTime(t *testing.T) {
 	end := midnight.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Midnight", midnight, end)
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -885,7 +887,7 @@ func testCreateVeryShortDuration(t *testing.T) {
 	end := start.Add(1 * time.Minute)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Very Short", start, end)
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -897,7 +899,7 @@ func testCreateVeryLongDuration(t *testing.T) {
 	end := start.Add(24 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Very Long", start, end)
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -910,7 +912,7 @@ func testCreateMultipleDaySpan(t *testing.T) {
 	end := start.Add(72 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Multi Day", start, end)
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -923,7 +925,7 @@ func testCreateInvalidBusinessID(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("invalid-business-id", "507f1f77bcf86cd799439012", "Bad Biz ID", start, end)
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -938,7 +940,7 @@ func testCreateInvalidScheduleID(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "not-a-valid-id", "Bad Schedule ID", start, end)
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -957,7 +959,7 @@ func testCreateAllStatuses(t *testing.T) {
 		payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", fmt.Sprintf("Status %s", status), start, end)
 		payload["status"] = status
 
-		resp, err := httpClient.POST("/api/v1/bookings", payload)
+		resp, err := bookingsClient.Create(payload)
 		if err != nil {
 			t.Fatalf("HTTP request failed: %v", err)
 		}
@@ -976,7 +978,7 @@ func testCreateInvalidStatus(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Bad Status", start, end)
 	payload["status"] = "invalid_status"
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -993,13 +995,13 @@ func testCreateExactSameTime(t *testing.T) {
 	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "First", start, end)
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Second", start, end)
 
-	resp1, err := httpClient.POST("/api/v1/bookings", payload1)
+	resp1, err := bookingsClient.Create(payload1)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp1, 201)
 
-	resp2, err := httpClient.POST("/api/v1/bookings", payload2)
+	resp2, err := bookingsClient.Create(payload2)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1013,14 +1015,14 @@ func testCreatePartialOverlap(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 
 	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "First", start, start.Add(1*time.Hour))
-	resp1, err := httpClient.POST("/api/v1/bookings", payload1)
+	resp1, err := bookingsClient.Create(payload1)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp1, 201)
 
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Overlap End", start.Add(30*time.Minute), start.Add(90*time.Minute))
-	resp2, err := httpClient.POST("/api/v1/bookings", payload2)
+	resp2, err := bookingsClient.Create(payload2)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1029,7 +1031,7 @@ func testCreatePartialOverlap(t *testing.T) {
 	}
 
 	payload3 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Overlap Start", start.Add(-30*time.Minute), start.Add(30*time.Minute))
-	resp3, err := httpClient.POST("/api/v1/bookings", payload3)
+	resp3, err := bookingsClient.Create(payload3)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1038,7 +1040,7 @@ func testCreatePartialOverlap(t *testing.T) {
 	}
 
 	payload4 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Contains", start.Add(-30*time.Minute), start.Add(90*time.Minute))
-	resp4, err := httpClient.POST("/api/v1/bookings", payload4)
+	resp4, err := bookingsClient.Create(payload4)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1047,7 +1049,7 @@ func testCreatePartialOverlap(t *testing.T) {
 	}
 
 	payload5 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Within", start.Add(15*time.Minute), start.Add(45*time.Minute))
-	resp5, err := httpClient.POST("/api/v1/bookings", payload5)
+	resp5, err := bookingsClient.Create(payload5)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1062,7 +1064,7 @@ func testUpdateStatusTransitions(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Status Test", start, end)
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1072,13 +1074,13 @@ func testUpdateStatusTransitions(t *testing.T) {
 	validTransitions := []string{"confirmed", "cancelled"}
 	for _, newStatus := range validTransitions {
 		update := map[string]any{"status": newStatus}
-		resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+		resp, err := bookingsClient.Update(created.ID, update)
 		if err != nil {
 			t.Fatalf("HTTP request failed: %v", err)
 		}
 		common.AssertStatusCode(t, resp, 204)
 
-		getResp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+		getResp, err := bookingsClient.GetByID(created.ID)
 		if err != nil {
 			t.Fatalf("HTTP request failed: %v", err)
 		}
@@ -1101,7 +1103,7 @@ func testUpdateCapacityBelowParticipants(t *testing.T) {
 		"Bob":     "+972541111111",
 		"Charlie": "+972542222222",
 	}
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1109,7 +1111,7 @@ func testUpdateCapacityBelowParticipants(t *testing.T) {
 	created := decodeBooking(t, createResp)
 
 	update := map[string]any{"capacity": 2}
-	resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err := bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1125,7 +1127,7 @@ func testUpdateAddParticipants(t *testing.T) {
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Add Participants", start, end)
 	payload["participants"] = map[string]string{"Alice": "+972501234567"}
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1139,13 +1141,13 @@ func testUpdateAddParticipants(t *testing.T) {
 			"Charlie": "+972542222222",
 		},
 	}
-	resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err := bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 204)
 
-	getResp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	getResp, err := bookingsClient.GetByID(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1171,7 +1173,7 @@ func testUpdateRemoveParticipants(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Remove Participants", start, end)
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1181,13 +1183,13 @@ func testUpdateRemoveParticipants(t *testing.T) {
 	update := map[string]any{
 		"participants": map[string]string{"Alice": "+972501234567"},
 	}
-	resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err := bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 204)
 
-	getResp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	getResp, err := bookingsClient.GetByID(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1207,7 +1209,7 @@ func testUpdateManagedBy(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Managed By Test", start, end)
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1217,13 +1219,13 @@ func testUpdateManagedBy(t *testing.T) {
 	manager_name := "New Manager"
 	manager_phone := "+972508888888"
 	update := map[string]any{"managed_by": map[string]string{manager_name: manager_phone}}
-	resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err := bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 204)
 
-	getResp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	getResp, err := bookingsClient.GetByID(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1240,7 +1242,7 @@ func testUpdateOnlyTime(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Time Update", start, end)
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1253,13 +1255,13 @@ func testUpdateOnlyTime(t *testing.T) {
 		"start_time": newStart.Format(time.RFC3339),
 		"end_time":   newEnd.Format(time.RFC3339),
 	}
-	resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err := bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 204)
 
-	getResp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	getResp, err := bookingsClient.GetByID(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1278,7 +1280,7 @@ func testUpdateOnlyCapacity(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Capacity Update", start, end)
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1286,13 +1288,13 @@ func testUpdateOnlyCapacity(t *testing.T) {
 	created := decodeBooking(t, createResp)
 
 	update := map[string]any{"capacity": 20}
-	resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err := bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 204)
 
-	getResp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	getResp, err := bookingsClient.GetByID(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1308,7 +1310,7 @@ func testUpdateMultipleFields(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Multi Field", start, end)
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1320,13 +1322,13 @@ func testUpdateMultipleFields(t *testing.T) {
 		"capacity":      15,
 		"status":        "confirmed",
 	}
-	resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err := bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 204)
 
-	getResp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	getResp, err := bookingsClient.GetByID(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1365,7 +1367,7 @@ func testConcurrentBookingCreation(t *testing.T) {
 				start.Add(time.Duration(index)*2*time.Hour),
 				end.Add(time.Duration(index)*2*time.Hour),
 			)
-			resp, err := httpClient.POST("/api/v1/bookings", payload)
+			resp, err := bookingsClient.Create(payload)
 			if err != nil {
 				t.Fatalf("HTTP request failed: %v", err)
 			}
@@ -1392,7 +1394,7 @@ func testConcurrentBookingCreation(t *testing.T) {
 
 	for _, id := range ids {
 		if id != "" {
-			httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", id))
+			bookingsClient.Delete(id)
 		}
 	}
 }
@@ -1405,7 +1407,7 @@ func testBookingStatusCompleted(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Completed Status Test", start, end)
 	payload["status"] = "completed"
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1414,7 +1416,7 @@ func testBookingStatusCompleted(t *testing.T) {
 		if string(created.Status) != "completed" {
 			t.Errorf("expected status 'completed', got %s", string(created.Status))
 		}
-		httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+		bookingsClient.Delete(created.ID)
 	}
 }
 
@@ -1426,7 +1428,7 @@ func testParticipantsValidation(t *testing.T) {
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Empty Name Test", start, end)
 	payload["participants"] = map[string]string{"": "+972501234567"}
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1440,7 +1442,7 @@ func testParticipantsValidation(t *testing.T) {
 		"张伟":         "+972541111111",
 		"Владимир":   "+972542222222",
 	}
-	resp, err = httpClient.POST("/api/v1/bookings", payload2)
+	resp, err = bookingsClient.Create(payload2)
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBooking(t, resp)
 
@@ -1459,7 +1461,7 @@ func testParticipantsValidation(t *testing.T) {
 		}
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testSearchWithExactTimeMatch(t *testing.T) {
@@ -1468,7 +1470,7 @@ func testSearchWithExactTimeMatch(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Exact Time Match", start, end)
-	httpClient.POST("/api/v1/bookings", payload)
+	bookingsClient.Create(payload)
 
 	resp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012&start_time=%s&end_time=%s",
 		start.Format(time.RFC3339), end.Format(time.RFC3339)))
@@ -1489,14 +1491,14 @@ func testBookingWithPastEndTime(t *testing.T) {
 	end := time.Now().Add(-1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Past Booking", start, end)
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	if resp.StatusCode == 201 {
 		created := decodeBooking(t, resp)
 		t.Errorf("Past booking created with ID %s", created.ID)
-		httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+		bookingsClient.Delete(created.ID)
 	}
 }
 
@@ -1509,7 +1511,7 @@ func testUpdateParticipantsExceedCapacity(t *testing.T) {
 	payload["capacity"] = 2
 	payload["participants"] = map[string]string{"Alice": "+972501234567"}
 
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1523,7 +1525,7 @@ func testUpdateParticipantsExceedCapacity(t *testing.T) {
 			"Charlie": "+972542222222",
 		},
 	}
-	resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err := bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1531,7 +1533,7 @@ func testUpdateParticipantsExceedCapacity(t *testing.T) {
 		t.Errorf("expected validation error for participants exceeding capacity, got %d", resp.StatusCode)
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testManagedByValidation(t *testing.T) {
@@ -1542,7 +1544,7 @@ func testManagedByValidation(t *testing.T) {
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Invalid Managed By", start, end)
 	payload["managed_by"] = map[string]string{"Manager": "invalid-phone"}
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1552,7 +1554,7 @@ func testManagedByValidation(t *testing.T) {
 
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Empty Managed By", start.Add(2*time.Hour), end.Add(2*time.Hour))
 	payload2["managed_by"] = map[string]string{}
-	resp, err = httpClient.POST("/api/v1/bookings", payload2)
+	resp, err = bookingsClient.Create(payload2)
 	common.AssertStatusCode(t, resp, 201)
 }
 
@@ -1562,7 +1564,7 @@ func testSearchWithoutTimeRange(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "No Time Range Search", start, end)
-	httpClient.POST("/api/v1/bookings", payload)
+	bookingsClient.Create(payload)
 
 	resp, err := httpClient.GET("/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011&schedule_id=507f1f77bcf86cd799439012")
 	if err != nil {
@@ -1582,7 +1584,7 @@ func testUpdateClearParticipants(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Clear Participants", start, end)
 
-	createResp, err := httpClient.POST("/api/v1/bookings", payload)
+	createResp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1592,13 +1594,13 @@ func testUpdateClearParticipants(t *testing.T) {
 	update := map[string]any{
 		"participants": map[string]string{},
 	}
-	resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err := bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 204)
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testBookingWithSameBusinessDifferentSchedule(t *testing.T) {
@@ -1610,22 +1612,22 @@ func testBookingWithSameBusinessDifferentSchedule(t *testing.T) {
 	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Schedule 1", start, end)
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439013", "Schedule 2", start, end)
 
-	resp1, err := httpClient.POST("/api/v1/bookings", payload1)
+	resp1, err := bookingsClient.Create(payload1)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp1, 201)
 	created1 := decodeBooking(t, resp1)
 
-	resp2, err := httpClient.POST("/api/v1/bookings", payload2)
+	resp2, err := bookingsClient.Create(payload2)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp2, 201)
 	created2 := decodeBooking(t, resp2)
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created1.ID))
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created2.ID))
+	bookingsClient.Delete(created1.ID)
+	bookingsClient.Delete(created2.ID)
 }
 
 // ========== ENRICHED TESTS ==========
@@ -1638,7 +1640,7 @@ func testServiceLabelNormalization(t *testing.T) {
 
 	// Test with mixed case and special characters
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Hair-Cut & Styling™", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1649,7 +1651,7 @@ func testServiceLabelNormalization(t *testing.T) {
 		t.Errorf("expected normalized service label, got %s", created.ServiceLabel)
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testServiceLabelEmptyString(t *testing.T) {
@@ -1659,7 +1661,7 @@ func testServiceLabelEmptyString(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1677,7 +1679,7 @@ func testBookingWithMaxCapacity(t *testing.T) {
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Large Event", start, end)
 	payload["capacity"] = 100
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1688,7 +1690,7 @@ func testBookingWithMaxCapacity(t *testing.T) {
 		t.Errorf("expected capacity 100, got %d", created.Capacity)
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testBookingWithSingleParticipant(t *testing.T) {
@@ -1701,7 +1703,7 @@ func testBookingWithSingleParticipant(t *testing.T) {
 	payload["participants"] = map[string]string{"Alice": "+972501234567"}
 	payload["capacity"] = 1
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1712,7 +1714,7 @@ func testBookingWithSingleParticipant(t *testing.T) {
 		t.Errorf("expected 1 participant, got %d", len(created.Participants))
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testMultipleBookingsSameTimeSlot(t *testing.T) {
@@ -1723,7 +1725,7 @@ func testMultipleBookingsSameTimeSlot(t *testing.T) {
 
 	// Create booking for schedule 1
 	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Service A", start, end)
-	resp1, err := httpClient.POST("/api/v1/bookings", payload1)
+	resp1, err := bookingsClient.Create(payload1)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1732,7 +1734,7 @@ func testMultipleBookingsSameTimeSlot(t *testing.T) {
 
 	// Create booking for schedule 2 (same business, different schedule, same time)
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439013", "Service B", start, end)
-	resp2, err := httpClient.POST("/api/v1/bookings", payload2)
+	resp2, err := bookingsClient.Create(payload2)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1740,8 +1742,8 @@ func testMultipleBookingsSameTimeSlot(t *testing.T) {
 	created2 := decodeBooking(t, resp2)
 
 	// Both should succeed as they're on different schedules
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created1.ID))
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created2.ID))
+	bookingsClient.Delete(created1.ID)
+	bookingsClient.Delete(created2.ID)
 }
 
 func testBookingAcrossTimeZones(t *testing.T) {
@@ -1752,7 +1754,7 @@ func testBookingAcrossTimeZones(t *testing.T) {
 	endUTC := startUTC.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Cross TZ Meeting", startUTC, endUTC)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1764,7 +1766,7 @@ func testBookingAcrossTimeZones(t *testing.T) {
 		t.Error("expected valid start and end times")
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testBulkBookingCreation(t *testing.T) {
@@ -1777,7 +1779,7 @@ func testBulkBookingCreation(t *testing.T) {
 		end := start.Add(30 * time.Minute)
 
 		payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", fmt.Sprintf("Bulk Booking %d", i), start, end)
-		resp, err := httpClient.POST("/api/v1/bookings", payload)
+		resp, err := bookingsClient.Create(payload)
 		if err != nil {
 			t.Fatalf("HTTP request failed: %v", err)
 		}
@@ -1787,7 +1789,7 @@ func testBulkBookingCreation(t *testing.T) {
 	}
 
 	// Verify all were created
-	resp, err := httpClient.GET("/api/v1/bookings?limit=25&offset=0")
+	resp, err := bookingsClient.GetAll(25, 0)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1803,7 +1805,7 @@ func testBulkBookingCreation(t *testing.T) {
 
 	// Cleanup
 	for _, id := range createdIDs {
-		httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", id))
+		bookingsClient.Delete(id)
 	}
 }
 
@@ -1816,11 +1818,11 @@ func testPaginationWithLargeDataset(t *testing.T) {
 		end := start.Add(30 * time.Minute)
 
 		payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", fmt.Sprintf("Pagination Test %d", i), start, end)
-		httpClient.POST("/api/v1/bookings", payload)
+		bookingsClient.Create(payload)
 	}
 
 	// Test pagination
-	resp, err := httpClient.GET("/api/v1/bookings?limit=10&offset=0")
+	resp, err := bookingsClient.GetAll(10, 0)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1838,7 +1840,7 @@ func testPaginationWithLargeDataset(t *testing.T) {
 	}
 
 	// Test second page
-	resp, err = httpClient.GET("/api/v1/bookings?limit=10&offset=10")
+	resp, err = bookingsClient.GetAll(10, 10)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1860,7 +1862,7 @@ func testSearchWithMultipleFilters(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Multi Filter Test", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1885,7 +1887,7 @@ func testSearchWithMultipleFilters(t *testing.T) {
 		t.Error("expected at least 1 booking in search results")
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testSearchByParticipantPhone(t *testing.T) {
@@ -1898,7 +1900,7 @@ func testSearchByParticipantPhone(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Participant Search", start, end)
 	payload["participants"] = map[string]string{"Alice": testPhone}
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1916,7 +1918,7 @@ func testSearchByParticipantPhone(t *testing.T) {
 		t.Logf("Participant phone search returned status %d", searchResp.StatusCode)
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testBookingStatusWorkflow(t *testing.T) {
@@ -1928,7 +1930,7 @@ func testBookingStatusWorkflow(t *testing.T) {
 	// Create as pending
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Status Workflow", start, end)
 	payload["status"] = "pending"
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1937,14 +1939,14 @@ func testBookingStatusWorkflow(t *testing.T) {
 
 	// Transition to confirmed
 	update := map[string]any{"status": "confirmed"}
-	resp, err = httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err = bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 204)
 
 	// Verify status changed
-	getResp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	getResp, err := bookingsClient.GetByID(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1957,13 +1959,13 @@ func testBookingStatusWorkflow(t *testing.T) {
 
 	// Transition to cancelled
 	update = map[string]any{"status": "cancelled"}
-	resp, err = httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err = bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 204)
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testUpdateBookingToConflictingTime(t *testing.T) {
@@ -1977,7 +1979,7 @@ func testUpdateBookingToConflictingTime(t *testing.T) {
 
 	// Create first booking
 	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Booking 1", start1, end1)
-	resp1, err := httpClient.POST("/api/v1/bookings", payload1)
+	resp1, err := bookingsClient.Create(payload1)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1986,7 +1988,7 @@ func testUpdateBookingToConflictingTime(t *testing.T) {
 
 	// Create second booking
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Booking 2", start2, end2)
-	resp2, err := httpClient.POST("/api/v1/bookings", payload2)
+	resp2, err := bookingsClient.Create(payload2)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -1998,7 +2000,7 @@ func testUpdateBookingToConflictingTime(t *testing.T) {
 		"start_time": start1.Format(time.RFC3339),
 		"end_time":   end1.Format(time.RFC3339),
 	}
-	resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created2.ID), update)
+	resp, err := bookingsClient.Update(created2.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2007,8 +2009,8 @@ func testUpdateBookingToConflictingTime(t *testing.T) {
 		t.Logf("Expected conflict error, got %d", resp.StatusCode)
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created1.ID))
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created2.ID))
+	bookingsClient.Delete(created1.ID)
+	bookingsClient.Delete(created2.ID)
 }
 
 func testUpdateBookingWithInvalidStatus(t *testing.T) {
@@ -2018,7 +2020,7 @@ func testUpdateBookingWithInvalidStatus(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Invalid Status", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2027,7 +2029,7 @@ func testUpdateBookingWithInvalidStatus(t *testing.T) {
 
 	// Try to update with invalid status
 	update := map[string]any{"status": "invalid_status"}
-	resp, err = httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err = bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2036,7 +2038,7 @@ func testUpdateBookingWithInvalidStatus(t *testing.T) {
 		t.Errorf("expected validation error for invalid status, got %d", resp.StatusCode)
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testBookingWithVeryLongServiceLabel(t *testing.T) {
@@ -2051,7 +2053,7 @@ func testBookingWithVeryLongServiceLabel(t *testing.T) {
 	}
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", longLabel, start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2080,14 +2082,14 @@ func testBookingWithSpecialCharsInServiceLabel(t *testing.T) {
 
 	for _, label := range specialLabels {
 		payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", label, start.Add(time.Minute), end.Add(time.Minute))
-		resp, err := httpClient.POST("/api/v1/bookings", payload)
+		resp, err := bookingsClient.Create(payload)
 		if err != nil {
 			t.Fatalf("HTTP request failed: %v", err)
 		}
 
 		if resp.StatusCode == 201 {
 			created := decodeBooking(t, resp)
-			httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+			bookingsClient.Delete(created.ID)
 		}
 	}
 }
@@ -2105,7 +2107,7 @@ func testParticipantsWithInternationalPhones(t *testing.T) {
 		"Israel": "+972501234567",
 	}
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2116,7 +2118,7 @@ func testParticipantsWithInternationalPhones(t *testing.T) {
 		t.Errorf("expected 3 participants, got %d", len(created.Participants))
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testManagedByMultipleManagers(t *testing.T) {
@@ -2132,7 +2134,7 @@ func testManagedByMultipleManagers(t *testing.T) {
 		"Manager3": "+972503333333",
 	}
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2143,7 +2145,7 @@ func testManagedByMultipleManagers(t *testing.T) {
 		t.Errorf("expected 3 managers, got %d", len(created.ManagedBy))
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testManagedByEmptyMap(t *testing.T) {
@@ -2155,7 +2157,7 @@ func testManagedByEmptyMap(t *testing.T) {
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Empty Manager", start, end)
 	payload["managed_by"] = map[string]string{}
 
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2173,7 +2175,7 @@ func testConcurrentUpdatesToSameBooking(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Concurrent Update", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2190,7 +2192,7 @@ func testConcurrentUpdatesToSameBooking(t *testing.T) {
 			update := map[string]any{
 				"service_label": fmt.Sprintf("Updated Label %d", index),
 			}
-			resp, err := httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+			resp, err := bookingsClient.Update(created.ID, update)
 			if err != nil {
 				t.Fatalf("HTTP request failed: %v", err)
 			}
@@ -2211,7 +2213,7 @@ func testConcurrentUpdatesToSameBooking(t *testing.T) {
 		t.Logf("Concurrent updates: %d/10 succeeded", successCount)
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testBookingAtMidnight(t *testing.T) {
@@ -2222,14 +2224,14 @@ func testBookingAtMidnight(t *testing.T) {
 	end := midnight.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Midnight Session", midnight, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBooking(t, resp)
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testBookingSpanningMultipleDays(t *testing.T) {
@@ -2239,7 +2241,7 @@ func testBookingSpanningMultipleDays(t *testing.T) {
 	end := start.Add(36 * time.Hour) // Spans into next day
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Multi-Day Event", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2259,7 +2261,7 @@ func testSearchBookingsByDateRange(t *testing.T) {
 		end := start.Add(1 * time.Hour)
 
 		payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", fmt.Sprintf("Day %d", i), start, end)
-		httpClient.POST("/api/v1/bookings", payload)
+		bookingsClient.Create(payload)
 	}
 
 	// Search for bookings in specific date range
@@ -2292,10 +2294,10 @@ func testSearchBookingsByBusinessAndSchedule(t *testing.T) {
 
 	// Create multiple bookings
 	payload1 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Service 1", start, end)
-	httpClient.POST("/api/v1/bookings", payload1)
+	bookingsClient.Create(payload1)
 
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439013", "Service 2", start.Add(time.Hour), end.Add(time.Hour))
-	httpClient.POST("/api/v1/bookings", payload2)
+	bookingsClient.Create(payload2)
 
 	// Search by business_id only
 	resp, err := httpClient.GET("/api/v1/bookings/search?business_id=507f1f77bcf86cd799439011")
@@ -2329,7 +2331,7 @@ func testUpdateCapacityToZero(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Capacity Zero", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2338,7 +2340,7 @@ func testUpdateCapacityToZero(t *testing.T) {
 
 	// Try to update capacity to zero
 	update := map[string]any{"capacity": 0}
-	resp, err = httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err = bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2347,7 +2349,7 @@ func testUpdateCapacityToZero(t *testing.T) {
 		t.Errorf("expected validation error for zero capacity, got %d", resp.StatusCode)
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testUpdateCapacityToMaximum(t *testing.T) {
@@ -2357,7 +2359,7 @@ func testUpdateCapacityToMaximum(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Max Capacity", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2366,14 +2368,14 @@ func testUpdateCapacityToMaximum(t *testing.T) {
 
 	// Update to maximum capacity
 	update := map[string]any{"capacity": 1000}
-	resp, err = httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	resp, err = bookingsClient.Update(created.ID, update)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 
 	// Should either accept or cap at max value
 	if resp.StatusCode == 204 {
-		getResp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+		getResp, err := bookingsClient.GetByID(created.ID)
 		if err != nil {
 			t.Fatalf("HTTP request failed: %v", err)
 		}
@@ -2381,7 +2383,7 @@ func testUpdateCapacityToMaximum(t *testing.T) {
 		t.Logf("Capacity updated to %d", updated.Capacity)
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testBookingWithNegativeTimeDuration(t *testing.T) {
@@ -2391,7 +2393,7 @@ func testBookingWithNegativeTimeDuration(t *testing.T) {
 	end := start.Add(-30 * time.Minute) // End before start
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Negative Duration", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2409,7 +2411,7 @@ func testDeleteBookingAndRecreate(t *testing.T) {
 
 	// Create booking
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Delete and Recreate", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2418,14 +2420,14 @@ func testDeleteBookingAndRecreate(t *testing.T) {
 	firstID := created.ID
 
 	// Delete it
-	resp, err = httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", firstID))
+	resp, err = bookingsClient.Delete(firstID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 	common.AssertStatusCode(t, resp, 204)
 
 	// Recreate same booking
-	resp, err = httpClient.POST("/api/v1/bookings", payload)
+	resp, err = bookingsClient.Create(payload)
 	common.AssertStatusCode(t, resp, 201)
 	recreated := decodeBooking(t, resp)
 
@@ -2433,7 +2435,7 @@ func testDeleteBookingAndRecreate(t *testing.T) {
 		t.Error("expected different ID for recreated booking")
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", recreated.ID))
+	bookingsClient.Delete(recreated.ID)
 }
 
 func testGetBookingCreatedAt(t *testing.T) {
@@ -2443,7 +2445,7 @@ func testGetBookingCreatedAt(t *testing.T) {
 	end := start.Add(1 * time.Hour)
 
 	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "CreatedAt Test", start, end)
-	resp, err := httpClient.POST("/api/v1/bookings", payload)
+	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2458,10 +2460,10 @@ func testGetBookingCreatedAt(t *testing.T) {
 
 	// Update booking
 	update := map[string]any{"service_label": "Updated Label"}
-	httpClient.PATCH(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID), update)
+	bookingsClient.Update(created.ID, update)
 
 	// Verify created_at didn't change
-	getResp, err := httpClient.GET(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	getResp, err := bookingsClient.GetByID(created.ID)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
@@ -2471,7 +2473,7 @@ func testGetBookingCreatedAt(t *testing.T) {
 		t.Error("created_at should not change on update")
 	}
 
-	httpClient.DELETE(fmt.Sprintf("/api/v1/bookings/id/%s", created.ID))
+	bookingsClient.Delete(created.ID)
 }
 
 func testSearchPaginationEdgeCases(t *testing.T) {

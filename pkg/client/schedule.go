@@ -53,3 +53,12 @@ func (c *ScheduleClient) Delete(id string) (*Response, error) {
 	path := "/api/v1/schedules/id/" + url.PathEscape(id)
 	return c.httpClient.DELETE(path)
 }
+
+func (c *ScheduleClient) CreateRaw(rawBody []byte) (*Response, error) {
+	return c.httpClient.POSTRaw("/api/v1/schedules", rawBody)
+}
+
+func (c *ScheduleClient) UpdateRaw(id string, rawBody []byte) (*Response, error) {
+	path := "/api/v1/schedules/id/" + url.PathEscape(id)
+	return c.httpClient.PATCHRaw(path, rawBody)
+}

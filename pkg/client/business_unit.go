@@ -60,3 +60,12 @@ func (c *BusinessUnitClient) Delete(id string) (*Response, error) {
 	path := "/api/v1/business-units/id/" + url.PathEscape(id)
 	return c.httpClient.DELETE(path)
 }
+
+func (c *BusinessUnitClient) CreateRaw(rawBody []byte) (*Response, error) {
+	return c.httpClient.POSTRaw("/api/v1/business-units", rawBody)
+}
+
+func (c *BusinessUnitClient) UpdateRaw(id string, rawBody []byte) (*Response, error) {
+	path := "/api/v1/business-units/id/" + url.PathEscape(id)
+	return c.httpClient.PATCHRaw(path, rawBody)
+}
