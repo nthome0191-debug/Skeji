@@ -99,38 +99,29 @@ func createValidBusinessUnit(name, phone string) map[string]any {
 
 func decodeBusinessUnit(t *testing.T, resp *client.Response) *model.BusinessUnit {
 	t.Helper()
-	var result struct {
-		Data model.BusinessUnit `json:"data"`
+	bu, err := businessUnitsClient.DecodeBusinessUnit(resp)
+	if err != nil {
+		t.Fatalf("failed to decode business unit: %v", err)
 	}
-	if err := resp.DecodeJSON(&result); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	return &result.Data
+	return bu
 }
 
-func decodeBusinessUnits(t *testing.T, resp *client.Response) []model.BusinessUnit {
+func decodeBusinessUnits(t *testing.T, resp *client.Response) []*model.BusinessUnit {
 	t.Helper()
-	var result struct {
-		Data []model.BusinessUnit `json:"data"`
+	units, _, err := businessUnitsClient.DecodeBusinessUnits(resp)
+	if err != nil {
+		t.Fatalf("failed to decode business units: %v", err)
 	}
-	if err := resp.DecodeJSON(&result); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	return result.Data
+	return units
 }
 
-func decodePaginated(t *testing.T, resp *client.Response) (bu_model []model.BusinessUnit, count int, limit int, offset int64) {
+func decodePaginated(t *testing.T, resp *client.Response) (bu_model []*model.BusinessUnit, count int, limit int, offset int64) {
 	t.Helper()
-	var result struct {
-		Data       []model.BusinessUnit `json:"data"`
-		TotalCount int                  `json:"total_count"`
-		Limit      int                  `json:"limit"`
-		Offset     int64                `json:"offset"`
+	units, metadata, err := businessUnitsClient.DecodeBusinessUnits(resp)
+	if err != nil {
+		t.Fatalf("failed to decode paginated business units: %v", err)
 	}
-	if err := resp.DecodeJSON(&result); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	return result.Data, result.TotalCount, result.Limit, result.Offset
+	return units, int(metadata.TotalCount), metadata.Limit, metadata.Offset
 }
 
 func letterSequence(n int) string {

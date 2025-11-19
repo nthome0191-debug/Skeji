@@ -29,6 +29,12 @@ type Response struct {
 	Body []byte
 }
 
+type Metadata struct {
+	TotalCount int64
+	Limit      int
+	Offset     int64
+}
+
 func (r *Response) DecodeJSON(target any) error {
 	return json.Unmarshal(r.Body, target)
 }

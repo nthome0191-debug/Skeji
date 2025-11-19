@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"skeji/pkg/model"
@@ -59,24 +60,6 @@ func (c *BookingClient) Delete(id string) (*Response, error) {
 	return c.httpClient.DELETE(path)
 }
 
-func (c *BookingClient) DecodeBooking(resp *Response) (*model.Booking, error) {
-	var booking *model.Booking
-	err := resp.DecodeJSON(booking)
-	if err != nil {
-		return nil, fmt.Errorf("coulf not decode booking json:\n%+v\n%s", resp, err)
-	}
-	return booking, nil
-}
-
-func (c *BookingClient) DecodeBookings(resp *Response) ([]*model.Booking, error) {
-	var bookings []*model.Booking
-	err := resp.DecodeJSON(bookings)
-	if err != nil {
-		return nil, fmt.Errorf("coulf not decode bookings json:\n%+v\n%s", resp, err)
-	}
-	return bookings, nil
-}
-
 func (c *BookingClient) CreateRaw(rawBody []byte) (*Response, error) {
 	return c.httpClient.POSTRaw("/api/v1/bookings", rawBody)
 }
@@ -84,4 +67,38 @@ func (c *BookingClient) CreateRaw(rawBody []byte) (*Response, error) {
 func (c *BookingClient) UpdateRaw(id string, rawBody []byte) (*Response, error) {
 	path := "/api/v1/bookings/id/" + url.PathEscape(id)
 	return c.httpClient.PATCHRaw(path, rawBody)
+}
+
+func (c *BookingClient) DecodeBooking(resp *Response) (*model.Booking, error) {
+	var result struct {
+		Data model.Booking `json:"data"`
+	}
+	err := resp.DecodeJSON(&result)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode booking json:\n%+v\n%s", resp, err)
+	}
+	return &result.Data, nil
+}
+
+func (c *BookingClient) DecodeBookings(resp *Response) ([]*model.Booking, *Metadata, error) {
+	var paginated map[string]any
+	err := resp.DecodeJSON(&paginated)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not decode paginated resp:\n%+v\n%s", resp, err)
+	}
+	byteArr, err := json.Marshal(paginated["data"])
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not encode bookings json:\n%+v\n%s", resp, err)
+	}
+	var bookings []*model.Booking
+	err = json.Unmarshal(byteArr, &bookings)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not decode booking list:\n%+v\n%s", resp, err)
+	}
+	metadata := &Metadata{
+		TotalCount: int64(paginated["total_count"].(float64)),
+		Limit:      int(paginated["limit"].(float64)),
+		Offset:     int64(paginated["offset"].(float64)),
+	}
+	return bookings, metadata, nil
 }

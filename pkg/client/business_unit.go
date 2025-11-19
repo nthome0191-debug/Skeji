@@ -1,8 +1,10 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"skeji/pkg/model"
 	"strings"
 )
 
@@ -68,4 +70,40 @@ func (c *BusinessUnitClient) CreateRaw(rawBody []byte) (*Response, error) {
 func (c *BusinessUnitClient) UpdateRaw(id string, rawBody []byte) (*Response, error) {
 	path := "/api/v1/business-units/id/" + url.PathEscape(id)
 	return c.httpClient.PATCHRaw(path, rawBody)
+}
+
+func (c *BusinessUnitClient) DecodeBusinessUnit(resp *Response) (*model.BusinessUnit, error) {
+	var bu *model.BusinessUnit
+	err := resp.DecodeJSON(&bu)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode business unit json:\n%+v\n%s", resp, err)
+	}
+	return bu, nil
+}
+
+func (c *BusinessUnitClient) DecodeBusinessUnits(resp *Response) ([]*model.BusinessUnit, *Metadata, error) {
+	var paginated map[string]any
+	err := resp.DecodeJSON(&paginated)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not decode paginated resp:\n%+v\n%s", resp, err)
+	}
+
+	byteArr, err := json.Marshal(paginated["data"])
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not encode business units json:\n%+v\n%s", resp, err)
+	}
+
+	var units []*model.BusinessUnit
+	err = json.Unmarshal(byteArr, &units)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not decode business unit list:\n%+v\n%s", resp, err)
+	}
+
+	metadata := &Metadata{
+		TotalCount: int64(paginated["total_count"].(float64)),
+		Limit:      int(paginated["limit"].(float64)),
+		Offset:     int64(paginated["offset"].(float64)),
+	}
+
+	return units, metadata, nil
 }

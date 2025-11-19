@@ -1,8 +1,10 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"skeji/pkg/model"
 )
 
 type ScheduleClient struct {
@@ -61,4 +63,40 @@ func (c *ScheduleClient) CreateRaw(rawBody []byte) (*Response, error) {
 func (c *ScheduleClient) UpdateRaw(id string, rawBody []byte) (*Response, error) {
 	path := "/api/v1/schedules/id/" + url.PathEscape(id)
 	return c.httpClient.PATCHRaw(path, rawBody)
+}
+
+func (c *ScheduleClient) DecodeSchedule(resp *Response) (*model.Schedule, error) {
+	var schedule *model.Schedule
+	err := resp.DecodeJSON(&schedule)
+	if err != nil {
+		return nil, fmt.Errorf("could not decode schedule json:\n%+v\n%s", resp, err)
+	}
+	return schedule, nil
+}
+
+func (c *ScheduleClient) DecodeSchedules(resp *Response) ([]*model.Schedule, *Metadata, error) {
+	var paginated map[string]any
+	err := resp.DecodeJSON(&paginated)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not decode paginated resp:\n%+v\n%s", resp, err)
+	}
+
+	byteArr, err := json.Marshal(paginated["data"])
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not encode schedules json:\n%+v\n%s", resp, err)
+	}
+
+	var schedules []*model.Schedule
+	err = json.Unmarshal(byteArr, &schedules)
+	if err != nil {
+		return nil, nil, fmt.Errorf("could not decode schedule list:\n%+v\n%s", resp, err)
+	}
+
+	metadata := &Metadata{
+		TotalCount: int64(paginated["total_count"].(float64)),
+		Limit:      int(paginated["limit"].(float64)),
+		Offset:     int64(paginated["offset"].(float64)),
+	}
+
+	return schedules, metadata, nil
 }

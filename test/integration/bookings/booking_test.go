@@ -112,38 +112,29 @@ func createValidBooking(businessID, scheduleID string, label string, start, end 
 
 func decodeBooking(t *testing.T, resp *client.Response) *model.Booking {
 	t.Helper()
-	var result struct {
-		Data model.Booking `json:"data"`
-	}
-	if err := resp.DecodeJSON(&result); err != nil {
+	booking, err := bookingsClient.DecodeBooking(resp)
+	if err != nil {
 		t.Fatalf("failed to decode booking: %v", err)
 	}
-	return &result.Data
+	return booking
 }
 
-func decodeBookings(t *testing.T, resp *client.Response) []model.Booking {
+func decodeBookings(t *testing.T, resp *client.Response) []*model.Booking {
 	t.Helper()
-	var result struct {
-		Data []model.Booking `json:"data"`
-	}
-	if err := resp.DecodeJSON(&result); err != nil {
+	bookings, _, err := bookingsClient.DecodeBookings(resp)
+	if err != nil {
 		t.Fatalf("failed to decode bookings: %v", err)
 	}
-	return result.Data
+	return bookings
 }
 
-func decodeBookingsPaginated(t *testing.T, resp *client.Response) ([]model.Booking, int, int, int) {
+func decodeBookingsPaginated(t *testing.T, resp *client.Response) ([]*model.Booking, int, int, int) {
 	t.Helper()
-	var result struct {
-		Data       []model.Booking `json:"data"`
-		TotalCount int             `json:"total_count"`
-		Limit      int             `json:"limit"`
-		Offset     int             `json:"offset"`
-	}
-	if err := resp.DecodeJSON(&result); err != nil {
+	bookings, metadata, err := bookingsClient.DecodeBookings(resp)
+	if err != nil {
 		t.Fatalf("failed to decode paginated bookings: %v", err)
 	}
-	return result.Data, result.TotalCount, result.Limit, result.Offset
+	return bookings, int(metadata.TotalCount), metadata.Limit, int(metadata.Offset)
 }
 
 func testGet(t *testing.T) {
@@ -1351,15 +1342,23 @@ func testConcurrentBookingCreation(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 
-	var wg sync.WaitGroup
-	results := make([]int, 5)
-	ids := make([]string, 5)
-
 	conc := 5
+	var wg sync.WaitGroup
+
+	type result struct {
+		index int
+		code  int
+		id    string
+		err   error
+	}
+
+	resultsCh := make(chan result, conc)
+
 	for i := 0; i < conc; i++ {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
+
 			payload := createValidBooking(
 				"507f1f77bcf86cd799439011",
 				"507f1f77bcf86cd799439012",
@@ -1367,34 +1366,53 @@ func testConcurrentBookingCreation(t *testing.T) {
 				start.Add(time.Duration(index)*2*time.Hour),
 				end.Add(time.Duration(index)*2*time.Hour),
 			)
+
 			resp, err := bookingsClient.Create(payload)
 			if err != nil {
-				t.Fatalf("HTTP request failed: %v", err)
+				resultsCh <- result{index: index, err: fmt.Errorf("request failed: %w", err)}
+				return
 			}
-			results[index] = resp.StatusCode
+
+			res := result{index: index, code: resp.StatusCode}
+
 			if resp.StatusCode == 201 {
 				created := decodeBooking(t, resp)
-				ids[index] = created.ID
+				res.id = created.ID
 			}
+
+			resultsCh <- res
 		}(i)
 	}
 
 	wg.Wait()
+	close(resultsCh)
 
+	// Collect results
+	results := make([]result, conc)
+	for r := range resultsCh {
+		results[r.index] = r
+	}
+
+	// Evaluate results
 	successCount := 0
-	for _, status := range results {
-		if status == 201 {
+	for _, r := range results {
+		if r.err != nil {
+			t.Errorf("goroutine %d failed: %v", r.index, r.err)
+			continue
+		}
+		if r.code == 201 {
 			successCount++
 		}
 	}
 
 	if successCount != conc {
-		t.Errorf("Concurrent booking creation: %d/5 succeeded", successCount)
+		t.Errorf("Concurrent booking creation: %d/%d succeeded", successCount, conc)
 	}
 
-	for _, id := range ids {
-		if id != "" {
-			bookingsClient.Delete(id)
+	// Cleanup
+	for _, r := range results {
+		if r.id != "" {
+			bookingsClient.Delete(r.id)
 		}
 	}
 }
@@ -1443,6 +1461,9 @@ func testParticipantsValidation(t *testing.T) {
 		"Владимир":   "+972542222222",
 	}
 	resp, err = bookingsClient.Create(payload2)
+	if err != nil {
+		t.Errorf("could not create booking: %v\n", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBooking(t, resp)
 
@@ -1555,6 +1576,9 @@ func testManagedByValidation(t *testing.T) {
 	payload2 := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Empty Managed By", start.Add(2*time.Hour), end.Add(2*time.Hour))
 	payload2["managed_by"] = map[string]string{}
 	resp, err = bookingsClient.Create(payload2)
+	if err != nil {
+		t.Errorf("could not create booking: %v\n", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 }
 
@@ -2174,7 +2198,15 @@ func testConcurrentUpdatesToSameBooking(t *testing.T) {
 	start := time.Now().Add(1 * time.Hour)
 	end := start.Add(1 * time.Hour)
 
-	payload := createValidBooking("507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012", "Concurrent Update", start, end)
+	// Create initial booking
+	payload := createValidBooking(
+		"507f1f77bcf86cd799439011",
+		"507f1f77bcf86cd799439012",
+		"Concurrent Update",
+		start,
+		end,
+	)
+
 	resp, err := bookingsClient.Create(payload)
 	if err != nil {
 		t.Fatalf("HTTP request failed: %v", err)
@@ -2182,26 +2214,67 @@ func testConcurrentUpdatesToSameBooking(t *testing.T) {
 	common.AssertStatusCode(t, resp, 201)
 	created := decodeBooking(t, resp)
 
-	var wg sync.WaitGroup
-	results := make([]int, 10)
+	conc := 10
 
-	for i := 0; i < 10; i++ {
+	var wg sync.WaitGroup
+	resultsCh := make(chan struct {
+		index int
+		code  int
+		err   error
+	}, conc)
+
+	// Run concurrent updates
+	for i := 0; i < conc; i++ {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
+
 			update := map[string]any{
 				"service_label": fmt.Sprintf("Updated Label %d", index),
 			}
+
 			resp, err := bookingsClient.Update(created.ID, update)
 			if err != nil {
-				t.Fatalf("HTTP request failed: %v", err)
+				resultsCh <- struct {
+					index int
+					code  int
+					err   error
+				}{index, 0, fmt.Errorf("update failed: %w", err)}
+				return
 			}
-			results[index] = resp.StatusCode
+
+			resultsCh <- struct {
+				index int
+				code  int
+				err   error
+			}{index, resp.StatusCode, nil}
 		}(i)
 	}
 
 	wg.Wait()
+	close(resultsCh)
 
+	// Collect ordered results
+	results := make([]int, conc)
+	var errs []error
+
+	for r := range resultsCh {
+		if r.err != nil {
+			errs = append(errs, fmt.Errorf("goroutine %d: %v", r.index, r.err))
+			continue
+		}
+		results[r.index] = r.code
+	}
+
+	// Fail if there were errors
+	if len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+		t.Fatalf("Concurrent updates encountered errors")
+	}
+
+	// Evaluate success
 	successCount := 0
 	for _, status := range results {
 		if status == 204 {
@@ -2209,8 +2282,8 @@ func testConcurrentUpdatesToSameBooking(t *testing.T) {
 		}
 	}
 
-	if successCount != 10 {
-		t.Logf("Concurrent updates: %d/10 succeeded", successCount)
+	if successCount != conc {
+		t.Errorf("Concurrent updates: %d/%d succeeded (expected all to succeed)", successCount, conc)
 	}
 
 	bookingsClient.Delete(created.ID)
@@ -2428,6 +2501,9 @@ func testDeleteBookingAndRecreate(t *testing.T) {
 
 	// Recreate same booking
 	resp, err = bookingsClient.Create(payload)
+	if err != nil {
+		t.Errorf("could not create booking: %v\n", err)
+	}
 	common.AssertStatusCode(t, resp, 201)
 	recreated := decodeBooking(t, resp)
 

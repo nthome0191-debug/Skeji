@@ -106,38 +106,29 @@ func createValidSchedule(name string) map[string]any {
 
 func decodeSchedule(t *testing.T, resp *client.Response) *model.Schedule {
 	t.Helper()
-	var result struct {
-		Data model.Schedule `json:"data"`
+	schedule, err := schedulesClient.DecodeSchedule(resp)
+	if err != nil {
+		t.Fatalf("failed to decode schedule: %v", err)
 	}
-	if err := resp.DecodeJSON(&result); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	return &result.Data
+	return schedule
 }
 
-func decodeSchedules(t *testing.T, resp *client.Response) []model.Schedule {
+func decodeSchedules(t *testing.T, resp *client.Response) []*model.Schedule {
 	t.Helper()
-	var result struct {
-		Data []model.Schedule `json:"data"`
+	schedules, _, err := schedulesClient.DecodeSchedules(resp)
+	if err != nil {
+		t.Fatalf("failed to decode schedules: %v", err)
 	}
-	if err := resp.DecodeJSON(&result); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	return result.Data
+	return schedules
 }
 
-func decodePaginated(t *testing.T, resp *client.Response) ([]model.Schedule, int, int, int) {
+func decodePaginated(t *testing.T, resp *client.Response) ([]*model.Schedule, int, int, int) {
 	t.Helper()
-	var result struct {
-		Data       []model.Schedule `json:"data"`
-		TotalCount int              `json:"total_count"`
-		Limit      int              `json:"limit"`
-		Offset     int              `json:"offset"`
+	schedules, metadata, err := schedulesClient.DecodeSchedules(resp)
+	if err != nil {
+		t.Fatalf("failed to decode paginated schedules: %v", err)
 	}
-	if err := resp.DecodeJSON(&result); err != nil {
-		t.Fatalf("failed to decode response: %v", err)
-	}
-	return result.Data, result.TotalCount, result.Limit, result.Offset
+	return schedules, int(metadata.TotalCount), metadata.Limit, int(metadata.Offset)
 }
 
 func testGet(t *testing.T) {
