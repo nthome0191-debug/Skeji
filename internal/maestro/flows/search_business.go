@@ -2,7 +2,9 @@ package flows
 
 import (
 	maestro "skeji/internal/maestro/core"
+	"skeji/pkg/config"
 	"skeji/pkg/model"
+	"strings"
 	"time"
 )
 
@@ -120,7 +122,7 @@ func fetchBranches(ctx *maestro.MaestroContext, buid string, city string, start,
 				OpenSlots:   []*OpenSlot{},
 			}
 			addBranch := false
-			openSlots := fetchOpenSlots(ctx, buid, schedule.ID, start, end)
+			openSlots := fetchOpenSlots(ctx, buid, schedule, start, end)
 			if len(openSlots) > 0 {
 				addBranch = true
 				for _, openSlot := range openSlots {
@@ -154,10 +156,10 @@ func fetchBranches(ctx *maestro.MaestroContext, buid string, city string, start,
 	return branches
 }
 
-func fetchOpenSlots(ctx *maestro.MaestroContext, buid string, scid string, start, end time.Time) []*OpenSlot {
+func fetchOpenSlots(ctx *maestro.MaestroContext, buid string, sc *model.Schedule, start, end time.Time) []*OpenSlot {
 	openSlots := []*OpenSlot{}
 	var offset int64 = 0
-	resp, err := ctx.Client.BookingClient.Search(buid, scid, start.Format(time.RFC3339), end.Format(time.RFC3339), MAX_RESULTS_PER_PAGE, offset)
+	resp, err := ctx.Client.BookingClient.Search(buid, sc.ID, start.Format(time.RFC3339), end.Format(time.RFC3339), MAX_RESULTS_PER_PAGE, offset)
 	if err != nil {
 		return openSlots
 	}
@@ -165,44 +167,173 @@ func fetchOpenSlots(ctx *maestro.MaestroContext, buid string, scid string, start
 	if err != nil {
 		return openSlots
 	}
-	for len(openSlots) < MAX_OPEN_SLOTS_PER_BRANCH && offset < metadata.TotalCount {
-		if len(bookings) == 0 {
-			openSlots = append(openSlots, &OpenSlot{Start: start, End: end})
-			break
-		}
-		filteredSlots := filterSlots(bookings, start, end)
-		if len(filteredSlots) > 0 {
-			for _, slot := range filteredSlots {
-				if len(openSlots) < MAX_OPEN_SLOTS_PER_BRANCH {
-					openSlots = append(openSlots, slot)
-				} else {
-					break
+	if len(bookings) == 0 {
+		openSlots = append(openSlots, &OpenSlot{Start: start, End: end})
+	} else {
+		for len(openSlots) < MAX_OPEN_SLOTS_PER_BRANCH && offset < metadata.TotalCount {
+			filteredSlots := filterSlots(bookings, start, end)
+			if len(filteredSlots) > 0 {
+				for _, slot := range filteredSlots {
+					if len(openSlots) < MAX_OPEN_SLOTS_PER_BRANCH {
+						openSlots = append(openSlots, slot)
+					} else {
+						break
+					}
 				}
 			}
-		}
-		if len(openSlots) >= MAX_OPEN_SLOTS_PER_BRANCH {
-			break
-		}
-		offset += MAX_RESULTS_PER_PAGE
-		resp, err = ctx.Client.BookingClient.Search(buid, scid, start.Format(time.RFC3339), end.Format(time.RFC3339), MAX_RESULTS_PER_PAGE, offset)
-		if err != nil {
-			continue
-		}
-		bookings, metadata, err = ctx.Client.BookingClient.DecodeBookings(resp)
-		if err != nil {
-			continue
+			if len(openSlots) >= MAX_OPEN_SLOTS_PER_BRANCH {
+				break
+			}
+			offset += MAX_RESULTS_PER_PAGE
+			resp, err = ctx.Client.BookingClient.Search(buid, sc.ID, start.Format(time.RFC3339), end.Format(time.RFC3339), MAX_RESULTS_PER_PAGE, offset)
+			if err != nil {
+				continue
+			}
+			bookings, metadata, err = ctx.Client.BookingClient.DecodeBookings(resp)
+			if err != nil {
+				continue
+			}
 		}
 	}
-	return normalizeSlots(openSlots)
+	return normalizeSlots(openSlots, sc, start, end)
 }
 
 func filterSlots(bookings []*model.Booking, start, end time.Time) []*OpenSlot {
 	openSlots := []*OpenSlot{}
+	pStart := start
+	for _, booking := range bookings {
+		if booking.StartTime.After(pStart) {
+			openSlots = append(openSlots, &OpenSlot{Start: pStart, End: booking.StartTime})
+		}
+		pStart = booking.EndTime
+	}
+	if end.After(pStart) {
+		openSlots = append(openSlots, &OpenSlot{Start: pStart, End: end})
+	}
 	return openSlots
 }
 
-func normalizeSlots(openSlots []*OpenSlot) []*OpenSlot {
+func normalizeSlots(slots []*OpenSlot, sc *model.Schedule, viewStart, viewEnd time.Time) []*OpenSlot {
+	workWeek := buildWorkingDaysSet(sc.WorkingDays)
+	openSlots := []*OpenSlot{}
+	startToday, endToday, startTomorrow, endTomorrow, err := extractDailyFrames(sc.StartOfDay, sc.EndOfDay)
+	if err != nil {
+		return openSlots
+	}
+	for _, s := range slots {
+		start1 := maxTime(s.Start, viewStart)
+		end1 := minTime(s.End, viewEnd)
+		if end1.Before(start1) {
+			continue
+		}
+		part1Start := maxTime(start1, startToday)
+		part1End := minTime(end1, endToday)
+
+		if part1End.After(part1Start) {
+			openSlot := &OpenSlot{
+				Start: part1Start,
+				End:   part1End,
+			}
+			if isLegitSlot(openSlot, sc, workWeek) {
+				openSlots = append(openSlots, openSlot)
+			}
+		}
+
+		if end1.After(startTomorrow) {
+			part2Start := maxTime(start1, startTomorrow)
+			part2End := minTime(end1, endTomorrow)
+
+			if part2End.After(part2Start) {
+				openSlot := &OpenSlot{
+					Start: part2Start,
+					End:   part2End,
+				}
+				if isLegitSlot(openSlot, sc, workWeek) {
+					openSlots = append(openSlots, openSlot)
+				}
+
+			}
+		}
+	}
 	return openSlots
+}
+
+func isLegitSlot(
+	slot *OpenSlot,
+	sc *model.Schedule,
+	workWeek map[time.Weekday]bool,
+) bool {
+	if !workWeek[slot.Start.Weekday()] {
+		return false
+	}
+
+	required := time.Duration(sc.DefaultMeetingDurationMin) * time.Minute
+	return slot.End.Sub(slot.Start) >= required
+}
+
+func buildWorkingDaysSet(days []string) map[time.Weekday]bool {
+	set := make(map[time.Weekday]bool)
+	for _, d := range days {
+		switch strings.ToLower(d) {
+		case config.Sunday:
+			set[time.Sunday] = true
+		case config.Monday:
+			set[time.Monday] = true
+		case config.Tuesday:
+			set[time.Tuesday] = true
+		case config.Wednesday:
+			set[time.Wednesday] = true
+		case config.Thursday:
+			set[time.Thursday] = true
+		case config.Friday:
+			set[time.Friday] = true
+		case config.Saturday:
+			set[time.Saturday] = true
+		}
+	}
+	return set
+}
+
+func minTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
+}
+
+func maxTime(a, b time.Time) time.Time {
+	if a.After(b) {
+		return a
+	}
+	return b
+}
+
+func extractDailyFrames(startStr, endStr string) (time.Time, time.Time, time.Time, time.Time, error) {
+	startParsed, err := time.Parse("15:04", startStr)
+	if err != nil {
+		return time.Time{}, time.Time{}, time.Time{}, time.Time{}, err
+	}
+	endParsed, err := time.Parse("15:04", endStr)
+	if err != nil {
+		return time.Time{}, time.Time{}, time.Time{}, time.Time{}, err
+	}
+
+	now := time.Now()
+	year, month, day := now.Date()
+	loc := now.Location()
+
+	todayStart := time.Date(year, month, day, startParsed.Hour(), startParsed.Minute(), 0, 0, loc)
+
+	todayEnd := time.Date(year, month, day, endParsed.Hour(), endParsed.Minute(), 0, 0, loc)
+
+	if endParsed.Before(startParsed) {
+		todayEnd = todayEnd.Add(24 * time.Hour)
+	}
+
+	tomorrowStart := todayStart.Add(24 * time.Hour)
+	tomorrowEnd := todayEnd.Add(24 * time.Hour)
+
+	return todayStart, todayEnd, tomorrowStart, tomorrowEnd, nil
 }
 
 func fetchAndApplyTimeFrameForSearch(ctx *maestro.MaestroContext) (time.Time, time.Time) {
@@ -213,7 +344,7 @@ func fetchAndApplyTimeFrameForSearch(ctx *maestro.MaestroContext) (time.Time, ti
 		start = now
 	}
 
-	maxStart := now.Add(48 * time.Hour)
+	maxStart := now.Add(10 * time.Hour)
 	minStart := now
 
 	if start.After(maxStart) {
