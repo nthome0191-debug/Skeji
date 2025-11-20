@@ -47,6 +47,7 @@ const (
 	MaxLabelsForBusiness                 = 10
 	DefaultMaxBusinessUnitsPerAdminPhone = 10
 	DefaultMaxSchedulesPerBusinessUnits  = 10
+	DefaultMaxBookingsPerView            = 10
 
 	DefaultDefaultMeetingDurationMin     = 45
 	DefaultDefaultBreakDurationMin       = 15

@@ -1,7 +1,7 @@
 package flows
 
 import (
-	maestro "skeji/internal/maestro/core"
+	"skeji/internal/maestro/core"
 	"skeji/pkg/config"
 	"skeji/pkg/model"
 	"sync"
@@ -37,17 +37,24 @@ type DailySchedule struct {
 	Units []*DailyScheduleBusinessUnits `json:"units"`
 }
 
-func GetDailySchedule(ctx *maestro.MaestroContext) error {
+func GetDailySchedule(ctx *core.MaestroContext) error {
 	phone := ctx.ExtractString("phone")
 	if phone == "" {
 		return nil
 	}
+	start, end := extractTimeFrame(ctx)
+	units, err := fetchBusinessUnits(ctx, phone)
+	if err != nil {
+		return err
+	}
+	daily := buildDailySchedule(ctx, units, start, end)
+	ctx.Output["result"] = daily
+	return nil
+}
 
+func fetchBusinessUnits(ctx *core.MaestroContext, phone string) ([]*model.BusinessUnit, error) {
 	cities := ctx.ExtractStringList("cities")
 	labels := ctx.ExtractStringList("labels")
-	start, end := fetchAndApplyTimeFrameForView(ctx)
-
-	maestro.ReqAcquire()
 	resp, err := ctx.Client.BusinessUnitClient.GetByPhone(
 		phone,
 		cities,
@@ -55,191 +62,149 @@ func GetDailySchedule(ctx *maestro.MaestroContext) error {
 		config.DefaultMaxBusinessUnitsPerAdminPhone,
 		0,
 	)
-	maestro.ReqRelease()
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	units, _, err := ctx.Client.BusinessUnitClient.DecodeBusinessUnits(resp)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	return units, nil
+}
 
-	dailySchedule := &DailySchedule{
+func buildDailySchedule(ctx *core.MaestroContext, units []*model.BusinessUnit, start, end time.Time) *DailySchedule {
+	daily := &DailySchedule{
 		Units: make([]*DailyScheduleBusinessUnits, len(units)),
 	}
 
-	if err := fillBusinessUnits(ctx, dailySchedule, units, start, end); err != nil {
-		return err
-	}
-
-	ctx.Output["daily_schedule"] = dailySchedule
-	return nil
-}
-
-func fillBusinessUnits(
-	ctx *maestro.MaestroContext,
-	dailySchedule *DailySchedule,
-	units []*model.BusinessUnit,
-	start, end time.Time,
-) error {
 	var wg sync.WaitGroup
-	var errMu sync.Mutex
-	var firstErr error
-	for i, unit := range units {
+
+	for i, bu := range units {
+		i, bu := i, bu
 		wg.Add(1)
-		go func() {
+
+		core.RunWithRateLimitedConcurrency(func() {
 			defer wg.Done()
-			bu := &DailyScheduleBusinessUnits{
-				Name:      unit.Name,
-				Labels:    unit.Labels,
-				Schedules: []*DailyScheduleBusinessUnitSchedule{},
-			}
-			var cityWg sync.WaitGroup
-			var cityMu sync.Mutex
-			for _, city := range unit.Cities {
-				cityWg.Add(1)
-				go func() {
-					defer cityWg.Done()
-					maestro.ReqAcquire()
-					resp, err := ctx.Client.ScheduleClient.Search(
-						unit.ID,
-						city,
-						config.DefaultMaxSchedulesPerBusinessUnits,
-						0,
-					)
-					maestro.ReqRelease()
-					if err != nil {
-						errMu.Lock()
-						if firstErr == nil {
-							firstErr = err
-						}
-						errMu.Unlock()
-						return
-					}
-					scheds, _, err := ctx.Client.ScheduleClient.DecodeSchedules(resp)
-					if err != nil {
-						errMu.Lock()
-						if firstErr == nil {
-							firstErr = err
-						}
-						errMu.Unlock()
-						return
-					}
-					schedules := make([]*DailyScheduleBusinessUnitSchedule, len(scheds))
-					if err := fillSchedules(ctx, schedules, scheds, unit.ID, start, end); err != nil {
-						errMu.Lock()
-						if firstErr == nil {
-							firstErr = err
-						}
-						errMu.Unlock()
-						return
-					}
-					cityMu.Lock()
-					bu.Schedules = append(bu.Schedules, schedules...)
-					cityMu.Unlock()
-				}()
-			}
-			cityWg.Wait()
-			dailySchedule.Units[i] = bu
-		}()
-	}
-	wg.Wait()
-	return firstErr
-}
-
-func fillSchedules(
-	ctx *maestro.MaestroContext,
-	schedules []*DailyScheduleBusinessUnitSchedule,
-	scheds []*model.Schedule,
-	unitID string,
-	start, end time.Time,
-) error {
-	var wg sync.WaitGroup
-	var errMu sync.Mutex
-	var firstErr error
-
-	for j, schedule := range scheds {
-		j, schedule := j, schedule
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			sc := &DailyScheduleBusinessUnitSchedule{
-				Name:     schedule.Name,
-				City:     schedule.City,
-				Address:  schedule.Address,
-				Bookings: []*DailyScheduleBusinessUnitScheduleBooking{},
-			}
-
-			maestro.ReqAcquire()
-			resp, err := ctx.Client.BookingClient.Search(
-				unitID,
-				schedule.ID,
-				start.Format(time.RFC3339),
-				end.Format(time.RFC3339),
-				20,
-				0,
-			)
-			maestro.ReqRelease()
-			if err != nil {
-				errMu.Lock()
-				if firstErr == nil {
-					firstErr = err
-				}
-				errMu.Unlock()
-				schedules[j] = sc
-				return
-			}
-
-			books, _, err := ctx.Client.BookingClient.DecodeBookings(resp)
-			if err != nil {
-				errMu.Lock()
-				if firstErr == nil {
-					firstErr = err
-				}
-				errMu.Unlock()
-				schedules[j] = sc
-				return
-			}
-
-			bookings := make([]*DailyScheduleBusinessUnitScheduleBooking, len(books))
-			fillBookings(bookings, books)
-			sc.Bookings = bookings
-
-			schedules[j] = sc
-		}()
+			defer func() { _ = recover() }()
+			daily.Units[i] = buildUnit(ctx, bu, start, end)
+		})
 	}
 
 	wg.Wait()
-	return firstErr
+	return daily
 }
 
-func fillBookings(bookings []*DailyScheduleBusinessUnitScheduleBooking, books []*model.Booking) {
-	for i, booking := range books {
-		bookings[i] = &DailyScheduleBusinessUnitScheduleBooking{
-			Start:        booking.StartTime,
-			End:          booking.EndTime,
-			Label:        booking.ServiceLabel,
-			Participants: make([]*DailyScheduleBusinessUnitScheduleBookingsParticipant, len(booking.Participants)),
+func buildUnit(ctx *core.MaestroContext, bu *model.BusinessUnit, start, end time.Time) *DailyScheduleBusinessUnits {
+	unit := &DailyScheduleBusinessUnits{
+		Name:   bu.Name,
+		Labels: bu.Labels,
+	}
+	unit.Schedules = buildSchedules(ctx, bu, start, end)
+	return unit
+}
+
+func buildSchedules(ctx *core.MaestroContext, bu *model.BusinessUnit, start, end time.Time) []*DailyScheduleBusinessUnitSchedule {
+	var all []*DailyScheduleBusinessUnitSchedule
+	for _, city := range bu.Cities {
+		resp, err := ctx.Client.ScheduleClient.Search(
+			bu.ID,
+			city,
+			config.DefaultMaxSchedulesPerBusinessUnits,
+			0,
+		)
+		if err != nil {
+			continue
 		}
-		fillParticipants(bookings[i], booking.Participants)
+		scheds, _, err := ctx.Client.ScheduleClient.DecodeSchedules(resp)
+		if err != nil {
+			continue
+		}
+		citySchedules := buildCitySchedules(ctx, bu.ID, scheds, start, end)
+		if len(citySchedules) > 0 {
+			all = append(all, citySchedules...)
+		}
 	}
+
+	return all
 }
 
-func fillParticipants(b *DailyScheduleBusinessUnitScheduleBooking, participants map[string]string) {
-	i := 0
-	for name, phone := range participants {
-		b.Participants[i] = &DailyScheduleBusinessUnitScheduleBookingsParticipant{
+func buildCitySchedules(ctx *core.MaestroContext, buID string, scheds []*model.Schedule, start, end time.Time) []*DailyScheduleBusinessUnitSchedule {
+	results := make([]*DailyScheduleBusinessUnitSchedule, len(scheds))
+	var wg sync.WaitGroup
+	for i, schedule := range scheds {
+		i, schedule := i, schedule
+		wg.Add(1)
+		core.RunWithRateLimitedConcurrency(func() {
+			defer wg.Done()
+			defer func() { _ = recover() }()
+			results[i] = buildSchedule(ctx, buID, schedule, start, end)
+		})
+	}
+	wg.Wait()
+	return results
+}
+func buildSchedule(ctx *core.MaestroContext, buID string, schedule *model.Schedule, start, end time.Time) *DailyScheduleBusinessUnitSchedule {
+	sc := &DailyScheduleBusinessUnitSchedule{
+		Name:    schedule.Name,
+		City:    schedule.City,
+		Address: schedule.Address,
+	}
+	sc.Bookings = buildBookings(ctx, buID, schedule.ID, start, end)
+	return sc
+}
+
+func buildBookings(ctx *core.MaestroContext, buID, scheduleID string, start, end time.Time) []*DailyScheduleBusinessUnitScheduleBooking {
+	resp, err := ctx.Client.BookingClient.Search(
+		buID,
+		scheduleID,
+		start.Format(time.RFC3339),
+		end.Format(time.RFC3339),
+		config.DefaultMaxBookingsPerView,
+		0,
+	)
+	if err != nil {
+		return []*DailyScheduleBusinessUnitScheduleBooking{}
+	}
+	books, _, err := ctx.Client.BookingClient.DecodeBookings(resp)
+	if err != nil {
+		return []*DailyScheduleBusinessUnitScheduleBooking{}
+	}
+	if len(books) == 0 {
+		return []*DailyScheduleBusinessUnitScheduleBooking{}
+	}
+	result := make([]*DailyScheduleBusinessUnitScheduleBooking, len(books))
+	for i, book := range books {
+		result[i] = buildBooking(book)
+	}
+	return result
+}
+
+func buildBooking(book *model.Booking) *DailyScheduleBusinessUnitScheduleBooking {
+	b := &DailyScheduleBusinessUnitScheduleBooking{
+		Start: book.StartTime,
+		End:   book.EndTime,
+		Label: book.ServiceLabel,
+	}
+	b.Participants = buildParticipants(book.Participants)
+	return b
+}
+
+func buildParticipants(parts map[string]string) []*DailyScheduleBusinessUnitScheduleBookingsParticipant {
+	if len(parts) == 0 {
+		return []*DailyScheduleBusinessUnitScheduleBookingsParticipant{}
+	}
+	participants := make([]*DailyScheduleBusinessUnitScheduleBookingsParticipant, 0, len(parts))
+	for name, phone := range parts {
+		participants = append(participants, &DailyScheduleBusinessUnitScheduleBookingsParticipant{
 			Name:  name,
 			Phone: phone,
-		}
-		i++
+		})
 	}
+
+	return participants
 }
 
-func fetchAndApplyTimeFrameForView(ctx *maestro.MaestroContext) (time.Time, time.Time) {
+func extractTimeFrame(ctx *core.MaestroContext) (time.Time, time.Time) {
 	now := time.Now()
 
 	start, err := ctx.ExtractTime("start")

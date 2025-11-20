@@ -514,7 +514,7 @@ func (s *businessUnitService) verifyDuplication(ctx context.Context, bu *model.B
 				))
 			}
 		}
-		offset += int64(len(chunk))
+		offset += int64(config.DefaultPaginationLimit)
 	}
 	return nil
 }
