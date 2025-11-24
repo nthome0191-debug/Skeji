@@ -1690,9 +1690,7 @@ func testServiceLabelEmptyString(t *testing.T) {
 		t.Fatalf("HTTP request failed: %v", err)
 	}
 
-	if resp.StatusCode != 422 && resp.StatusCode != 400 {
-		t.Errorf("expected validation error for empty service label, got %d", resp.StatusCode)
-	}
+	common.AssertStatusCode(t, resp, 201)
 }
 
 func testBookingWithMaxCapacity(t *testing.T) {

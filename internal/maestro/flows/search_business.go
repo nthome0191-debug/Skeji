@@ -1,9 +1,11 @@
 package flows
 
 import (
+	"fmt"
 	maestro "skeji/internal/maestro/core"
 	"skeji/pkg/config"
 	"skeji/pkg/model"
+	"skeji/pkg/sealer"
 	"strings"
 	"time"
 )
@@ -17,6 +19,7 @@ const (
 )
 
 type OpenSlot struct {
+	ID    string
 	Start time.Time
 	End   time.Time
 }
@@ -32,15 +35,16 @@ type BusinessBranch struct {
 
 type Business struct {
 	Name     string
-	Phone    string
+	Phones   []string
 	Branches []*BusinessBranch
 }
 
-// require: city, labels
-// optional: start_time, end+time, address
 func SearchBusiness(ctx *maestro.MaestroContext) error {
 	cities := ctx.ExtractStringList("cities")
 	labels := ctx.ExtractStringList("labels")
+	if len(cities) == 0 || len(labels) == 0 {
+		return fmt.Errorf("at least one label and one city must be specified")
+	}
 	start, end := fetchAndApplyTimeFrameForSearch(ctx)
 	businesses := []*Business{}
 	var offset int64 = 0
@@ -56,8 +60,11 @@ func SearchBusiness(ctx *maestro.MaestroContext) error {
 		for _, unit := range units {
 			business := &Business{
 				Name:     unit.Name,
-				Phone:    unit.AdminPhone,
+				Phones:   []string{unit.AdminPhone},
 				Branches: []*BusinessBranch{},
+			}
+			for phone := range unit.Maintainers {
+				business.Phones = append(business.Phones, phone)
 			}
 			addBusiness := false
 			for _, city := range cities {
@@ -167,6 +174,10 @@ func fetchOpenSlots(ctx *maestro.MaestroContext, buid string, sc *model.Schedule
 	if err != nil {
 		return openSlots
 	}
+	batchId, err := sealer.CreateOpaqueToken(buid, sc.ID)
+	if err != nil {
+		return openSlots
+	}
 	if len(bookings) == 0 {
 		openSlots = append(openSlots, &OpenSlot{Start: start, End: end})
 	} else {
@@ -195,7 +206,7 @@ func fetchOpenSlots(ctx *maestro.MaestroContext, buid string, sc *model.Schedule
 			}
 		}
 	}
-	return normalizeSlots(openSlots, sc, start, end)
+	return normalizeSlots(batchId, openSlots, sc, start, end)
 }
 
 func filterSlots(bookings []*model.Booking, start, end time.Time) []*OpenSlot {
@@ -213,7 +224,7 @@ func filterSlots(bookings []*model.Booking, start, end time.Time) []*OpenSlot {
 	return openSlots
 }
 
-func normalizeSlots(slots []*OpenSlot, sc *model.Schedule, viewStart, viewEnd time.Time) []*OpenSlot {
+func normalizeSlots(batchId string, slots []*OpenSlot, sc *model.Schedule, viewStart, viewEnd time.Time) []*OpenSlot {
 	workWeek := buildWorkingDaysSet(sc.WorkingDays)
 	openSlots := []*OpenSlot{}
 	startToday, endToday, startTomorrow, endTomorrow, err := extractDailyFrames(sc.StartOfDay, sc.EndOfDay)
@@ -231,6 +242,7 @@ func normalizeSlots(slots []*OpenSlot, sc *model.Schedule, viewStart, viewEnd ti
 
 		if part1End.After(part1Start) {
 			openSlot := &OpenSlot{
+				ID:    batchId,
 				Start: part1Start,
 				End:   part1End,
 			}
@@ -245,6 +257,7 @@ func normalizeSlots(slots []*OpenSlot, sc *model.Schedule, viewStart, viewEnd ti
 
 			if part2End.After(part2Start) {
 				openSlot := &OpenSlot{
+					ID:    batchId,
 					Start: part2Start,
 					End:   part2End,
 				}

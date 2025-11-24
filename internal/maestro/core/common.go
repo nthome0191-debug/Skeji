@@ -1,5 +1,7 @@
 package core
 
+import "fmt"
+
 const (
 	MAX_CONCURRENT_API_CALLS = 40
 )
@@ -14,4 +16,12 @@ func RunWithRateLimitedConcurrency(fn func()) {
 		<-RequestLimiter
 	}()
 	fn()
+}
+
+func IsMissing(str string) bool {
+	return len(str) == 0
+}
+
+func MissingParamErr(paramName string) error {
+	return fmt.Errorf("required param is missing [%v]", paramName)
 }
