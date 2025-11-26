@@ -1,6 +1,7 @@
 package flows
 
 import (
+	"fmt"
 	"skeji/internal/maestro/core"
 	"skeji/pkg/config"
 	"skeji/pkg/model"
@@ -113,10 +114,12 @@ func buildSchedules(ctx *core.MaestroContext, bu *model.BusinessUnit, start, end
 			0,
 		)
 		if err != nil {
+			ctx.Logger.Warn(fmt.Sprintf("schedules search failed, err: %v", err))
 			continue
 		}
 		scheds, _, err := ctx.Client.ScheduleClient.DecodeSchedules(resp)
 		if err != nil {
+			ctx.Logger.Warn(fmt.Sprintf("schedules decode failed, err: %v\nresp: %v", err, resp))
 			continue
 		}
 		citySchedules := buildCitySchedules(ctx, bu.ID, scheds, start, end)
@@ -163,10 +166,12 @@ func buildBookings(ctx *core.MaestroContext, buID, scheduleID string, start, end
 		0,
 	)
 	if err != nil {
+		ctx.Logger.Warn(fmt.Sprintf("booking search failed, err: %v", err))
 		return []*DailyScheduleBusinessUnitScheduleBooking{}
 	}
 	books, _, err := ctx.Client.BookingClient.DecodeBookings(resp)
 	if err != nil {
+		ctx.Logger.Warn(fmt.Sprintf("booking decode failed, err: %v\nresp: %v", err, resp))
 		return []*DailyScheduleBusinessUnitScheduleBooking{}
 	}
 	if len(books) == 0 {

@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"skeji/pkg/client"
+	"skeji/pkg/logger"
 	"time"
 )
 
@@ -11,13 +12,15 @@ type MaestroContext struct {
 	Process map[string]any
 	Output  map[string]any
 	Client  *client.Client
+	Logger  *logger.Logger
 }
 
-func NewMaestroContext(input map[string]any, client *client.Client) *MaestroContext {
+func NewMaestroContext(input map[string]any, client *client.Client, logger *logger.Logger) *MaestroContext {
 	return &MaestroContext{
 		Input:  input,
 		Output: make(map[string]any),
 		Client: client,
+		Logger: logger,
 	}
 }
 

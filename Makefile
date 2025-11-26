@@ -7,6 +7,7 @@
 	business-units-up \
 	schedules-up \
 	bookings-up \
+	maestro-up \
 	notifications-up \
 	test-integration \
 	test-integration-app-verbose \
@@ -64,6 +65,11 @@ bookings-up:
 	@echo "📘 Deploying Bookings service..."
 	go run cmd/bookings/main.go
 	@echo "✅ Bookings service deployed successfully."
+
+maestro-up:
+	@echo "🎭 Deploying Maestro service..."
+	go run cmd/maestro/main.go
+	@echo "✅ Maestro service deployed successfully."
 
 # notifications-up:
 # 	@echo "🔔 Deploying Notifications service..."

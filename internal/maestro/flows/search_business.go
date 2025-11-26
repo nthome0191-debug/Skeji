@@ -96,10 +96,12 @@ func SearchBusiness(ctx *maestro.MaestroContext) error {
 		offset += MAX_RESULTS_PER_PAGE
 		resp, err = ctx.Client.BusinessUnitClient.Search(cities, labels, MAX_RESULTS_PER_PAGE, offset)
 		if err != nil {
+			ctx.Logger.Warn(fmt.Sprintf("business units search failed, err: %+v", err))
 			continue
 		}
 		units, _, err = ctx.Client.BusinessUnitClient.DecodeBusinessUnits(resp)
 		if err != nil {
+			ctx.Logger.Warn(fmt.Sprintf("business units decode failed, err: %+v\nresp: %+v", err, resp))
 			continue
 		}
 	}
@@ -112,10 +114,12 @@ func fetchBranches(ctx *maestro.MaestroContext, buid string, city string, start,
 	var offset int64 = 0
 	resp, err := ctx.Client.ScheduleClient.Search(buid, city, MAX_RESULTS_PER_PAGE, offset)
 	if err != nil {
+		ctx.Logger.Warn(fmt.Sprintf("schedules search failed, err: %+v", err))
 		return branches
 	}
 	schedules, metadata, err := ctx.Client.ScheduleClient.DecodeSchedules(resp)
 	if err != nil {
+		ctx.Logger.Warn(fmt.Sprintf("schedules decode failed, err: %+v\nresp: %+v", err, resp))
 		return branches
 	}
 	for len(branches) < MAX_BRANCHES_PER_UNIT && offset < metadata.TotalCount {
@@ -153,10 +157,12 @@ func fetchBranches(ctx *maestro.MaestroContext, buid string, city string, start,
 		offset += MAX_RESULTS_PER_PAGE
 		resp, err = ctx.Client.ScheduleClient.Search(buid, city, MAX_RESULTS_PER_PAGE, offset)
 		if err != nil {
+			ctx.Logger.Warn(fmt.Sprintf("schedules search failed, err: %+v", err))
 			continue
 		}
 		schedules, metadata, err = ctx.Client.ScheduleClient.DecodeSchedules(resp)
 		if err != nil {
+			ctx.Logger.Warn(fmt.Sprintf("schedules decode failed, err: %+v\nresp: %+v", err, resp))
 			continue
 		}
 	}
@@ -168,14 +174,17 @@ func fetchOpenSlots(ctx *maestro.MaestroContext, buid string, sc *model.Schedule
 	var offset int64 = 0
 	resp, err := ctx.Client.BookingClient.Search(buid, sc.ID, start.Format(time.RFC3339), end.Format(time.RFC3339), MAX_RESULTS_PER_PAGE, offset)
 	if err != nil {
+		ctx.Logger.Warn(fmt.Sprintf("booking search failed, err: %+v", err))
 		return openSlots
 	}
 	bookings, metadata, err := ctx.Client.BookingClient.DecodeBookings(resp)
 	if err != nil {
+		ctx.Logger.Warn(fmt.Sprintf("booking decode failed, err: %+v\nresp: %+v", err, resp))
 		return openSlots
 	}
 	batchId, err := sealer.CreateOpaqueToken(buid, sc.ID)
 	if err != nil {
+		ctx.Logger.Warn(fmt.Sprintf("create opaque token failed for [buid %v | scid %v] err: %v", buid, sc.ID, err))
 		return openSlots
 	}
 	if len(bookings) == 0 {
@@ -198,15 +207,17 @@ func fetchOpenSlots(ctx *maestro.MaestroContext, buid string, sc *model.Schedule
 			offset += MAX_RESULTS_PER_PAGE
 			resp, err = ctx.Client.BookingClient.Search(buid, sc.ID, start.Format(time.RFC3339), end.Format(time.RFC3339), MAX_RESULTS_PER_PAGE, offset)
 			if err != nil {
+				ctx.Logger.Warn(fmt.Sprintf("booking search failed, err: %+v", err))
 				continue
 			}
 			bookings, metadata, err = ctx.Client.BookingClient.DecodeBookings(resp)
 			if err != nil {
+				ctx.Logger.Warn(fmt.Sprintf("booking decode failed, err: %+v\nresp: %+v", err, resp))
 				continue
 			}
 		}
 	}
-	return normalizeSlots(batchId, openSlots, sc, start, end)
+	return normalizeSlots(ctx, batchId, openSlots, sc, start, end)
 }
 
 func filterSlots(bookings []*model.Booking, start, end time.Time) []*OpenSlot {
@@ -224,11 +235,12 @@ func filterSlots(bookings []*model.Booking, start, end time.Time) []*OpenSlot {
 	return openSlots
 }
 
-func normalizeSlots(batchId string, slots []*OpenSlot, sc *model.Schedule, viewStart, viewEnd time.Time) []*OpenSlot {
+func normalizeSlots(ctx *maestro.MaestroContext, batchId string, slots []*OpenSlot, sc *model.Schedule, viewStart, viewEnd time.Time) []*OpenSlot {
 	workWeek := buildWorkingDaysSet(sc.WorkingDays)
 	openSlots := []*OpenSlot{}
 	startToday, endToday, startTomorrow, endTomorrow, err := extractDailyFrames(sc.StartOfDay, sc.EndOfDay)
 	if err != nil {
+		ctx.Logger.Warn(fmt.Sprintf("extract daily frames failed: %v", err))
 		return openSlots
 	}
 	for _, s := range slots {

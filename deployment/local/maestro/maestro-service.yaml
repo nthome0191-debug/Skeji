@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: maestro
+  namespace: apps
+  labels:
+    app: maestro
+spec:
+  type: ClusterIP
+  selector:
+    app: maestro
+  ports:
+    - port: 80
+      targetPort: 8090
+      protocol: TCP
+      name: http

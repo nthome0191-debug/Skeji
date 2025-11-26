@@ -12,7 +12,7 @@ bash deployment/local/kind/setup.sh
 bash deployment/local/kafka/setup.sh
 bash deployment/local/mongo/setup.sh
 bash deployment/local/migrate/setup.sh
-bash deployment/local/scripts/applications_setup.sh business-units schedules bookings
+bash deployment/local/scripts/applications_setup.sh business-units schedules bookings maestro
 
 echo "✅ Local environment ready!"
 

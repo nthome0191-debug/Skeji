@@ -5,15 +5,18 @@ import (
 	maestro "skeji/internal/maestro/core"
 	"skeji/internal/maestro/flows"
 	"skeji/pkg/client"
+	"skeji/pkg/logger"
 )
 
 type MaestroService struct {
 	client *client.Client
+	Logger *logger.Logger
 }
 
-func NewMaestroService(client *client.Client) *MaestroService {
+func NewMaestroService(client *client.Client, logger *logger.Logger) *MaestroService {
 	return &MaestroService{
 		client: client,
+		Logger: logger,
 	}
 }
 
@@ -31,7 +34,7 @@ func (s *MaestroService) ExecuteFlow(flowName string, input map[string]any) (map
 	if !exists {
 		return nil, fmt.Errorf("unknown flow: %s", flowName)
 	}
-	ctx := maestro.NewMaestroContext(input, s.client)
+	ctx := maestro.NewMaestroContext(input, s.client, s.Logger)
 	err := handler(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("flow execution failed: %v", err)

@@ -9,7 +9,7 @@ import (
 )
 
 func SetupRouter(client *client.Client, log *logger.Logger) *http.ServeMux {
-	maestroService := service.NewMaestroService(client)
+	maestroService := service.NewMaestroService(client, log)
 	flowHandler := handlers.NewFlowHandler(maestroService, log)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/maestro/execute", flowHandler.ExecuteFlow)

@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maestro
+  namespace: apps
+  labels:
+    app: maestro
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: maestro
+  template:
+    metadata:
+      labels:
+        app: maestro
+    spec:
+      containers:
+        - name: maestro
+          image: skeji/maestro:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8090
+          env:
+            - name: MAESTRO_PORT
+              value: "8090"
+            - name: API_BASE_URL
+              value: "http://business-units.apps.svc.cluster.local"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /api/v1/maestro/health
+              port: 8090
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 2
+            successThreshold: 1
+          livenessProbe:
+            httpGet:
+              path: /api/v1/maestro/health
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 2
+            successThreshold: 1
