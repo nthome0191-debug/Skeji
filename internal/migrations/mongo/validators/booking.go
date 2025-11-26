@@ -8,7 +8,6 @@ var BookingValidator = bson.M{
 		"required": []string{
 			"business_id",
 			"schedule_id",
-			"service_label",
 			"start_time",
 			"end_time",
 			"capacity",
@@ -37,7 +36,6 @@ var BookingValidator = bson.M{
 
 			"service_label": bson.M{
 				"bsonType":  "string",
-				"minLength": 2,
 				"maxLength": 100,
 			},
 

@@ -116,6 +116,8 @@ func CreateBusinessUnit(ctx *maestro.MaestroContext) error {
 	}
 	createdSchedules := make([]*model.Schedule, 0, len(createdBU.Cities))
 
+	schedulePerCity := ctx.ExtractBool("schedule_per_city")
+
 	for _, city := range createdBU.Cities {
 		schedule := &model.Schedule{
 			BusinessID: createdBU.ID,
@@ -164,6 +166,10 @@ func CreateBusinessUnit(ctx *maestro.MaestroContext) error {
 		}
 
 		createdSchedules = append(createdSchedules, createdSchedule)
+
+		if !schedulePerCity {
+			break
+		}
 	}
 
 	ctx.Output["business_unit"] = createdBU

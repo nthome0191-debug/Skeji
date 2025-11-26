@@ -15,11 +15,10 @@ func CreateBooking(ctx *maestro.MaestroContext) error {
 	if maestro.IsMissing(requesterPhone) {
 		return maestro.MissingParamErr("requester_phone")
 	}
-	requesterName := ctx.ExtractString("requester_name")
-	if maestro.IsMissing(requesterName) {
-		return maestro.MissingParamErr("requester_name")
-	}
 	slotId := ctx.ExtractString("slot_id")
+	if maestro.IsMissing(slotId) {
+		return maestro.MissingParamErr("slot_id")
+	}
 	startTime, err := ctx.ExtractTime("start_time")
 	if err != nil {
 		return err
@@ -46,6 +45,16 @@ func CreateBooking(ctx *maestro.MaestroContext) error {
 			if err != nil {
 				endTimeProvided = false
 			}
+		}
+	}
+	requesterName := ctx.ExtractString("requester_name")
+	if !isMaintainerRequest {
+		if maestro.IsMissing(requesterName) {
+			return maestro.MissingParamErr("requester_name")
+		}
+	} else {
+		if len(requesterName) == 0 {
+			requesterName = "admin"
 		}
 	}
 	booking := &model.Booking{

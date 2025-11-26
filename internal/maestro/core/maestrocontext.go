@@ -24,6 +24,15 @@ func NewMaestroContext(input map[string]any, client *client.Client, logger *logg
 	}
 }
 
+func (ctx *MaestroContext) ExtractBool(key string) bool {
+	if val, exists := ctx.Input[key]; exists && val != nil {
+		if str, ok := val.(bool); ok {
+			return str
+		}
+	}
+	return false
+}
+
 func (ctx *MaestroContext) ExtractString(key string) string {
 	if val, exists := ctx.Input[key]; exists && val != nil {
 		if str, ok := val.(string); ok {
