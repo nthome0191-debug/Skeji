@@ -3,63 +3,36 @@ package flows
 import (
 	"fmt"
 	"skeji/internal/maestro/core"
+	"skeji/internal/maestro/types"
 	"skeji/pkg/config"
 	"skeji/pkg/model"
 	"sync"
 	"time"
 )
 
-type DailyScheduleBusinessUnitScheduleBookingsParticipant struct {
-	Name  string `json:"name"`
-	Phone string `json:"phone"`
-}
-
-type DailyScheduleBusinessUnitScheduleBooking struct {
-	Start        time.Time                                               `json:"start"`
-	End          time.Time                                               `json:"end"`
-	Label        string                                                  `json:"label"`
-	Participants []*DailyScheduleBusinessUnitScheduleBookingsParticipant `json:"participants"`
-}
-
-type DailyScheduleBusinessUnitSchedule struct {
-	Name     string                                      `json:"name"`
-	City     string                                      `json:"city"`
-	Address  string                                      `json:"address"`
-	Bookings []*DailyScheduleBusinessUnitScheduleBooking `json:"bookings"`
-}
-
-type DailyScheduleBusinessUnits struct {
-	Name      string                               `json:"name"`
-	Labels    []string                             `json:"labels"`
-	Schedules []*DailyScheduleBusinessUnitSchedule `json:"schedules"`
-}
-
-type DailySchedule struct {
-	Units []*DailyScheduleBusinessUnits `json:"units"`
-}
-
 func GetDailySchedule(ctx *core.MaestroContext) error {
-	phone := ctx.ExtractString("phone")
-	if phone == "" {
-		return fmt.Errorf("phone must be provided")
+	input, err := types.FromMapGetDailySchedule(ctx.Input)
+	if err != nil {
+		return fmt.Errorf("invalid input: %w", err)
 	}
-	start, end := extractTimeFrame(ctx)
-	units, err := fetchBusinessUnits(ctx, phone)
+
+	start, end := extractTimeFrame(input)
+
+	units, err := fetchBusinessUnits(ctx, input)
 	if err != nil {
 		return err
 	}
+
 	daily := buildDailySchedule(ctx, units, start, end)
 	ctx.Output["result"] = daily
 	return nil
 }
 
-func fetchBusinessUnits(ctx *core.MaestroContext, phone string) ([]*model.BusinessUnit, error) {
-	cities := ctx.ExtractStringList("cities")
-	labels := ctx.ExtractStringList("labels")
+func fetchBusinessUnits(ctx *core.MaestroContext, input *types.GetDailyScheduleInput) ([]*model.BusinessUnit, error) {
 	resp, err := ctx.Client.BusinessUnitClient.GetByPhone(
-		phone,
-		cities,
-		labels,
+		input.Phone,
+		input.Cities,
+		input.Labels,
 		config.DefaultMaxBusinessUnitsPerAdminPhone,
 		0,
 	)
@@ -73,9 +46,9 @@ func fetchBusinessUnits(ctx *core.MaestroContext, phone string) ([]*model.Busine
 	return units, nil
 }
 
-func buildDailySchedule(ctx *core.MaestroContext, units []*model.BusinessUnit, start, end time.Time) *DailySchedule {
-	daily := &DailySchedule{
-		Units: make([]*DailyScheduleBusinessUnits, len(units)),
+func buildDailySchedule(ctx *core.MaestroContext, units []*model.BusinessUnit, start, end time.Time) *types.DailySchedule {
+	daily := &types.DailySchedule{
+		Units: make([]*types.DailyScheduleBusinessUnit, len(units)),
 	}
 
 	var wg sync.WaitGroup
@@ -95,8 +68,8 @@ func buildDailySchedule(ctx *core.MaestroContext, units []*model.BusinessUnit, s
 	return daily
 }
 
-func buildUnit(ctx *core.MaestroContext, bu *model.BusinessUnit, start, end time.Time) *DailyScheduleBusinessUnits {
-	unit := &DailyScheduleBusinessUnits{
+func buildUnit(ctx *core.MaestroContext, bu *model.BusinessUnit, start, end time.Time) *types.DailyScheduleBusinessUnit {
+	unit := &types.DailyScheduleBusinessUnit{
 		Name:   bu.Name,
 		Labels: bu.Labels,
 	}
@@ -104,8 +77,8 @@ func buildUnit(ctx *core.MaestroContext, bu *model.BusinessUnit, start, end time
 	return unit
 }
 
-func buildSchedules(ctx *core.MaestroContext, bu *model.BusinessUnit, start, end time.Time) []*DailyScheduleBusinessUnitSchedule {
-	var all []*DailyScheduleBusinessUnitSchedule
+func buildSchedules(ctx *core.MaestroContext, bu *model.BusinessUnit, start, end time.Time) []*types.DailyScheduleSchedule {
+	var all []*types.DailyScheduleSchedule
 	for _, city := range bu.Cities {
 		resp, err := ctx.Client.ScheduleClient.Search(
 			bu.ID,
@@ -131,8 +104,8 @@ func buildSchedules(ctx *core.MaestroContext, bu *model.BusinessUnit, start, end
 	return all
 }
 
-func buildCitySchedules(ctx *core.MaestroContext, buID string, scheds []*model.Schedule, start, end time.Time) []*DailyScheduleBusinessUnitSchedule {
-	results := make([]*DailyScheduleBusinessUnitSchedule, len(scheds))
+func buildCitySchedules(ctx *core.MaestroContext, buID string, scheds []*model.Schedule, start, end time.Time) []*types.DailyScheduleSchedule {
+	results := make([]*types.DailyScheduleSchedule, len(scheds))
 	var wg sync.WaitGroup
 	for i, schedule := range scheds {
 		i, schedule := i, schedule
@@ -146,8 +119,9 @@ func buildCitySchedules(ctx *core.MaestroContext, buID string, scheds []*model.S
 	wg.Wait()
 	return results
 }
-func buildSchedule(ctx *core.MaestroContext, buID string, schedule *model.Schedule, start, end time.Time) *DailyScheduleBusinessUnitSchedule {
-	sc := &DailyScheduleBusinessUnitSchedule{
+
+func buildSchedule(ctx *core.MaestroContext, buID string, schedule *model.Schedule, start, end time.Time) *types.DailyScheduleSchedule {
+	sc := &types.DailyScheduleSchedule{
 		Name:    schedule.Name,
 		City:    schedule.City,
 		Address: schedule.Address,
@@ -156,7 +130,7 @@ func buildSchedule(ctx *core.MaestroContext, buID string, schedule *model.Schedu
 	return sc
 }
 
-func buildBookings(ctx *core.MaestroContext, buID, scheduleID string, start, end time.Time) []*DailyScheduleBusinessUnitScheduleBooking {
+func buildBookings(ctx *core.MaestroContext, buID, scheduleID string, start, end time.Time) []*types.DailyScheduleBooking {
 	resp, err := ctx.Client.BookingClient.Search(
 		buID,
 		scheduleID,
@@ -167,25 +141,25 @@ func buildBookings(ctx *core.MaestroContext, buID, scheduleID string, start, end
 	)
 	if err != nil {
 		ctx.Logger.Warn(fmt.Sprintf("booking search failed, err: %v", err))
-		return []*DailyScheduleBusinessUnitScheduleBooking{}
+		return []*types.DailyScheduleBooking{}
 	}
 	books, _, err := ctx.Client.BookingClient.DecodeBookings(resp)
 	if err != nil {
 		ctx.Logger.Warn(fmt.Sprintf("booking decode failed, err: %v\nresp: %v", err, resp))
-		return []*DailyScheduleBusinessUnitScheduleBooking{}
+		return []*types.DailyScheduleBooking{}
 	}
 	if len(books) == 0 {
-		return []*DailyScheduleBusinessUnitScheduleBooking{}
+		return []*types.DailyScheduleBooking{}
 	}
-	result := make([]*DailyScheduleBusinessUnitScheduleBooking, len(books))
+	result := make([]*types.DailyScheduleBooking, len(books))
 	for i, book := range books {
 		result[i] = buildBooking(book)
 	}
 	return result
 }
 
-func buildBooking(book *model.Booking) *DailyScheduleBusinessUnitScheduleBooking {
-	b := &DailyScheduleBusinessUnitScheduleBooking{
+func buildBooking(book *model.Booking) *types.DailyScheduleBooking {
+	b := &types.DailyScheduleBooking{
 		Start: book.StartTime,
 		End:   book.EndTime,
 		Label: book.ServiceLabel,
@@ -194,13 +168,13 @@ func buildBooking(book *model.Booking) *DailyScheduleBusinessUnitScheduleBooking
 	return b
 }
 
-func buildParticipants(parts map[string]string) []*DailyScheduleBusinessUnitScheduleBookingsParticipant {
+func buildParticipants(parts map[string]string) []*types.DailyScheduleParticipant {
 	if len(parts) == 0 {
-		return []*DailyScheduleBusinessUnitScheduleBookingsParticipant{}
+		return []*types.DailyScheduleParticipant{}
 	}
-	participants := make([]*DailyScheduleBusinessUnitScheduleBookingsParticipant, 0, len(parts))
+	participants := make([]*types.DailyScheduleParticipant, 0, len(parts))
 	for name, phone := range parts {
-		participants = append(participants, &DailyScheduleBusinessUnitScheduleBookingsParticipant{
+		participants = append(participants, &types.DailyScheduleParticipant{
 			Name:  name,
 			Phone: phone,
 		})
@@ -209,14 +183,18 @@ func buildParticipants(parts map[string]string) []*DailyScheduleBusinessUnitSche
 	return participants
 }
 
-func extractTimeFrame(ctx *core.MaestroContext) (time.Time, time.Time) {
+func extractTimeFrame(input *types.GetDailyScheduleInput) (time.Time, time.Time) {
 	now := time.Now()
 
-	start, err := ctx.ExtractTime("start")
-	if err != nil {
+	// Use provided start time or default to now
+	var start time.Time
+	if input.Start != nil {
+		start = *input.Start
+	} else {
 		start = now
 	}
 
+	// Constrain start time to reasonable bounds
 	maxStart := now.Add(24 * time.Hour)
 	minStart := now.Add(-24 * time.Hour)
 
@@ -227,11 +205,15 @@ func extractTimeFrame(ctx *core.MaestroContext) (time.Time, time.Time) {
 		start = minStart
 	}
 
-	end, err := ctx.ExtractTime("end")
-	if err != nil {
+	// Use provided end time or default to start + 10 hours
+	var end time.Time
+	if input.End != nil {
+		end = *input.End
+	} else {
 		end = start.Add(10 * time.Hour)
 	}
 
+	// Constrain end time to reasonable bounds
 	if end.Before(start.Add(1 * time.Hour)) {
 		end = start.Add(1 * time.Hour)
 	}
