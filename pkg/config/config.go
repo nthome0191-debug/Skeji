@@ -43,6 +43,10 @@ type Config struct {
 	DefaultWorkingDaysIsrael      []string
 	DefaultWorkingDaysUs          []string
 
+	BusinessUnitBaseUrl string
+	ScheduleBaseUrl     string
+	BookingBaseUrl      string
+
 	Log    *logger.Logger
 	Client *client.Client
 }
@@ -80,6 +84,10 @@ func Load(serviceName string) *Config {
 		DefaultEndOfDay:               getEnvStr(EnvDefaultEndOfDay, DefaultDefaultEndOfDay),
 		DefaultWorkingDaysIsrael:      DefaultWorkingDaysIsrael,
 		DefaultWorkingDaysUs:          DefaultWorkingDaysUs,
+
+		BusinessUnitBaseUrl: getEnvStr(EnvBusinessUnitBaseUrl, DefaultBusinessUnitBaseUrl),
+		ScheduleBaseUrl:     getEnvStr(EnvScheduleBaseUrl, DefaultScheduleBaseUrl),
+		BookingBaseUrl:      getEnvStr(EnvBookingBaseUrl, DefaultBookingBaseUrl),
 
 		Log: logger.New(logger.Config{
 			Level:     getEnvStr(EnvLogLevel, DefaultLogLevel),

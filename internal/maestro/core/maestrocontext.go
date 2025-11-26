@@ -25,17 +25,42 @@ func NewMaestroContext(input map[string]any, client *client.Client, logger *logg
 }
 
 func (ctx *MaestroContext) ExtractString(key string) string {
-	if val, exists := ctx.Input[key]; exists {
-		return val.(string)
+	if val, exists := ctx.Input[key]; exists && val != nil {
+		if str, ok := val.(string); ok {
+			return str
+		}
 	}
 	return ""
 }
 
 func (ctx *MaestroContext) ExtractStringList(key string) []string {
-	if val, exists := ctx.Input[key]; exists {
-		return val.([]string)
+	if val, exists := ctx.Input[key]; exists && val != nil {
+		if interfaceList, ok := val.([]any); ok {
+			result := make([]string, 0, len(interfaceList))
+			for _, item := range interfaceList {
+				if str, ok := item.(string); ok {
+					result = append(result, str)
+				}
+			}
+			return result
+		}
 	}
 	return []string{}
+}
+
+func (ctx *MaestroContext) ExtractStringMap(key string) map[string]string {
+	if val, exists := ctx.Input[key]; exists && val != nil {
+		if interfaceMap, ok := val.(map[string]any); ok {
+			result := make(map[string]string, len(interfaceMap))
+			for k, v := range interfaceMap {
+				if str, ok := v.(string); ok {
+					result[k] = str
+				}
+			}
+			return result
+		}
+	}
+	return map[string]string{}
 }
 
 func (ctx *MaestroContext) ExtractTime(key string) (time.Time, error) {

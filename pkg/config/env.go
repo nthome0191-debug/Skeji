@@ -31,4 +31,8 @@ const (
 	EnvDefaultMaxParticipantsInSlot = "DEFAULT_MAX_PARTICIPANTS_IN_SLOT"
 	EnvDefaultStartOfDay            = "DEFAULT_START_OF_DAY"
 	EnvDefaultEndOfDay              = "DEFAULT_END_OF_DAY"
+
+	EnvBusinessUnitBaseUrl = "BUSINESS_UNIT_BASE_URL"
+	EnvScheduleBaseUrl     = "SCHEDULE_BASE_URL"
+	EnvBookingBaseUrl      = "BOOKING_BASE_URL"
 )

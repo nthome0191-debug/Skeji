@@ -41,7 +41,7 @@ type DailySchedule struct {
 func GetDailySchedule(ctx *core.MaestroContext) error {
 	phone := ctx.ExtractString("phone")
 	if phone == "" {
-		return nil
+		return fmt.Errorf("phone must be provided")
 	}
 	start, end := extractTimeFrame(ctx)
 	units, err := fetchBusinessUnits(ctx, phone)

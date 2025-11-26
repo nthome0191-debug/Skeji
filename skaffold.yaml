@@ -7,24 +7,29 @@ build:
   local:
     push: false
   artifacts:
-    - image: skeji-business-units
+    - image: skeji/business-units
       context: .
       docker:
         dockerfile: build/docker/schedules.Dockerfile
-    - image: skeji-schedules
+    - image: skeji/schedules
       context: .
       docker:
         dockerfile: build/docker/bookings.Dockerfile
-    - image: skeji-bookings
+    - image: skeji/bookings
       context: .
       docker:
         dockerfile: build/docker/business-units.Dockerfile
+    - image: skeji/maestro
+      context: .
+      docker:
+        dockerfile: build/docker/maestro.Dockerfile
 
 manifests:
   rawYaml:
     - deployment/local/business-units/*.yaml
     - deployment/local/schedules/*.yaml
     - deployment/local/bookings/*.yaml
+    - deployment/local/maestro/*.yaml
     - deployment/local/mongo/*.yaml
     - deployment/local/migrate/*.yaml
 
@@ -44,6 +49,10 @@ portForward:
     resourceName: bookings
     port: 8082
     localPort: 8082
+  - resourceType: service
+    resourceName: maestro
+    port: 8090
+    localPort: 8090
 
 profiles:
   - name: kind

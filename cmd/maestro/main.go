@@ -5,38 +5,26 @@ import (
 	"os"
 	"skeji/internal/maestro/api"
 	"skeji/pkg/client"
-	"skeji/pkg/logger"
+	"skeji/pkg/config"
 )
 
+const ServiceName = "maestro"
+
 func main() {
-	log := logger.New(logger.Config{
-		Level:   logger.INFO,
-		Format:  logger.JSON,
-		Service: "maestro",
-	})
+	cfg := config.Load(ServiceName)
+	cfg.SetMongo()
 
-	baseURL := os.Getenv("API_BASE_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:8080"
-	}
-
-	port := os.Getenv("MAESTRO_PORT")
-	if port == "" {
-		port = "8090"
-	}
+	cfg.Log.Info("Starting maestro service")
 
 	apiClient := client.NewClient()
-	apiClient.SetBusinessUnitClient(baseURL)
-	apiClient.SetScheduleClient(baseURL)
-	apiClient.SetBookingClient(baseURL)
+	apiClient.SetBusinessUnitClient(cfg.BusinessUnitBaseUrl)
+	apiClient.SetScheduleClient(cfg.ScheduleBaseUrl)
+	apiClient.SetBookingClient(cfg.BookingBaseUrl)
 
-	router := api.SetupRouter(apiClient, log)
+	router := api.SetupRouter(apiClient, cfg.Log)
 
-	addr := ":" + port
-	log.Info("Starting Maestro API server", "address", addr, "base_url", baseURL)
-
-	if err := http.ListenAndServe(addr, router); err != nil {
-		log.Error("Server failed", "error", err)
+	if err := http.ListenAndServe(":"+cfg.Port, router); err != nil {
+		cfg.Log.Error("Server failed", "error", err)
 		os.Exit(1)
 	}
 }

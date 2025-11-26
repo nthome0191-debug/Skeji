@@ -45,10 +45,9 @@ func CreateBusinessUnit(ctx *maestro.MaestroContext) error {
 		businessUnit.WebsiteURLs = websiteURLs
 	}
 
-	if maintainersVal, exists := ctx.Input["maintainers"]; exists && maintainersVal != nil {
-		if maintainers, ok := maintainersVal.(map[string]string); ok {
-			businessUnit.Maintainers = maintainers
-		}
+	maintainers := ctx.ExtractStringMap("maintainers")
+	if len(maintainers) > 0 {
+		businessUnit.Maintainers = maintainers
 	}
 
 	startOfDay := ctx.ExtractString("start_of_day")
