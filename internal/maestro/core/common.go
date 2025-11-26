@@ -23,5 +23,5 @@ func IsMissing(str string) bool {
 }
 
 func MissingParamErr(paramName string) error {
-	return fmt.Errorf("required param is missing [%v]", paramName)
+	return fmt.Errorf("required param [%v] is missing", paramName)
 }

@@ -25,7 +25,7 @@ func (c *Client) SetBusinessUnitClient(baseUrl string) {
 	c.BusinessUnitClient = NewBusinessUnitClient(baseUrl)
 }
 
-func (c *Client) SetSchdeuleClient(baseUrl string) {
+func (c *Client) SetScheduleClient(baseUrl string) {
 	c.ScheduleClient = NewScheduleClient(baseUrl)
 }
 
