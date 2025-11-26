@@ -13,7 +13,7 @@ type MongoClient struct {
 	Client *mongo.Client
 }
 
-func NewCMongolient(log *logger.Logger, mongoURI string, mongoConnTimeout time.Duration) *MongoClient {
+func NewCMongoClient(log *logger.Logger, mongoURI string, mongoConnTimeout time.Duration) *MongoClient {
 	ctx, cancel := context.WithTimeout(context.Background(), mongoConnTimeout)
 	defer cancel()
 

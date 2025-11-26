@@ -56,9 +56,9 @@ const (
 	DefaultDefaultStartOfDay = "09:00"
 	DefaultDefaultEndOfDay   = "18:00"
 
-	DefaultBusinessUnitBaseUrl = "business-units.apps.svc.cluster.local"
-	DefaultScheduleBaseUrl     = "schedules.apps.svc.cluster.local"
-	DefaultBookingBaseUrl      = "bookings.apps.svc.cluster.local"
+	DefaultBusinessUnitBaseUrl = "http://business-units.apps.svc.cluster.local"
+	DefaultScheduleBaseUrl     = "http://schedules.apps.svc.cluster.local"
+	DefaultBookingBaseUrl      = "http://bookings.apps.svc.cluster.local"
 )
 
 var (

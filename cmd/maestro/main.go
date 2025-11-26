@@ -12,7 +12,6 @@ const ServiceName = "maestro"
 
 func main() {
 	cfg := config.Load(ServiceName)
-	cfg.SetMongo()
 
 	cfg.Log.Info("Starting maestro service")
 

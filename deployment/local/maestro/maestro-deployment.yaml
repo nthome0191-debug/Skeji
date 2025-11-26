@@ -21,6 +21,15 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: BUSINESS_UNIT_BASE_URL
+              value: "http://business-units.apps.svc.cluster.local"
+            - name: SCHEDULE_BASE_URL
+              value: "http://schedules.apps.svc.cluster.local"
+            - name: BOOKING_BASE_URL
+              value: "http://bookings.apps.svc.cluster.local"
           resources:
             requests:
               cpu: "100m"

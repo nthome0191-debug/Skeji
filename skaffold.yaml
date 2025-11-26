@@ -39,19 +39,19 @@ deploy:
 portForward:
   - resourceType: service
     resourceName: business-units
-    port: 8080
+    port: 80
     localPort: 8080
   - resourceType: service
     resourceName: schedules
-    port: 8081
+    port: 80
     localPort: 8081
   - resourceType: service
     resourceName: bookings
-    port: 8082
+    port: 80
     localPort: 8082
   - resourceType: service
     resourceName: maestro
-    port: 8090
+    port: 80
     localPort: 8090
 
 profiles:

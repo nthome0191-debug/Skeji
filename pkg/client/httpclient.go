@@ -111,6 +111,7 @@ func (c *HttpClient) requestRaw(method, path string, rawBody []byte, headers map
 
 func (c *HttpClient) do(method, path string, reqBody io.Reader, hasBody bool, headers map[string]string) (*Response, error) {
 	url := c.BaseURL + path
+	fmt.Println("natali print, url: ", url)
 
 	req, err := http.NewRequestWithContext(context.Background(), method, url, reqBody)
 	if err != nil {

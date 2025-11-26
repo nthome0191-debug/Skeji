@@ -222,6 +222,9 @@ func (cfg *Config) LogConfiguration() {
 		"default_max_participants_per_slot", cfg.DefaultMaxParticipantsPerSlot,
 		"default_start_of_day", cfg.DefaultStartOfDay,
 		"default_end_of_day", cfg.DefaultEndOfDay,
+		"business_unit_base_url", cfg.BusinessUnitBaseUrl,
+		"schedule_base_url", cfg.ScheduleBaseUrl,
+		"booking_base_url", cfg.BookingBaseUrl,
 	)
 }
 
