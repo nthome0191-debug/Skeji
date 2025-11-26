@@ -98,10 +98,8 @@ func (h *BusinessUnitHandler) GetByID(w http.ResponseWriter, r *http.Request, ps
 // @Router /api/v1/business-units/phone/{phone} [get]
 func (h *BusinessUnitHandler) GetByPhone(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	phone := ps.ByName("phone")
-
-	// Extract cities[] and labels[]
-	cities := r.URL.Query()["cities"]
-	labels := r.URL.Query()["labels"]
+	cities := extractQueryParams(r.URL.Query(), "cities")
+	labels := extractQueryParams(r.URL.Query(), "labels")
 
 	limit, offset, err := httputil.ExtractLimitOffset(r)
 	if err != nil {
@@ -222,24 +220,12 @@ func (h *BusinessUnitHandler) Delete(w http.ResponseWriter, r *http.Request, ps 
 // @Router /api/v1/business-units/search [get]
 func (h *BusinessUnitHandler) Search(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	query := r.URL.Query()
-	citiesParam := query.Get("cities")
-	labelsParam := query.Get("labels")
-
-	if citiesParam == "" || labelsParam == "" {
-		if writeErr := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
-			Error: "Both 'cities' and 'labels' query parameters are required",
-		}); writeErr != nil {
-			h.log.Error("failed to write JSON response", "handler", "Search", "operation", "WriteJSON", "error", writeErr)
-		}
-		return
-	}
-
-	cities := splitAndTrim(citiesParam)
-	labels := splitAndTrim(labelsParam)
+	cities := extractQueryParams(query, "cities")
+	labels := extractQueryParams(query, "labels")
 
 	if len(cities) == 0 || len(labels) == 0 {
 		if writeErr := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
-			Error: "Cities and labels must contain at least one non-empty value",
+			Error: "Both 'cities' and 'labels' query parameters are required",
 		}); writeErr != nil {
 			h.log.Error("failed to write JSON response", "handler", "Search", "operation", "WriteJSON", "error", writeErr)
 		}
@@ -276,6 +262,21 @@ func splitAndTrim(param string) []string {
 		}
 	}
 	return parts
+}
+
+func extractQueryParams(query map[string][]string, key string) []string {
+	values := query[key]
+	if len(values) == 0 {
+		return []string{}
+	}
+
+	result := make([]string, 0)
+	for _, value := range values {
+		parts := splitAndTrim(value)
+		result = append(result, parts...)
+	}
+
+	return result
 }
 
 func (h *BusinessUnitHandler) RegisterRoutes(router *httprouter.Router) {
