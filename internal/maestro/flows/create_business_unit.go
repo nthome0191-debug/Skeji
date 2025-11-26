@@ -4,105 +4,33 @@ import (
 	"fmt"
 	"net/http"
 	maestro "skeji/internal/maestro/core"
+	"skeji/internal/maestro/types"
 	"skeji/pkg/model"
 )
 
 func CreateBusinessUnit(ctx *maestro.MaestroContext) error {
-	name := ctx.ExtractString("name")
-	if maestro.IsMissing(name) {
-		return maestro.MissingParamErr("name")
-	}
-
-	adminPhone := ctx.ExtractString("admin_phone")
-	if maestro.IsMissing(adminPhone) {
-		return maestro.MissingParamErr("admin_phone")
-	}
-
-	cities := ctx.ExtractStringList("cities")
-	if len(cities) == 0 {
-		return maestro.MissingParamErr("cities")
-	}
-
-	labels := ctx.ExtractStringList("labels")
-	if len(labels) == 0 {
-		return maestro.MissingParamErr("labels")
+	input, err := types.FromMapCreateBusinessUnit(ctx.Input)
+	if err != nil {
+		return fmt.Errorf("invalid input: %w", err)
 	}
 
 	businessUnit := &model.BusinessUnit{
-		Name:       name,
-		AdminPhone: adminPhone,
-		Cities:     cities,
-		Labels:     labels,
+		Name:       input.Name,
+		AdminPhone: input.AdminPhone,
+		Cities:     input.Cities,
+		Labels:     input.Labels,
 	}
 
-	timeZone := ctx.ExtractString("time_zone")
-	if !maestro.IsMissing(timeZone) {
-		businessUnit.TimeZone = timeZone
+	if input.TimeZone != "" {
+		businessUnit.TimeZone = input.TimeZone
+	}
+	if len(input.WebsiteURLs) > 0 {
+		businessUnit.WebsiteURLs = input.WebsiteURLs
+	}
+	if len(input.Maintainers) > 0 {
+		businessUnit.Maintainers = input.Maintainers
 	}
 
-	websiteURLs := ctx.ExtractStringList("website_urls")
-	if len(websiteURLs) > 0 {
-		businessUnit.WebsiteURLs = websiteURLs
-	}
-
-	maintainers := ctx.ExtractStringMap("maintainers")
-	if len(maintainers) > 0 {
-		businessUnit.Maintainers = maintainers
-	}
-
-	startOfDay := ctx.ExtractString("start_of_day")
-	endOfDay := ctx.ExtractString("end_of_day")
-	workingDays := ctx.ExtractStringList("working_days")
-	scheduleTimeZone := ctx.ExtractString("schedule_time_zone")
-	exceptions := ctx.ExtractStringList("exceptions")
-
-	var defaultMeetingDurationMin int
-	var hasDefaultMeetingDuration bool
-	if val, exists := ctx.Input["default_meeting_duration_min"]; exists && val != nil {
-		switch v := val.(type) {
-		case int:
-			defaultMeetingDurationMin = v
-			hasDefaultMeetingDuration = true
-		case int64:
-			defaultMeetingDurationMin = int(v)
-			hasDefaultMeetingDuration = true
-		case float64:
-			defaultMeetingDurationMin = int(v)
-			hasDefaultMeetingDuration = true
-		}
-	}
-
-	var defaultBreakDurationMin int
-	var hasDefaultBreakDuration bool
-	if val, exists := ctx.Input["default_break_duration_min"]; exists && val != nil {
-		switch v := val.(type) {
-		case int:
-			defaultBreakDurationMin = v
-			hasDefaultBreakDuration = true
-		case int64:
-			defaultBreakDurationMin = int(v)
-			hasDefaultBreakDuration = true
-		case float64:
-			defaultBreakDurationMin = int(v)
-			hasDefaultBreakDuration = true
-		}
-	}
-
-	var maxParticipantsPerSlot int
-	var hasMaxParticipants bool
-	if val, exists := ctx.Input["max_participants_per_slot"]; exists && val != nil {
-		switch v := val.(type) {
-		case int:
-			maxParticipantsPerSlot = v
-			hasMaxParticipants = true
-		case int64:
-			maxParticipantsPerSlot = int(v)
-			hasMaxParticipants = true
-		case float64:
-			maxParticipantsPerSlot = int(v)
-			hasMaxParticipants = true
-		}
-	}
 	resp, err := ctx.Client.BusinessUnitClient.Create(businessUnit)
 	if err != nil {
 		return err
@@ -114,9 +42,6 @@ func CreateBusinessUnit(ctx *maestro.MaestroContext) error {
 	if err != nil {
 		return err
 	}
-	createdSchedules := make([]*model.Schedule, 0, len(createdBU.Cities))
-
-	schedulePerCity := ctx.ExtractBool("schedule_per_city")
 
 	for _, city := range createdBU.Cities {
 		schedule := &model.Schedule{
@@ -127,29 +52,26 @@ func CreateBusinessUnit(ctx *maestro.MaestroContext) error {
 			TimeZone:   createdBU.TimeZone,
 		}
 
-		if !maestro.IsMissing(startOfDay) {
-			schedule.StartOfDay = startOfDay
+		if input.StartOfDay != nil {
+			schedule.StartOfDay = *input.StartOfDay
 		}
-		if !maestro.IsMissing(endOfDay) {
-			schedule.EndOfDay = endOfDay
+		if input.EndOfDay != nil {
+			schedule.EndOfDay = *input.EndOfDay
 		}
-		if len(workingDays) > 0 {
-			schedule.WorkingDays = workingDays
+		if len(input.WorkingDays) > 0 {
+			schedule.WorkingDays = input.WorkingDays
 		}
-		if !maestro.IsMissing(scheduleTimeZone) {
-			schedule.TimeZone = scheduleTimeZone
+		if input.ScheduleTimeZone != nil {
+			schedule.TimeZone = *input.ScheduleTimeZone
 		}
-		if hasDefaultMeetingDuration {
-			schedule.DefaultMeetingDurationMin = defaultMeetingDurationMin
+		if input.DefaultMeetingDurationMin != nil {
+			schedule.DefaultMeetingDurationMin = *input.DefaultMeetingDurationMin
 		}
-		if hasDefaultBreakDuration {
-			schedule.DefaultBreakDurationMin = defaultBreakDurationMin
+		if input.DefaultBreakDurationMin != nil {
+			schedule.DefaultBreakDurationMin = *input.DefaultBreakDurationMin
 		}
-		if hasMaxParticipants {
-			schedule.MaxParticipantsPerSlot = maxParticipantsPerSlot
-		}
-		if len(exceptions) > 0 {
-			schedule.Exceptions = exceptions
+		if input.MaxParticipantsPerSlot != nil {
+			schedule.MaxParticipantsPerSlot = *input.MaxParticipantsPerSlot
 		}
 
 		schedResp, err := ctx.Client.ScheduleClient.Create(schedule)
@@ -160,19 +82,14 @@ func CreateBusinessUnit(ctx *maestro.MaestroContext) error {
 			return fmt.Errorf("failed to create schedule for city %s: %+v", city, schedResp.ToString())
 		}
 
-		createdSchedule, err := ctx.Client.ScheduleClient.DecodeSchedule(schedResp)
+		_, err = ctx.Client.ScheduleClient.DecodeSchedule(schedResp)
 		if err != nil {
 			return fmt.Errorf("failed to decode schedule for city %s: %v", city, err)
 		}
 
-		createdSchedules = append(createdSchedules, createdSchedule)
-
-		if !schedulePerCity {
+		if !input.SchedulePerCity {
 			break
 		}
 	}
-
-	ctx.Output["business_unit"] = createdBU
-	ctx.Output["schedules"] = createdSchedules
 	return nil
 }
