@@ -10,15 +10,15 @@ build:
     - image: skeji/business-units
       context: .
       docker:
-        dockerfile: build/docker/schedules.Dockerfile
+        dockerfile: build/docker/business-units.Dockerfile
     - image: skeji/schedules
       context: .
       docker:
-        dockerfile: build/docker/bookings.Dockerfile
+        dockerfile: build/docker/schedules.Dockerfile
     - image: skeji/bookings
       context: .
       docker:
-        dockerfile: build/docker/business-units.Dockerfile
+        dockerfile: build/docker/bookings.Dockerfile
     - image: skeji/maestro
       context: .
       docker:

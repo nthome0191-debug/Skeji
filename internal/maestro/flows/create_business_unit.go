@@ -103,7 +103,6 @@ func CreateBusinessUnit(ctx *maestro.MaestroContext) error {
 			hasMaxParticipants = true
 		}
 	}
-	fmt.Println("natali print 1")
 	resp, err := ctx.Client.BusinessUnitClient.Create(businessUnit)
 	if err != nil {
 		return err
@@ -111,21 +110,19 @@ func CreateBusinessUnit(ctx *maestro.MaestroContext) error {
 	if resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("failed to create business unit: %+v", resp.ToString())
 	}
-	fmt.Println("natali print 2")
 	createdBU, err := ctx.Client.BusinessUnitClient.DecodeBusinessUnit(resp)
 	if err != nil {
 		return err
 	}
-	fmt.Println("natali print 3")
 	createdSchedules := make([]*model.Schedule, 0, len(createdBU.Cities))
 
-	for i, city := range createdBU.Cities {
-		fmt.Printf("natali print 4 - %v\n", i)
+	for _, city := range createdBU.Cities {
 		schedule := &model.Schedule{
 			BusinessID: createdBU.ID,
 			Name:       createdBU.Name + "_" + city,
 			City:       city,
 			Address:    city,
+			TimeZone:   createdBU.TimeZone,
 		}
 
 		if !maestro.IsMissing(startOfDay) {

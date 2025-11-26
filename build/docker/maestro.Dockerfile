@@ -6,6 +6,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /maestro ./cmd/maestro
 
 FROM alpine:3.19
+RUN apk add --no-cache tzdata
 WORKDIR /app
 COPY --from=builder /maestro /usr/local/bin/maestro
 ENTRYPOINT ["maestro"]

@@ -351,8 +351,8 @@ func extractDailyFrames(startStr, endStr string) (time.Time, time.Time, time.Tim
 
 	todayEnd := time.Date(year, month, day, endParsed.Hour(), endParsed.Minute(), 0, 0, loc)
 
-	if endParsed.Before(startParsed) {
-		todayEnd = todayEnd.Add(24 * time.Hour)
+	if todayEnd.Before(todayStart) {
+		todayEnd = todayStart.Add(24 * time.Hour)
 	}
 
 	tomorrowStart := todayStart.Add(24 * time.Hour)
@@ -381,15 +381,15 @@ func fetchAndApplyTimeFrameForSearch(ctx *maestro.MaestroContext) (time.Time, ti
 
 	end, err := ctx.ExtractTime("end")
 	if err != nil {
-		end = start.Add(10 * time.Hour)
+		end = start.Add(36 * time.Hour)
 	}
 
 	if end.Before(start.Add(1 * time.Hour)) {
 		end = start.Add(1 * time.Hour)
 	}
 
-	if end.After(start.Add(24 * time.Hour)) {
-		end = start.Add(24 * time.Hour)
+	if end.After(start.Add(36 * time.Hour)) {
+		end = start.Add(36 * time.Hour)
 	}
 
 	return start, end
