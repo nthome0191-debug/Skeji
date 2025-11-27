@@ -19,6 +19,14 @@ var (
 		{Keys: bson.D{{Key: "admin_phone", Value: 1}}},
 		{Keys: bson.D{{Key: "maintainers", Value: 1}}},
 		{Keys: bson.D{{Key: "city_label_pairs", Value: 1}}},
+		// Unique index to prevent duplicate business units with same admin and name
+		{
+			Keys: bson.D{
+				{Key: "admin_phone", Value: 1},
+				{Key: "name", Value: 1},
+			},
+			Options: options.Index().SetUnique(true),
+		},
 	}
 
 	SchedulesIndexes = []mongo.IndexModel{
@@ -27,6 +35,15 @@ var (
 			{Key: "business_id", Value: 1},
 			{Key: "city", Value: 1},
 		}},
+		// Unique index to prevent duplicate schedules for same business/city/address
+		{
+			Keys: bson.D{
+				{Key: "business_id", Value: 1},
+				{Key: "city", Value: 1},
+				{Key: "address", Value: 1},
+			},
+			Options: options.Index().SetUnique(true),
+		},
 	}
 
 	BookingsIndexes = []mongo.IndexModel{
@@ -40,6 +57,14 @@ var (
 			{Key: "participants", Value: 1},
 			{Key: "start_time", Value: 1},
 		}},
+	}
+
+	// BookingLocksIndexes includes a TTL index for auto-cleanup of expired locks
+	BookingLocksIndexes = []mongo.IndexModel{
+		{
+			Keys:    bson.D{{Key: "expires_at", Value: 1}},
+			Options: options.Index().SetExpireAfterSeconds(0), // Expire at the time specified in expires_at
+		},
 	}
 )
 
@@ -62,6 +87,10 @@ func RunMigration(ctx context.Context, client *mongo.Client) error {
 		"Bookings": {
 			Indexes:   BookingsIndexes,
 			Validator: validators.BookingValidator,
+		},
+		"Booking_locks": {
+			Indexes:   BookingLocksIndexes,
+			Validator: nil, // No validator needed for simple lock collection
 		},
 	}
 
@@ -91,27 +120,35 @@ func ensureCollection(ctx context.Context, db *mongo.Database, name string, vali
 
 	if len(existing) == 0 {
 		fmt.Printf("🆕 Creating collection: %s\n", name)
-		opts := options.CreateCollection().
-			SetValidator(validator).
-			SetValidationLevel("strict")
+		opts := options.CreateCollection()
+
+		// Only set validator if provided
+		if validator != nil {
+			opts.SetValidator(validator).SetValidationLevel("strict")
+		}
 
 		if err := db.CreateCollection(ctx, name, opts); err != nil {
 			return fmt.Errorf("failed creating %s: %w", name, err)
 		}
 	} else {
-		fmt.Printf("ℹ️  Collection %s already exists — updating validator if needed\n", name)
+		// Only update validator if one is provided
+		if validator != nil {
+			fmt.Printf("ℹ️  Collection %s already exists — updating validator if needed\n", name)
 
-		command := bson.D{
-			{Key: "collMod", Value: name},
-			{Key: "validator", Value: validator},
-			{Key: "validationLevel", Value: "strict"},
-		}
+			command := bson.D{
+				{Key: "collMod", Value: name},
+				{Key: "validator", Value: validator},
+				{Key: "validationLevel", Value: "strict"},
+			}
 
-		collCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
+			collCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
 
-		if err := db.RunCommand(collCtx, command).Err(); err != nil {
-			fmt.Printf("⚠️  Warning: failed updating validator for %s: %v\n", name, err)
+			if err := db.RunCommand(collCtx, command).Err(); err != nil {
+				fmt.Printf("⚠️  Warning: failed updating validator for %s: %v\n", name, err)
+			}
+		} else {
+			fmt.Printf("ℹ️  Collection %s already exists (no validator)\n", name)
 		}
 	}
 

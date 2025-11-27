@@ -28,17 +28,20 @@ type BookingService interface {
 
 type bookingService struct {
 	repo      repository.BookingRepository
+	lockRepo  repository.BookingLockRepository
 	validator *validator.BookingValidator
 	cfg       *config.Config
 }
 
 func NewBookingService(
 	repo repository.BookingRepository,
+	lockRepo repository.BookingLockRepository,
 	validator *validator.BookingValidator,
 	cfg *config.Config,
 ) BookingService {
 	return &bookingService{
 		repo:      repo,
+		lockRepo:  lockRepo,
 		validator: validator,
 		cfg:       cfg,
 	}
@@ -51,6 +54,18 @@ func (s *bookingService) Create(ctx context.Context, booking *model.Booking) err
 	if err != nil {
 		return err
 	}
+
+	// Acquire advisory lock to prevent race conditions
+	lockID, err := s.acquireSlotLock(ctx, booking.BusinessID, booking.ScheduleID, booking.StartTime)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if releaseErr := s.releaseSlotLock(ctx, lockID); releaseErr != nil {
+			s.cfg.Log.Warn("Failed to release booking lock", "lock_id", lockID, "error", releaseErr)
+		}
+	}()
+
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
 		err = s.verifyDuplication(ctx, booking)
 		if err != nil {
@@ -345,4 +360,31 @@ func (s *bookingService) verifyDuplication(ctx context.Context, booking *model.B
 
 func overlaps(start1, end1, start2, end2 time.Time) bool {
 	return start1.Before(end2) && end1.After(start2)
+}
+
+// acquireSlotLock creates an advisory lock to prevent concurrent booking creation
+// Returns the lock ID if successful, or conflict error if lock already exists
+func (s *bookingService) acquireSlotLock(ctx context.Context, businessID, scheduleID string, startTime time.Time) (string, error) {
+	// Create lock ID from booking slot coordinates
+	lockID := fmt.Sprintf("booking_lock_%s_%s_%d", businessID, scheduleID, startTime.Unix())
+
+	lock := &model.BookingLock{
+		ID:        lockID,
+		ExpiresAt: time.Now().Add(10 * time.Second), // Auto-expire after 10 seconds
+	}
+
+	_, err := s.lockRepo.Create(ctx, lock)
+	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return "", apperrors.Conflict("This time slot is currently being booked by another request. Please try again.")
+		}
+		return "", apperrors.Internal("Failed to acquire booking lock", err)
+	}
+
+	return lockID, nil
+}
+
+// releaseSlotLock removes the advisory lock
+func (s *bookingService) releaseSlotLock(ctx context.Context, lockID string) error {
+	return s.lockRepo.Delete(ctx, lockID)
 }

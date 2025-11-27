@@ -29,8 +29,10 @@ func main() {
 func initServices(cfg *config.Config) service.BookingService {
 	bookingValidator := validator.NewBookingValidator(cfg.Log)
 	bookingRepo := repository.NewMongoBookingRepository(cfg)
+	bookingLockRepo := repository.NewBookingLockRepository(cfg)
 	bookingService := service.NewBookingService(
 		bookingRepo,
+		bookingLockRepo,
 		bookingValidator,
 		cfg,
 	)
