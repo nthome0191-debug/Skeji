@@ -170,7 +170,7 @@ func main() {
     // Setup client
     client := client.NewClient()
     client.SetBusinessUnitClient("http://localhost:8080")
-    client.SetSchdeuleClient("http://localhost:8080")
+    client.SetScheduleClient("http://localhost:8080")
     client.SetBookingClient("http://localhost:8080")
 
     // Setup router

@@ -1,0 +1,172 @@
+ 1. Race Condition in Booking Creation
+
+  Location: internal/bookings/service/booking.go:322-344
+  Problem: TOCTOU vulnerability - overlap check happens before
+  insert, allowing double-bookings
+  Impact: Two simultaneous requests can book the same time slot
+  Fix: Add unique compound index on (business_id, schedule_id, 
+  start_time, end_time) or use optimistic locking
+
+  2. Race Condition in Business Unit Creation
+
+  Location: internal/businessunits/service/business_unit.go:491-520
+  Problem: Same TOCTOU issue in duplicate detection
+  Impact: Multiple identical business units can be created
+  Fix: Unique indexes + handle duplicate key errors
+
+  3. Race Condition in Schedule Creation
+
+  Location: internal/schedules/service/schedule.go:378-398
+  Problem: Same pattern in schedule duplication check
+  Impact: Duplicate schedules for same business/address
+  Fix: Unique indexes on (business_id, address) and (business_id, 
+  name, city)
+
+  4. Missing city_label_pairs Update
+
+  Location:
+  internal/businessunits/repository/business_unit.go:140-172
+  Problem: Repository Update doesn't update city_label_pairs field
+  Impact: Search breaks after updates - stale search index
+  Fix: Add "city_label_pairs": bu.CityLabelPairs to $set operation
+
+  5. N+1 Query Problem in Search
+
+  Location: internal/maestro/flows/search_business.go:42-110
+  Problem: For each business unit, makes separate API calls for
+  schedules and bookings
+  Impact: Searching 5 businesses = hundreds of API calls, massive
+  performance hit
+  Fix: Implement batch fetching or aggregation pipeline
+
+  6. Global Rate Limiter Can Deadlock
+
+  Location: internal/maestro/core/common.go:6-19
+  Problem: Fixed 40-slot channel, panics before token release =
+  permanent slot loss
+  Impact: After 40 panics, entire service deadlocks
+  Fix: Use proper semaphore pattern or ensure defer is always
+  executed
+
+  7. Maestro Flows Swallow Panics Silently
+
+  Location: internal/maestro/flows/get_daily_schedule.go:89
+  Problem: defer func() { _ = recover() }() silently swallows
+  errors
+  Impact: Partial/incorrect data returned without any indication of
+   failure
+  Fix: Log panics and return error indicator
+
+  🟠 HIGH SEVERITY
+
+  8. Missing Referential Integrity Validation
+
+  Location: internal/bookings/service/booking.go:47-77
+  Problem: No verification that BusinessID and ScheduleID exist
+  before creating booking
+  Impact: Orphaned bookings, data integrity violations
+  Fix: Fetch and validate business unit and schedule existence
+
+  9. Unchecked Error in Business Unit Update
+
+  Location: internal/businessunits/service/business_unit.go:177
+  Problem: verifyDuplication() error assigned but not checked
+  before proceeding
+  err = s.verifyDuplication(sessCtx, merged)
+  // Missing: if err != nil { return err }
+  if _, err = s.repo.Update(sessCtx, id, merged); err != nil {
+  Impact: Duplicates created despite validation failure
+  Fix: Check error before proceeding
+
+  10. Business Unit Limit Check Bypassable
+
+  Location: internal/businessunits/service/business_unit.go:522-534
+  Problem: Filters by cities/labels when checking admin phone limit
+  _, total, err := s.GetByPhone(ctx, bu.AdminPhone, bu.Cities,
+  bu.Labels, 10, 0)
+  Impact: Users can create unlimited business units by varying
+  cities/labels
+  Fix: s.GetByPhone(ctx, bu.AdminPhone, nil, nil, 10, 0) to count
+  ALL units
+
+  11. Schedule Limit Check Inefficient
+
+  Location: internal/schedules/service/schedule.go:400-410
+  Problem: Fetches only 10 records when checking if count >= max
+  limit
+  Impact: Incorrect limit enforcement
+  Fix: Use proper count operation or fetch maxLimit + 1 records
+
+  12. No Booking Time vs Schedule Hours Validation
+
+  Location: internal/bookings/service/booking.go:47-77
+  Problem: Bookings can be created outside start_of_day,
+  end_of_day, working_days
+  Impact: Sunday bookings when business only works Mon-Fri
+  Fix: Fetch schedule and validate time constraints
+
+  13. Context Timeout Logic Flaw
+
+  Location: All repository withTimeout functions (lines 67-72)
+  Problem: Creates longer timeout than original deadline
+  if remaining > timeout {
+      return context.WithTimeout(ctx, remaining)
+  }
+  return context.WithTimeout(ctx, timeout) // Bug: timeout might be
+   > remaining
+  Impact: Operations run longer than intended deadline
+  Fix: Use shorter of (remaining, timeout)
+
+  14. Missing Index on city_label_pairs
+
+  Location: Database migrations
+  Problem: Search uses city_label_pairs but no index exists
+  Impact: O(n) table scans, extremely slow search as data grows
+  Fix: Add index {city_label_pairs: 1, priority: -1}
+
+  🟡 MEDIUM SEVERITY
+
+  15. Context Leak in withTimeout
+
+  Location: All repositories (lines 56-76)
+  Problem: Creates new timeout context even when parent has shorter
+   deadline
+  Impact: Memory/goroutine leaks
+  Fix: Check parent deadline and reuse if shorter
+
+  16. Typo in Error Field Name
+
+  Location: internal/bookings/validator/booking.go:121
+  Problem: Field: "StratTime" should be "StartTime"
+  Impact: Confusing error messages
+  Fix: Fix typo
+
+  17. Phone Regex Allows Empty String
+
+  Location: internal/bookings/validator/booking.go:16
+  Problem: ^(?:|\+[1-9]\d{7,14})$ matches empty strings
+  Impact: Empty phone numbers pass validation
+  Fix: Remove empty alternative: ^\+[1-9]\d{7,14}$
+
+  18. Infinite Pagination Risk
+
+  Location: internal/businessunits/service/business_unit.go:491-520
+  Problem: No max iteration limit in pagination loop
+  Impact: Potential infinite loop if total count is broken
+  Fix: Add max iteration counter
+
+  19. Idempotency Middleware Goroutine Leak
+
+  Location: pkg/middleware/idempotency.go:68-86
+  Problem: Cleanup goroutine runs indefinitely, leaks on store
+  recreation
+  Impact: Goroutine/memory leak over time
+  Fix: Implement Stop() method and call on cleanup
+
+  20. Missing End Time Parse Error in Create Booking
+
+  Location: internal/maestro/flows/create_booking.go:42-48
+  Problem: Failed end_time parse is silently ignored (sets
+  endTimeProvided = false)
+  Impact: User's intended duration ignored without error
+  Fix: Return error if end_time provided but invalid
