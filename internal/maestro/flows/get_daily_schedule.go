@@ -185,8 +185,6 @@ func buildParticipants(parts map[string]string) []*types.DailyScheduleParticipan
 
 func extractTimeFrame(input *types.GetDailyScheduleInput) (time.Time, time.Time) {
 	now := time.Now()
-
-	// Use provided start time or default to now
 	var start time.Time
 	if input.Start != nil {
 		start = *input.Start
@@ -194,9 +192,8 @@ func extractTimeFrame(input *types.GetDailyScheduleInput) (time.Time, time.Time)
 		start = now
 	}
 
-	// Constrain start time to reasonable bounds
 	maxStart := now.Add(24 * time.Hour)
-	minStart := now.Add(-24 * time.Hour)
+	minStart := now
 
 	if start.After(maxStart) {
 		start = maxStart
@@ -205,21 +202,19 @@ func extractTimeFrame(input *types.GetDailyScheduleInput) (time.Time, time.Time)
 		start = minStart
 	}
 
-	// Use provided end time or default to start + 10 hours
 	var end time.Time
 	if input.End != nil {
 		end = *input.End
 	} else {
-		end = start.Add(10 * time.Hour)
+		end = start.Add(36 * time.Hour)
 	}
 
-	// Constrain end time to reasonable bounds
 	if end.Before(start.Add(1 * time.Hour)) {
 		end = start.Add(1 * time.Hour)
 	}
 
-	if end.After(start.Add(24 * time.Hour)) {
-		end = start.Add(24 * time.Hour)
+	if end.After(start.Add(36 * time.Hour)) {
+		end = start.Add(36 * time.Hour)
 	}
 
 	return start, end
