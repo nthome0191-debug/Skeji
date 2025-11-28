@@ -17,15 +17,6 @@
   Fix: Use proper semaphore pattern or ensure defer is always
   executed
 
-  7. Maestro Flows Swallow Panics Silently
-
-  Location: internal/maestro/flows/get_daily_schedule.go:89
-  Problem: defer func() { _ = recover() }() silently swallows
-  errors
-  Impact: Partial/incorrect data returned without any indication of
-   failure
-  Fix: Log panics and return error indicator
-
   🟠 HIGH SEVERITY
 
   8. Missing Referential Integrity Validation
