@@ -149,14 +149,15 @@ func (r *mongoBusinessUnitRepository) Update(ctx context.Context, id string, bu 
 	filter := bson.M{"_id": objectID}
 	update := bson.M{
 		"$set": bson.M{
-			"name":         bu.Name,
-			"cities":       bu.Cities,
-			"labels":       bu.Labels,
-			"admin_phone":  bu.AdminPhone,
-			"maintainers":  bu.Maintainers,
-			"priority":     bu.Priority,
-			"time_zone":    bu.TimeZone,
-			"website_urls": bu.WebsiteURLs,
+			"name":             bu.Name,
+			"cities":           bu.Cities,
+			"labels":           bu.Labels,
+			"admin_phone":      bu.AdminPhone,
+			"maintainers":      bu.Maintainers,
+			"priority":         bu.Priority,
+			"time_zone":        bu.TimeZone,
+			"website_urls":     bu.WebsiteURLs,
+			"city_label_pairs": bu.CityLabelPairs,
 		},
 	}
 

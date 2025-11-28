@@ -1,34 +1,3 @@
- 1. Race Condition in Booking Creation
-
-  Location: internal/bookings/service/booking.go:322-344
-  Problem: TOCTOU vulnerability - overlap check happens before
-  insert, allowing double-bookings
-  Impact: Two simultaneous requests can book the same time slot
-  Fix: Add unique compound index on (business_id, schedule_id, 
-  start_time, end_time) or use optimistic locking
-
-  2. Race Condition in Business Unit Creation
-
-  Location: internal/businessunits/service/business_unit.go:491-520
-  Problem: Same TOCTOU issue in duplicate detection
-  Impact: Multiple identical business units can be created
-  Fix: Unique indexes + handle duplicate key errors
-
-  3. Race Condition in Schedule Creation
-
-  Location: internal/schedules/service/schedule.go:378-398
-  Problem: Same pattern in schedule duplication check
-  Impact: Duplicate schedules for same business/address
-  Fix: Unique indexes on (business_id, address) and (business_id, 
-  name, city)
-
-  4. Missing city_label_pairs Update
-
-  Location:
-  internal/businessunits/repository/business_unit.go:140-172
-  Problem: Repository Update doesn't update city_label_pairs field
-  Impact: Search breaks after updates - stale search index
-  Fix: Add "city_label_pairs": bu.CityLabelPairs to $set operation
 
   5. N+1 Query Problem in Search
 
