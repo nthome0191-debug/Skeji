@@ -55,7 +55,6 @@ func (s *bookingService) Create(ctx context.Context, booking *model.Booking) err
 		return err
 	}
 
-	// Acquire advisory lock to prevent race conditions
 	lockID, err := s.acquireSlotLock(ctx, booking.BusinessID, booking.ScheduleID, booking.StartTime)
 	if err != nil {
 		return err
@@ -384,7 +383,6 @@ func (s *bookingService) acquireSlotLock(ctx context.Context, businessID, schedu
 	return lockID, nil
 }
 
-// releaseSlotLock removes the advisory lock
 func (s *bookingService) releaseSlotLock(ctx context.Context, lockID string) error {
 	return s.lockRepo.Delete(ctx, lockID)
 }

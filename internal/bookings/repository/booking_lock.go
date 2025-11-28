@@ -20,7 +20,6 @@ type mongoBookingLockRepository struct {
 	collection *mongo.Collection
 }
 
-// NewBookingLockRepository creates a new booking lock repository
 func NewBookingLockRepository(cfg *config.Config) BookingLockRepository {
 	db := cfg.Client.Mongo.Client.Database(cfg.MongoDatabaseName)
 	return &mongoBookingLockRepository{
@@ -28,7 +27,6 @@ func NewBookingLockRepository(cfg *config.Config) BookingLockRepository {
 	}
 }
 
-// Create inserts a new advisory lock
 // Returns duplicate key error if lock already exists
 func (r *mongoBookingLockRepository) Create(ctx context.Context, lock *model.BookingLock) (*model.BookingLock, error) {
 	lock.CreatedAt = time.Now()

@@ -19,7 +19,6 @@ var (
 		{Keys: bson.D{{Key: "admin_phone", Value: 1}}},
 		{Keys: bson.D{{Key: "maintainers", Value: 1}}},
 		{Keys: bson.D{{Key: "city_label_pairs", Value: 1}}},
-		// Unique index to prevent duplicate business units with same admin and name
 		{
 			Keys: bson.D{
 				{Key: "admin_phone", Value: 1},
@@ -35,7 +34,6 @@ var (
 			{Key: "business_id", Value: 1},
 			{Key: "city", Value: 1},
 		}},
-		// Unique index to prevent duplicate schedules for same business/city/address
 		{
 			Keys: bson.D{
 				{Key: "business_id", Value: 1},
@@ -59,7 +57,6 @@ var (
 		}},
 	}
 
-	// BookingLocksIndexes includes a TTL index for auto-cleanup of expired locks
 	BookingLocksIndexes = []mongo.IndexModel{
 		{
 			Keys:    bson.D{{Key: "expires_at", Value: 1}},
