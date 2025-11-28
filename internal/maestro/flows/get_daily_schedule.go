@@ -59,7 +59,12 @@ func buildDailySchedule(ctx *core.MaestroContext, units []*model.BusinessUnit, s
 
 		core.RunWithRateLimitedConcurrency(func() {
 			defer wg.Done()
-			defer func() { _ = recover() }()
+			defer func() {
+				if r := recover(); r != nil {
+					ctx.Logger.Error(fmt.Sprintf("panic while building unit for business %s: %v", bu.ID, r))
+					// Leave the unit as nil - caller will see incomplete results
+				}
+			}()
 			daily.Units[i] = buildUnit(ctx, bu, start, end)
 		})
 	}
@@ -112,7 +117,12 @@ func buildCitySchedules(ctx *core.MaestroContext, buID string, scheds []*model.S
 		wg.Add(1)
 		core.RunWithRateLimitedConcurrency(func() {
 			defer wg.Done()
-			defer func() { _ = recover() }()
+			defer func() {
+				if r := recover(); r != nil {
+					ctx.Logger.Error(fmt.Sprintf("panic while building schedule %s for business %s: %v", schedule.ID, buID, r))
+					// Leave the schedule as nil - caller will see incomplete results
+				}
+			}()
 			results[i] = buildSchedule(ctx, buID, schedule, start, end)
 		})
 	}
