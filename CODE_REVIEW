@@ -8,15 +8,6 @@
   performance hit
   Fix: Implement batch fetching or aggregation pipeline
 
-  6. Global Rate Limiter Can Deadlock
-
-  Location: internal/maestro/core/common.go:6-19
-  Problem: Fixed 40-slot channel, panics before token release =
-  permanent slot loss
-  Impact: After 40 panics, entire service deadlocks
-  Fix: Use proper semaphore pattern or ensure defer is always
-  executed
-
   🟠 HIGH SEVERITY
 
   8. Missing Referential Integrity Validation
