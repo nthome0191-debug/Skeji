@@ -1,9 +1,0 @@
-
-  5. N+1 Query Problem in Search
-
-  Location: internal/maestro/flows/search_business.go:42-110
-  Problem: For each business unit, makes separate API calls for
-  schedules and bookings
-  Impact: Searching 5 businesses = hundreds of API calls, massive
-  performance hit
-  Fix: Implement batch fetching or aggregation pipeline
