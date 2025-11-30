@@ -34,6 +34,7 @@ type BookingRepository interface {
 	Update(ctx context.Context, id string, booking *model.Booking) (*mongo.UpdateResult, error)
 	Delete(ctx context.Context, id string) error
 	FindByBusinessAndSchedule(ctx context.Context, businessID string, scheduleID string, startTime *time.Time, endTime *time.Time, limit int, offset int64) ([]*model.Booking, error)
+	BatchFindByBusinessAndSchedules(ctx context.Context, businessID string, scheduleIDs []string, startTime *time.Time, endTime *time.Time, limit int, offset int64) (map[string][]*model.Booking, error)
 	CountByBusinessAndSchedule(ctx context.Context, businessID string, scheduleID string, startTime *time.Time, endTime *time.Time) (int64, error)
 	Count(ctx context.Context) (int64, error)
 	ExecuteTransaction(ctx context.Context, fn mongotx.TransactionFunc) error
@@ -238,6 +239,68 @@ func (r *mongoBookingRepository) CountByBusinessAndSchedule(
 		return 0, fmt.Errorf("failed to count bookings by search: %w", err)
 	}
 	return count, nil
+}
+
+func (r *mongoBookingRepository) BatchFindByBusinessAndSchedules(
+	ctx context.Context,
+	businessID string,
+	scheduleIDs []string,
+	startTime, endTime *time.Time,
+	limit int, offset int64,
+) (map[string][]*model.Booking, error) {
+	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
+	defer cancel()
+
+	filter := bson.M{"business_id": businessID}
+
+	// Match any schedule in the list
+	if len(scheduleIDs) > 0 {
+		filter["schedule_id"] = bson.M{"$in": scheduleIDs}
+	}
+
+	// Add time range filters
+	if startTime != nil || endTime != nil {
+		timeFilters := bson.M{}
+		if startTime != nil && endTime != nil {
+			timeFilters = bson.M{
+				"start_time": bson.M{"$lt": *endTime},
+				"end_time":   bson.M{"$gt": *startTime},
+			}
+		} else if startTime != nil {
+			timeFilters = bson.M{
+				"end_time": bson.M{"$gt": *startTime},
+			}
+		} else if endTime != nil {
+			timeFilters = bson.M{
+				"start_time": bson.M{"$lt": *endTime},
+			}
+		}
+		filter["$and"] = []bson.M{timeFilters}
+	}
+
+	opts := options.Find().
+		SetLimit(int64(limit)).
+		SetSkip(int64(offset)).
+		SetSort(bson.D{{Key: "schedule_id", Value: 1}, {Key: "start_time", Value: 1}})
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch find bookings: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var allBookings []*model.Booking
+	if err = cursor.All(ctx, &allBookings); err != nil {
+		return nil, fmt.Errorf("failed to decode batch bookings: %w", err)
+	}
+
+	// Group bookings by schedule_id
+	result := make(map[string][]*model.Booking)
+	for _, booking := range allBookings {
+		result[booking.ScheduleID] = append(result[booking.ScheduleID], booking)
+	}
+
+	return result, nil
 }
 
 func (r *mongoBookingRepository) buildSearchFilter(businessID string, scheduleID string, startTime, endTime *time.Time) bson.M {

@@ -24,6 +24,7 @@ type BookingService interface {
 	Update(ctx context.Context, id string, updates *model.BookingUpdate) error
 	Delete(ctx context.Context, id string) error
 	SearchBySchedule(ctx context.Context, businessID string, scheduleID string, startTime, endTime *time.Time, limit int, offset int64) ([]*model.Booking, int64, error)
+	BatchSearchBySchedules(ctx context.Context, businessID string, scheduleIDs []string, startTime, endTime *time.Time, limit int, offset int64) (map[string][]*model.Booking, error)
 }
 
 type bookingService struct {
@@ -270,6 +271,42 @@ func (s *bookingService) SearchBySchedule(ctx context.Context, businessID string
 		"total_count", count,
 	)
 	return bookings, count, nil
+}
+
+func (s *bookingService) BatchSearchBySchedules(ctx context.Context, businessID string, scheduleIDs []string, startTime, endTime *time.Time, limit int, offset int64) (map[string][]*model.Booking, error) {
+	if businessID == "" {
+		return nil, apperrors.InvalidInput("BusinessID is required")
+	}
+
+	if len(scheduleIDs) == 0 {
+		return make(map[string][]*model.Booking), nil
+	}
+
+	bookingsBySchedule, err := s.repo.BatchFindByBusinessAndSchedules(ctx, businessID, scheduleIDs, startTime, endTime, limit, offset)
+	if err != nil {
+		s.cfg.Log.Error("Failed to batch search bookings",
+			"business_id", businessID,
+			"schedule_ids", scheduleIDs,
+			"limit", limit,
+			"offset", offset,
+			"error", err,
+		)
+		return nil, apperrors.Internal("Failed to batch search bookings", err)
+	}
+
+	s.cfg.Log.Debug("Batch booking search completed",
+		"business_id", businessID,
+		"schedule_count", len(scheduleIDs),
+		"total_bookings", func() int {
+			total := 0
+			for _, bookings := range bookingsBySchedule {
+				total += len(bookings)
+			}
+			return total
+		}(),
+	)
+
+	return bookingsBySchedule, nil
 }
 
 // --- Helpers ---

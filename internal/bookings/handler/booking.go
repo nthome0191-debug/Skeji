@@ -246,6 +246,99 @@ func (h *BookingHandler) Search(w http.ResponseWriter, r *http.Request, _ httpro
 	}
 }
 
+// @Summary Batch search bookings across multiple schedules
+// @Tags Bookings
+// @Produce json
+// @Param business_id query string true "Business ID"
+// @Param schedule_ids query string true "Comma-separated list of schedule IDs"
+// @Param start_time query string false "Start time (RFC3339)"
+// @Param end_time query string false "End time (RFC3339)"
+// @Param limit query int false "Limit"
+// @Param offset query int false "Offset"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/bookings/batch-search [get]
+func (h *BookingHandler) BatchSearch(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	query := r.URL.Query()
+	businessID := query.Get("business_id")
+	scheduleIDsParam := query.Get("schedule_ids")
+	startStr := query.Get("start_time")
+	endStr := query.Get("end_time")
+
+	if businessID == "" {
+		if writeErr := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+			Error: "'business_id' query parameter is required",
+		}); writeErr != nil {
+			h.log.Error("failed to write JSON response", "handler", "BatchSearch", "operation", "WriteJSON", "error", writeErr)
+		}
+		return
+	}
+
+	if scheduleIDsParam == "" {
+		if writeErr := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+			Error: "'schedule_ids' query parameter is required (comma-separated)",
+		}); writeErr != nil {
+			h.log.Error("failed to write JSON response", "handler", "BatchSearch", "operation", "WriteJSON", "error", writeErr)
+		}
+		return
+	}
+
+	// Parse comma-separated schedule IDs
+	scheduleIDs := strings.Split(scheduleIDsParam, ",")
+	for i := range scheduleIDs {
+		scheduleIDs[i] = strings.TrimSpace(scheduleIDs[i])
+	}
+
+	startStr = strings.ReplaceAll(startStr, " ", "+")
+	endStr = strings.ReplaceAll(endStr, " ", "+")
+
+	var startTime, endTime *time.Time
+	if startStr != "" {
+		if parsed, err := time.Parse(time.RFC3339, startStr); err == nil {
+			startTime = &parsed
+		} else {
+			if writeErr := httputil.WriteError(w, apperrors.InvalidInput("invalid start_time format, must be RFC3339")); writeErr != nil {
+				h.log.Error("failed to write error response", "handler", "BatchSearch", "operation", "WriteError", "error", writeErr)
+			}
+			return
+		}
+	}
+	if endStr != "" {
+		if parsed, err := time.Parse(time.RFC3339, endStr); err == nil {
+			endTime = &parsed
+		} else {
+			if writeErr := httputil.WriteError(w, apperrors.InvalidInput("invalid end_time format, must be RFC3339")); writeErr != nil {
+				h.log.Error("failed to write error response", "handler", "BatchSearch", "operation", "WriteError", "error", writeErr)
+			}
+			return
+		}
+	}
+
+	limit, offset, err := httputil.ExtractLimitOffset(r)
+	if err != nil {
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "BatchSearch", "operation", "WriteError", "error", writeErr)
+		}
+		return
+	}
+
+	bookingsBySchedule, err := h.service.BatchSearchBySchedules(r.Context(), businessID, scheduleIDs, startTime, endTime, limit, offset)
+	if err != nil {
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "BatchSearch", "operation", "WriteError", "error", writeErr)
+		}
+		return
+	}
+
+	// Return as simple JSON object with schedule_id as keys
+	if err := httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"data": bookingsBySchedule,
+	}); err != nil {
+		h.log.Error("failed to write JSON response", "handler", "BatchSearch", "operation", "WriteJSON", "error", err)
+	}
+}
+
 func (h *BookingHandler) RegisterRoutes(router *httprouter.Router) {
 	// Swagger UI routes
 	router.Handler("GET", "/swagger/*any", httpSwagger.WrapHandler)
@@ -254,6 +347,7 @@ func (h *BookingHandler) RegisterRoutes(router *httprouter.Router) {
 	router.POST("/api/v1/bookings", h.Create)
 	router.GET("/api/v1/bookings", h.GetAll)
 	router.GET("/api/v1/bookings/search", h.Search)
+	router.GET("/api/v1/bookings/batch-search", h.BatchSearch)
 	router.GET("/api/v1/bookings/id/:id", h.GetByID)
 	router.PATCH("/api/v1/bookings/id/:id", h.Update)
 	router.DELETE("/api/v1/bookings/id/:id", h.Delete)

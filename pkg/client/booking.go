@@ -45,6 +45,36 @@ func (c *BookingClient) Search(businessID string, scheduleID string, startTime s
 	return c.httpClient.GET(path)
 }
 
+func (c *BookingClient) BatchSearch(businessID string, scheduleIDs []string, startTime string, endTime string, limit int, offset int64) (*Response, error) {
+	q := url.Values{}
+	q.Set("business_id", businessID)
+
+	// Join schedule IDs with comma
+	if len(scheduleIDs) > 0 {
+		scheduleIDsStr := ""
+		for i, scheduleID := range scheduleIDs {
+			if i > 0 {
+				scheduleIDsStr += ","
+			}
+			scheduleIDsStr += scheduleID
+		}
+		q.Set("schedule_ids", scheduleIDsStr)
+	}
+
+	if startTime != "" {
+		q.Set("start_time", startTime)
+	}
+	if endTime != "" {
+		q.Set("end_time", endTime)
+	}
+
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	q.Set("offset", fmt.Sprintf("%d", offset))
+
+	path := "/api/v1/bookings/batch-search?" + q.Encode()
+	return c.httpClient.GET(path)
+}
+
 func (c *BookingClient) GetByID(id string) (*Response, error) {
 	path := "/api/v1/bookings/id/" + url.PathEscape(id)
 	return c.httpClient.GET(path)
@@ -110,4 +140,16 @@ func (c *BookingClient) DecodeBookings(resp *Response) ([]*model.Booking, *Metad
 	}
 
 	return bookings, metadata, nil
+}
+
+func (c *BookingClient) DecodeBatchBookings(resp *Response) (map[string][]*model.Booking, error) {
+	var wrapper struct {
+		Data map[string][]*model.Booking `json:"data"`
+	}
+
+	if err := json.Unmarshal(resp.Body, &wrapper); err != nil {
+		return nil, fmt.Errorf("could not decode batch bookings resp:\n%+v\n%s", resp.ToString(), err)
+	}
+
+	return wrapper.Data, nil
 }

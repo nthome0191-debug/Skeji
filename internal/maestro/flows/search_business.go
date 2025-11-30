@@ -60,13 +60,11 @@ func SearchBusiness(ctx *maestro.MaestroContext) error {
 	}
 
 	for len(businesses) < MAX_RESULTS_FOR_SEARCH && offset < metadata.TotalCount {
-		// Check if context is cancelled or timed out
 		select {
 		case <-ctx.Ctx.Done():
 			ctx.Logger.Warn("search cancelled or timed out", "businesses_found", len(businesses), "error", ctx.Ctx.Err())
 			return fmt.Errorf("search cancelled: %w", ctx.Ctx.Err())
 		default:
-			// Continue processing
 		}
 
 		var wg sync.WaitGroup
@@ -150,57 +148,57 @@ func fetchBranches(ctx *maestro.MaestroContext, buid string, cities []string, st
 	}
 
 	for len(branches) < MAX_BRANCHES_PER_UNIT && offset < metadata.TotalCount {
-		type scheduleResult struct {
-			branch   *BusinessBranch
-			hasSlots bool
+		scheduleIDs := make([]string, 0, len(schedules))
+		scheduleMap := make(map[string]*model.Schedule)
+		for _, schedule := range schedules {
+			scheduleIDs = append(scheduleIDs, schedule.ID)
+			scheduleMap[schedule.ID] = schedule
 		}
 
-		results := make(chan scheduleResult, len(schedules))
-		var wg sync.WaitGroup
+		bookingResp, err := ctx.Client.BookingClient.BatchSearch(
+			buid,
+			scheduleIDs,
+			start.Format(time.RFC3339),
+			end.Format(time.RFC3339),
+			config.DefaultMaxBookingsPerView,
+			0,
+		)
+		if err != nil {
+			ctx.Logger.Warn(fmt.Sprintf("batch booking search failed, err: %+v", err))
+			return branches
+		}
 
-		for _, schedule := range schedules {
+		bookingsBySchedule, err := ctx.Client.BookingClient.DecodeBatchBookings(bookingResp)
+		if err != nil {
+			ctx.Logger.Warn(fmt.Sprintf("batch booking decode failed, err: %+v\nresp: %+v", err, bookingResp))
+			return branches
+		}
+
+		for scheduleID, schedule := range scheduleMap {
 			if len(branches) >= MAX_BRANCHES_PER_UNIT {
 				break
 			}
 
-			schedule := schedule
-			wg.Add(1)
-			maestro.RunWithRateLimitedConcurrency(func() {
-				defer wg.Done()
+			branch := &BusinessBranch{
+				City:        schedule.City,
+				Address:     schedule.Address,
+				WorkingDays: schedule.WorkingDays,
+				StartOfDay:  schedule.StartOfDay,
+				EndOfDay:    schedule.EndOfDay,
+				OpenSlots:   []*OpenSlot{},
+			}
 
-				branch := &BusinessBranch{
-					City:        schedule.City,
-					Address:     schedule.Address,
-					WorkingDays: schedule.WorkingDays,
-					StartOfDay:  schedule.StartOfDay,
-					EndOfDay:    schedule.EndOfDay,
-					OpenSlots:   []*OpenSlot{},
-				}
+			bookings := bookingsBySchedule[scheduleID]
+			openSlots := calculateOpenSlots(ctx, buid, schedule, bookings, start, end)
 
-				openSlots := fetchOpenSlots(ctx, buid, schedule, start, end)
-				hasSlots := len(openSlots) > 0
-				if hasSlots {
-					for _, openSlot := range openSlots {
-						if len(branch.OpenSlots) < MAX_OPEN_SLOTS_PER_BRANCH {
-							branch.OpenSlots = append(branch.OpenSlots, openSlot)
-						} else {
-							break
-						}
+			if len(openSlots) > 0 {
+				for i, openSlot := range openSlots {
+					if i >= MAX_OPEN_SLOTS_PER_BRANCH {
+						break
 					}
+					branch.OpenSlots = append(branch.OpenSlots, openSlot)
 				}
-
-				results <- scheduleResult{branch: branch, hasSlots: hasSlots}
-			})
-		}
-
-		go func() {
-			wg.Wait()
-			close(results)
-		}()
-
-		for result := range results {
-			if result.hasSlots && len(branches) < MAX_BRANCHES_PER_UNIT {
-				branches = append(branches, result.branch)
+				branches = append(branches, branch)
 			}
 		}
 
@@ -223,54 +221,29 @@ func fetchBranches(ctx *maestro.MaestroContext, buid string, cities []string, st
 	return branches
 }
 
-func fetchOpenSlots(ctx *maestro.MaestroContext, buid string, sc *model.Schedule, start, end time.Time) []*OpenSlot {
+func calculateOpenSlots(ctx *maestro.MaestroContext, buid string, sc *model.Schedule, bookings []*model.Booking, start, end time.Time) []*OpenSlot {
 	openSlots := []*OpenSlot{}
-	var offset int64 = 0
-	resp, err := ctx.Client.BookingClient.Search(buid, sc.ID, start.Format(time.RFC3339), end.Format(time.RFC3339), MAX_RESULTS_PER_PAGE, offset)
-	if err != nil {
-		ctx.Logger.Warn(fmt.Sprintf("booking search failed, err: %+v", err))
-		return openSlots
-	}
-	bookings, metadata, err := ctx.Client.BookingClient.DecodeBookings(resp)
-	if err != nil {
-		ctx.Logger.Warn(fmt.Sprintf("booking decode failed, err: %+v\nresp: %+v", err, resp))
-		return openSlots
-	}
+
 	batchId, err := sealer.CreateOpaqueToken(buid, sc.ID)
 	if err != nil {
 		ctx.Logger.Warn(fmt.Sprintf("create opaque token failed for [buid %v | scid %v] err: %v", buid, sc.ID, err))
 		return openSlots
 	}
+
 	if len(bookings) == 0 {
 		openSlots = append(openSlots, &OpenSlot{Start: start, End: end})
 	} else {
-		for len(openSlots) < MAX_OPEN_SLOTS_PER_BRANCH && offset < metadata.TotalCount {
-			filteredSlots := filterSlots(bookings, start, end)
-			if len(filteredSlots) > 0 {
-				for _, slot := range filteredSlots {
-					if len(openSlots) < MAX_OPEN_SLOTS_PER_BRANCH {
-						openSlots = append(openSlots, slot)
-					} else {
-						break
-					}
-				}
-			}
-			if len(openSlots) >= MAX_OPEN_SLOTS_PER_BRANCH {
-				break
-			}
-			offset += MAX_RESULTS_PER_PAGE
-			resp, err = ctx.Client.BookingClient.Search(buid, sc.ID, start.Format(time.RFC3339), end.Format(time.RFC3339), MAX_RESULTS_PER_PAGE, offset)
-			if err != nil {
-				ctx.Logger.Warn(fmt.Sprintf("booking search failed, err: %+v", err))
-				continue
-			}
-			bookings, metadata, err = ctx.Client.BookingClient.DecodeBookings(resp)
-			if err != nil {
-				ctx.Logger.Warn(fmt.Sprintf("booking decode failed, err: %+v\nresp: %+v", err, resp))
-				continue
-			}
+		slots := filterSlots(bookings, start, end)
+		if len(slots) > MAX_OPEN_SLOTS_PER_BRANCH {
+			slots = slots[:MAX_OPEN_SLOTS_PER_BRANCH]
 		}
+		openSlots = append(openSlots, slots...)
 	}
+
+	if len(openSlots) == 0 {
+		return openSlots
+	}
+
 	return normalizeSlots(ctx, batchId, openSlots, sc, start, end)
 }
 
