@@ -491,7 +491,9 @@ func (s *businessUnitService) verifyDuplication(ctx context.Context, bu *model.B
 	}
 	var offset int64 = 0
 	var chunk []*model.BusinessUnit
-	for offset < total {
+	maxIterations := config.DefaultMaxBusinessUnitsPerAdminPhone
+	i := 0
+	for offset < total && i < maxIterations {
 		chunk, err = s.repo.GetByPhone(ctx, bu.AdminPhone, bu.Cities, bu.Labels, config.DefaultPaginationLimit, offset)
 		if err != nil {
 			return fmt.Errorf("failed to check for duplicates: %w", err)
@@ -511,6 +513,7 @@ func (s *businessUnitService) verifyDuplication(ctx context.Context, bu *model.B
 			}
 		}
 		offset += int64(config.DefaultPaginationLimit)
+		i++
 	}
 	return nil
 }

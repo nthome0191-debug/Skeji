@@ -20,27 +20,6 @@
   Impact: Memory/goroutine leaks
   Fix: Check parent deadline and reuse if shorter
 
-  16. Typo in Error Field Name
-
-  Location: internal/bookings/validator/booking.go:121
-  Problem: Field: "StratTime" should be "StartTime"
-  Impact: Confusing error messages
-  Fix: Fix typo
-
-  17. Phone Regex Allows Empty String
-
-  Location: internal/bookings/validator/booking.go:16
-  Problem: ^(?:|\+[1-9]\d{7,14})$ matches empty strings
-  Impact: Empty phone numbers pass validation
-  Fix: Remove empty alternative: ^\+[1-9]\d{7,14}$
-
-  18. Infinite Pagination Risk
-
-  Location: internal/businessunits/service/business_unit.go:491-520
-  Problem: No max iteration limit in pagination loop
-  Impact: Potential infinite loop if total count is broken
-  Fix: Add max iteration counter
-
   19. Idempotency Middleware Goroutine Leak
 
   Location: pkg/middleware/idempotency.go:68-86

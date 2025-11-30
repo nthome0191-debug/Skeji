@@ -118,7 +118,7 @@ func (v *BookingValidator) Validate(booking *model.Booking) error {
 	if booking.StartTime.Before(time.Now()) {
 		return ValidationErrors{
 			ValidationError{
-				Field:   "StratTime",
+				Field:   "StartTime",
 				Message: "start_time cannot be in the past",
 			},
 		}
