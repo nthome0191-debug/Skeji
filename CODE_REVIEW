@@ -27,11 +27,3 @@
   recreation
   Impact: Goroutine/memory leak over time
   Fix: Implement Stop() method and call on cleanup
-
-  20. Missing End Time Parse Error in Create Booking
-
-  Location: internal/maestro/flows/create_booking.go:42-48
-  Problem: Failed end_time parse is silently ignored (sets
-  endTimeProvided = false)
-  Impact: User's intended duration ignored without error
-  Fix: Return error if end_time provided but invalid

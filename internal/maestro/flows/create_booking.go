@@ -43,6 +43,7 @@ func CreateBooking(ctx *maestro.MaestroContext) error {
 		if _, endTimeProvided = ctx.Input["end_time"]; endTimeProvided {
 			endTime, err = ctx.ExtractTime("end_time")
 			if err != nil {
+				// we will set end time later on based on schedule limitations parameters
 				endTimeProvided = false
 			}
 		}
