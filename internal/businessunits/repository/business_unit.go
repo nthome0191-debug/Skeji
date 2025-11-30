@@ -69,7 +69,7 @@ func (r *mongoBusinessUnitRepository) withTimeout(ctx context.Context, timeout t
 	}
 
 	remaining := time.Until(deadline)
-	if remaining > timeout {
+	if remaining < timeout {
 		return context.WithTimeout(ctx, remaining)
 	}
 

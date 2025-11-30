@@ -65,7 +65,7 @@ func (r *mongoBookingRepository) withTimeout(ctx context.Context, timeout time.D
 	}
 
 	remaining := time.Until(deadline)
-	if remaining > timeout {
+	if remaining < timeout {
 		return context.WithTimeout(ctx, remaining)
 	}
 

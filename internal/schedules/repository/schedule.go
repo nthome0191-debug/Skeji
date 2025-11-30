@@ -66,7 +66,7 @@ func (r *mongoScheduleRepository) withTimeout(ctx context.Context, timeout time.
 	}
 
 	remaining := time.Until(deadline)
-	if remaining > timeout {
+	if remaining < timeout {
 		return context.WithTimeout(ctx, remaining)
 	}
 
