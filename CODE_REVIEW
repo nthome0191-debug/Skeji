@@ -10,25 +10,6 @@
 
   🟠 HIGH SEVERITY
 
-  8. Missing Referential Integrity Validation
-
-  Location: internal/bookings/service/booking.go:47-77
-  Problem: No verification that BusinessID and ScheduleID exist
-  before creating booking
-  Impact: Orphaned bookings, data integrity violations
-  Fix: Fetch and validate business unit and schedule existence
-
-  10. Business Unit Limit Check Bypassable
-
-  Location: internal/businessunits/service/business_unit.go:522-534
-  Problem: Filters by cities/labels when checking admin phone limit
-  _, total, err := s.GetByPhone(ctx, bu.AdminPhone, bu.Cities,
-  bu.Labels, 10, 0)
-  Impact: Users can create unlimited business units by varying
-  cities/labels
-  Fix: s.GetByPhone(ctx, bu.AdminPhone, nil, nil, 10, 0) to count
-  ALL units
-
   11. Schedule Limit Check Inefficient
 
   Location: internal/schedules/service/schedule.go:400-410
