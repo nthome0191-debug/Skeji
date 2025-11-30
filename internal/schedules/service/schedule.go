@@ -400,11 +400,11 @@ func (s *scheduleService) verifyDuplication(ctx context.Context, sc *model.Sched
 }
 
 func (s *scheduleService) verifyLimitPerBusinessUnit(ctx context.Context, sc *model.Schedule) error {
-	_, total, err := s.Search(ctx, sc.BusinessID, "", 10, 0)
+	_, totalCount, err := s.Search(ctx, sc.BusinessID, "", 10, 0)
 	if err != nil {
 		return err
 	}
-	if total >= int64(config.DefaultMaxSchedulesPerBusinessUnits) {
+	if totalCount >= int64(config.DefaultMaxSchedulesPerBusinessUnits) {
 		return apperrors.Conflict("Business unit exceeded num of allowed schedules")
 	}
 

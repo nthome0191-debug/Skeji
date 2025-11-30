@@ -10,22 +10,6 @@
 
   🟠 HIGH SEVERITY
 
-  11. Schedule Limit Check Inefficient
-
-  Location: internal/schedules/service/schedule.go:400-410
-  Problem: Fetches only 10 records when checking if count >= max
-  limit
-  Impact: Incorrect limit enforcement
-  Fix: Use proper count operation or fetch maxLimit + 1 records
-
-  12. No Booking Time vs Schedule Hours Validation
-
-  Location: internal/bookings/service/booking.go:47-77
-  Problem: Bookings can be created outside start_of_day,
-  end_of_day, working_days
-  Impact: Sunday bookings when business only works Mon-Fri
-  Fix: Fetch schedule and validate time constraints
-
   13. Context Timeout Logic Flaw
 
   Location: All repository withTimeout functions (lines 67-72)
