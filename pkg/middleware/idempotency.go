@@ -10,6 +10,7 @@ import (
 type IdempotencyStore interface {
 	Get(key string) (*CachedResponse, bool)
 	Set(key string, response *CachedResponse)
+	Stop() // Stop cleanup goroutines and release resources
 }
 
 type CachedResponse struct {

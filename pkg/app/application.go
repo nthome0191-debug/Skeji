@@ -16,7 +16,7 @@ import (
 type Application struct {
 	cfg              *config.Config
 	server           *http.Server
-	idempotencyStore *middleware.InMemoryIdempotencyStore
+	idempotencyStore middleware.IdempotencyStore
 	rateLimiter      *middleware.PhoneRateLimiter
 	healthHandler    *http.Handler
 	appHttpHandler   *http.Handler

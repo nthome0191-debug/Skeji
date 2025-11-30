@@ -66,8 +66,9 @@ func (r *mongoScheduleRepository) withTimeout(ctx context.Context, timeout time.
 	}
 
 	remaining := time.Until(deadline)
+	// If parent deadline is shorter, reuse parent context to avoid leak
 	if remaining < timeout {
-		return context.WithTimeout(ctx, remaining)
+		return ctx, func() {}
 	}
 
 	return context.WithTimeout(ctx, timeout)
