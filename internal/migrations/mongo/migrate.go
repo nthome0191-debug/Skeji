@@ -18,7 +18,10 @@ var (
 	BusinessUnitsIndexes = []mongo.IndexModel{
 		{Keys: bson.D{{Key: "admin_phone", Value: 1}}},
 		{Keys: bson.D{{Key: "maintainers", Value: 1}}},
-		{Keys: bson.D{{Key: "city_label_pairs", Value: 1}}},
+		{Keys: bson.D{
+			{Key: "city_label_pairs", Value: 1},
+			{Key: "priority", Value: -1},
+		}},
 		{
 			Keys: bson.D{
 				{Key: "admin_phone", Value: 1},
