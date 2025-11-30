@@ -516,7 +516,7 @@ func (s *businessUnitService) verifyDuplication(ctx context.Context, bu *model.B
 }
 
 func (s *businessUnitService) verifyLimitPerPhoneAdmin(ctx context.Context, bu *model.BusinessUnit) (err error) {
-	_, total, err := s.GetByPhone(ctx, bu.AdminPhone, bu.Cities, bu.Labels, 10, 0)
+	_, total, err := s.GetByPhone(ctx, bu.AdminPhone, nil, nil, 10, 0)
 	if err != nil {
 		return err
 	}

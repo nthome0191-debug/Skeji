@@ -8,62 +8,6 @@
   performance hit
   Fix: Implement batch fetching or aggregation pipeline
 
-  🟠 HIGH SEVERITY
-
-  8. Missing Referential Integrity Validation
-
-  Location: internal/bookings/service/booking.go:47-77
-  Problem: No verification that BusinessID and ScheduleID exist
-  before creating booking
-  Impact: Orphaned bookings, data integrity violations
-  Fix: Fetch and validate business unit and schedule existence
-
-  10. Business Unit Limit Check Bypassable
-
-  Location: internal/businessunits/service/business_unit.go:522-534
-  Problem: Filters by cities/labels when checking admin phone limit
-  _, total, err := s.GetByPhone(ctx, bu.AdminPhone, bu.Cities,
-  bu.Labels, 10, 0)
-  Impact: Users can create unlimited business units by varying
-  cities/labels
-  Fix: s.GetByPhone(ctx, bu.AdminPhone, nil, nil, 10, 0) to count
-  ALL units
-
-  11. Schedule Limit Check Inefficient
-
-  Location: internal/schedules/service/schedule.go:400-410
-  Problem: Fetches only 10 records when checking if count >= max
-  limit
-  Impact: Incorrect limit enforcement
-  Fix: Use proper count operation or fetch maxLimit + 1 records
-
-  12. No Booking Time vs Schedule Hours Validation
-
-  Location: internal/bookings/service/booking.go:47-77
-  Problem: Bookings can be created outside start_of_day,
-  end_of_day, working_days
-  Impact: Sunday bookings when business only works Mon-Fri
-  Fix: Fetch schedule and validate time constraints
-
-  13. Context Timeout Logic Flaw
-
-  Location: All repository withTimeout functions (lines 67-72)
-  Problem: Creates longer timeout than original deadline
-  if remaining > timeout {
-      return context.WithTimeout(ctx, remaining)
-  }
-  return context.WithTimeout(ctx, timeout) // Bug: timeout might be
-   > remaining
-  Impact: Operations run longer than intended deadline
-  Fix: Use shorter of (remaining, timeout)
-
-  14. Missing Index on city_label_pairs
-
-  Location: Database migrations
-  Problem: Search uses city_label_pairs but no index exists
-  Impact: O(n) table scans, extremely slow search as data grows
-  Fix: Add index {city_label_pairs: 1, priority: -1}
-
   🟡 MEDIUM SEVERITY
 
   15. Context Leak in withTimeout
