@@ -238,6 +238,67 @@ func (h *ScheduleHandler) Search(w http.ResponseWriter, r *http.Request, _ httpr
 	}
 }
 
+// @Summary Batch search schedules across multiple cities
+// @Tags Schedules
+// @Produce json
+// @Param business_id query string true "Business ID"
+// @Param cities query string true "Comma-separated list of cities"
+// @Param limit query int false "Limit"
+// @Param offset query int false "Offset"
+// @Success 200 {object} httputil.PaginatedResponse
+// @Failure 400 {object} httputil.ErrorResponse
+// @Failure 500 {object} httputil.ErrorResponse
+// @Router /api/v1/schedules/batch-search [get]
+func (h *ScheduleHandler) BatchSearch(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	query := r.URL.Query()
+	businessID := strings.TrimSpace(query.Get("business_id"))
+	citiesParam := strings.TrimSpace(query.Get("cities"))
+
+	if businessID == "" {
+		if writeErr := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+			Error: "'business_id' query parameter is required",
+		}); writeErr != nil {
+			h.log.Error("failed to write JSON response", "handler", "BatchSearch", "operation", "WriteJSON", "error", writeErr)
+		}
+		return
+	}
+
+	if citiesParam == "" {
+		if writeErr := httputil.WriteJSON(w, http.StatusBadRequest, httputil.ErrorResponse{
+			Error: "'cities' query parameter is required (comma-separated)",
+		}); writeErr != nil {
+			h.log.Error("failed to write JSON response", "handler", "BatchSearch", "operation", "WriteJSON", "error", writeErr)
+		}
+		return
+	}
+
+	// Parse comma-separated cities
+	cities := strings.Split(citiesParam, ",")
+	for i := range cities {
+		cities[i] = strings.TrimSpace(cities[i])
+	}
+
+	limit, offset, err := httputil.ExtractLimitOffset(r)
+	if err != nil {
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "BatchSearch", "operation", "WriteError", "error", writeErr)
+		}
+		return
+	}
+
+	results, totalCount, err := h.service.BatchSearch(r.Context(), businessID, cities, limit, offset)
+	if err != nil {
+		if writeErr := httputil.WriteError(w, err); writeErr != nil {
+			h.log.Error("failed to write error response", "handler", "BatchSearch", "operation", "WriteError", "error", writeErr)
+		}
+		return
+	}
+
+	if err := httputil.WritePaginated(w, results, totalCount, limit, offset); err != nil {
+		h.log.Error("failed to write paginated response", "handler", "BatchSearch", "operation", "WritePaginated", "error", err)
+	}
+}
+
 func (h *ScheduleHandler) RegisterRoutes(router *httprouter.Router) {
 	// Swagger UI routes
 	router.Handler("GET", "/swagger/*any", httpSwagger.WrapHandler)
@@ -246,6 +307,7 @@ func (h *ScheduleHandler) RegisterRoutes(router *httprouter.Router) {
 	router.POST("/api/v1/schedules", h.Create)
 	router.GET("/api/v1/schedules", h.GetAll)
 	router.GET("/api/v1/schedules/search", h.Search)
+	router.GET("/api/v1/schedules/batch-search", h.BatchSearch)
 	router.GET("/api/v1/schedules/id/:id", h.GetByID)
 	router.PATCH("/api/v1/schedules/id/:id", h.Update)
 	router.DELETE("/api/v1/schedules/id/:id", h.Delete)

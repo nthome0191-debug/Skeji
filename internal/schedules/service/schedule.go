@@ -25,6 +25,7 @@ type ScheduleService interface {
 	Update(ctx context.Context, id string, updates *model.ScheduleUpdate) error
 	Delete(ctx context.Context, id string) error
 	Search(ctx context.Context, businessID string, city string, limit int, offset int64) ([]*model.Schedule, int64, error)
+	BatchSearch(ctx context.Context, businessID string, cities []string, limit int, offset int64) ([]*model.Schedule, int64, error)
 }
 
 type scheduleService struct {
@@ -275,6 +276,74 @@ func (s *scheduleService) Search(ctx context.Context, businessID string, city st
 	s.cfg.Log.Debug("Schedules search completed",
 		"business_id", businessID,
 		"city", city,
+		"results_count", len(schedules),
+		"total_count", count,
+	)
+
+	return schedules, count, nil
+}
+
+func (s *scheduleService) BatchSearch(ctx context.Context, businessID string, cities []string, limit int, offset int64) ([]*model.Schedule, int64, error) {
+	if businessID == "" {
+		return nil, 0, apperrors.InvalidInput("Business_id must be provided")
+	}
+
+	// Sanitize all cities
+	sanitizedCities := make([]string, 0, len(cities))
+	for _, city := range cities {
+		if sanitized := sanitizer.SanitizeCityOrLabel(city); sanitized != "" {
+			sanitizedCities = append(sanitizedCities, sanitized)
+		}
+	}
+
+	var count int64
+	var schedules []*model.Schedule
+	var errCount, errFind error
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		var err error
+		count, err = s.repo.CountByBatchSearch(ctx, businessID, sanitizedCities)
+		if err != nil {
+			s.cfg.Log.Error("Failed to count schedules by batch search",
+				"business_id", businessID,
+				"cities", sanitizedCities,
+				"error", err,
+			)
+			errCount = apperrors.Internal("Failed to count schedules", err)
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		var err error
+		schedules, err = s.repo.BatchSearch(ctx, businessID, sanitizedCities, limit, offset)
+		if err != nil {
+			s.cfg.Log.Error("Failed to batch search schedules",
+				"business_id", businessID,
+				"cities", sanitizedCities,
+				"limit", limit,
+				"offset", offset,
+				"error", err,
+			)
+			errFind = apperrors.Internal("Failed to search schedules", err)
+		}
+	}()
+
+	wg.Wait()
+
+	if errCount != nil {
+		return nil, 0, errCount
+	}
+	if errFind != nil {
+		return nil, 0, errFind
+	}
+
+	s.cfg.Log.Debug("Schedules batch search completed",
+		"business_id", businessID,
+		"cities", sanitizedCities,
 		"results_count", len(schedules),
 		"total_count", count,
 	)

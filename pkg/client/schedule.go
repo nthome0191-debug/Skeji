@@ -41,6 +41,29 @@ func (c *ScheduleClient) Search(businessID string, city string, limit int, offse
 	return c.httpClient.GET(path)
 }
 
+func (c *ScheduleClient) BatchSearch(businessID string, cities []string, limit int, offset int64) (*Response, error) {
+	q := url.Values{}
+	q.Set("business_id", businessID)
+
+	// Join cities with comma for the query parameter
+	if len(cities) > 0 {
+		citiesStr := ""
+		for i, city := range cities {
+			if i > 0 {
+				citiesStr += ","
+			}
+			citiesStr += city
+		}
+		q.Set("cities", citiesStr)
+	}
+
+	q.Set("limit", fmt.Sprintf("%d", limit))
+	q.Set("offset", fmt.Sprintf("%d", offset))
+
+	path := "/api/v1/schedules/batch-search?" + q.Encode()
+	return c.httpClient.GET(path)
+}
+
 func (c *ScheduleClient) GetByID(id string) (*Response, error) {
 	path := "/api/v1/schedules/id/" + url.PathEscape(id)
 	return c.httpClient.GET(path)

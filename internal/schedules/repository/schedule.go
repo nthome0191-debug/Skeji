@@ -35,7 +35,9 @@ type ScheduleRepository interface {
 	Update(ctx context.Context, id string, sc *model.Schedule) (*mongo.UpdateResult, error)
 	Delete(ctx context.Context, id string) error
 	Search(ctx context.Context, businessId string, city string, limit int, offset int64) ([]*model.Schedule, error)
+	BatchSearch(ctx context.Context, businessId string, cities []string, limit int, offset int64) ([]*model.Schedule, error)
 	CountBySearch(ctx context.Context, businessId string, city string) (int64, error)
+	CountByBatchSearch(ctx context.Context, businessId string, cities []string) (int64, error)
 	Count(ctx context.Context) (int64, error)
 	ExecuteTransaction(ctx context.Context, fn mongotx.TransactionFunc) error
 }
@@ -264,6 +266,78 @@ func (r *mongoScheduleRepository) Count(ctx context.Context) (int64, error) {
 	count, err := r.collection.CountDocuments(ctx, bson.M{})
 	if err != nil {
 		return 0, fmt.Errorf("failed to count schedules: %w", err)
+	}
+	return count, nil
+}
+
+func (r *mongoScheduleRepository) BatchSearch(ctx context.Context, businessId string, cities []string, limit int, offset int64) ([]*model.Schedule, error) {
+	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
+	defer cancel()
+
+	filter := bson.M{}
+	if businessId != "" {
+		filter["business_id"] = businessId
+	}
+
+	// If cities provided, match any of them (case-insensitive)
+	if len(cities) > 0 {
+		cityFilters := make([]bson.M, 0, len(cities))
+		for _, city := range cities {
+			if city != "" {
+				escapedCity := escapeRegexSpecialChars(city)
+				cityFilters = append(cityFilters, bson.M{"city": bson.M{"$regex": escapedCity, "$options": "i"}})
+			}
+		}
+		if len(cityFilters) > 0 {
+			filter["$or"] = cityFilters
+		}
+	}
+
+	opts := options.Find().
+		SetLimit(int64(limit)).
+		SetSkip(int64(offset)).
+		SetSort(bson.D{{Key: "created_at", Value: -1}})
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to batch search schedules: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	var schedules []*model.Schedule
+	if err = cursor.All(ctx, &schedules); err != nil {
+		return nil, fmt.Errorf("failed to decode batch search results: %w", err)
+	}
+
+	return schedules, nil
+}
+
+func (r *mongoScheduleRepository) CountByBatchSearch(ctx context.Context, businessId string, cities []string) (int64, error) {
+	ctx, cancel := r.withTimeout(ctx, r.cfg.ReadTimeout)
+	defer cancel()
+
+	filter := bson.M{}
+	if businessId != "" {
+		filter["business_id"] = businessId
+	}
+
+	// If cities provided, match any of them (case-insensitive)
+	if len(cities) > 0 {
+		cityFilters := make([]bson.M, 0, len(cities))
+		for _, city := range cities {
+			if city != "" {
+				escapedCity := escapeRegexSpecialChars(city)
+				cityFilters = append(cityFilters, bson.M{"city": bson.M{"$regex": escapedCity, "$options": "i"}})
+			}
+		}
+		if len(cityFilters) > 0 {
+			filter["$or"] = cityFilters
+		}
+	}
+
+	count, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count schedules by batch search: %w", err)
 	}
 	return count, nil
 }

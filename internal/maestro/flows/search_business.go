@@ -65,6 +65,15 @@ func SearchBusiness(ctx *maestro.MaestroContext) error {
 
 		for _, unit := range units {
 			unit := unit
+
+			// Early exit if we already have enough results
+			mu.Lock()
+			if len(businesses) >= MAX_RESULTS_FOR_SEARCH {
+				mu.Unlock()
+				break
+			}
+			mu.Unlock()
+
 			wg.Add(1)
 			maestro.RunWithRateLimitedConcurrency(func() {
 				defer wg.Done()
@@ -78,25 +87,15 @@ func SearchBusiness(ctx *maestro.MaestroContext) error {
 					business.Phones = append(business.Phones, phone)
 				}
 
-				addBusiness := false
-				for _, city := range cities {
-					branches := fetchBranches(ctx, unit.ID, city, start, end)
-					if len(branches) > 0 {
-						addBusiness = true
-						for _, branch := range branches {
-							if len(business.Branches) < MAX_BRANCHES_PER_UNIT {
-								business.Branches = append(business.Branches, branch)
-							} else {
-								break
-							}
-						}
+				// Fetch branches for ALL cities in one batch call
+				branches := fetchBranches(ctx, unit.ID, cities, start, end)
+				if len(branches) > 0 {
+					// Limit to max branches per unit
+					if len(branches) > MAX_BRANCHES_PER_UNIT {
+						branches = branches[:MAX_BRANCHES_PER_UNIT]
 					}
-					if len(business.Branches) >= MAX_BRANCHES_PER_UNIT {
-						break
-					}
-				}
+					business.Branches = branches
 
-				if addBusiness {
 					mu.Lock()
 					if len(businesses) < MAX_RESULTS_FOR_SEARCH {
 						businesses = append(businesses, business)
@@ -129,12 +128,14 @@ func SearchBusiness(ctx *maestro.MaestroContext) error {
 	return nil
 }
 
-func fetchBranches(ctx *maestro.MaestroContext, buid string, city string, start, end time.Time) []*BusinessBranch {
+func fetchBranches(ctx *maestro.MaestroContext, buid string, cities []string, start, end time.Time) []*BusinessBranch {
 	branches := []*BusinessBranch{}
 	var offset int64 = 0
-	resp, err := ctx.Client.ScheduleClient.Search(buid, city, MAX_RESULTS_PER_PAGE, offset)
+
+	// Use batch search to fetch all schedules across all cities in one call
+	resp, err := ctx.Client.ScheduleClient.BatchSearch(buid, cities, MAX_RESULTS_PER_PAGE, offset)
 	if err != nil {
-		ctx.Logger.Warn(fmt.Sprintf("schedules search failed, err: %+v", err))
+		ctx.Logger.Warn(fmt.Sprintf("schedules batch search failed, err: %+v", err))
 		return branches
 	}
 	schedules, metadata, err := ctx.Client.ScheduleClient.DecodeSchedules(resp)
@@ -142,42 +143,72 @@ func fetchBranches(ctx *maestro.MaestroContext, buid string, city string, start,
 		ctx.Logger.Warn(fmt.Sprintf("schedules decode failed, err: %+v\nresp: %+v", err, resp))
 		return branches
 	}
+
 	for len(branches) < MAX_BRANCHES_PER_UNIT && offset < metadata.TotalCount {
+		// Parallelize fetching open slots for all schedules
+		type scheduleResult struct {
+			branch *BusinessBranch
+			hasSlots bool
+		}
+
+		results := make(chan scheduleResult, len(schedules))
+		var wg sync.WaitGroup
+
 		for _, schedule := range schedules {
-			branch := &BusinessBranch{
-				City:        schedule.City,
-				Address:     schedule.Address,
-				WorkingDays: schedule.WorkingDays,
-				StartOfDay:  schedule.StartOfDay,
-				EndOfDay:    schedule.EndOfDay,
-				OpenSlots:   []*OpenSlot{},
-			}
-			addBranch := false
-			openSlots := fetchOpenSlots(ctx, buid, schedule, start, end)
-			if len(openSlots) > 0 {
-				addBranch = true
-				for _, openSlot := range openSlots {
-					if len(branch.OpenSlots) < MAX_OPEN_SLOTS_PER_BRANCH {
-						branch.OpenSlots = append(branch.OpenSlots, openSlot)
-					} else {
-						break
-					}
-				}
-			}
-			if addBranch {
-				branches = append(branches, branch)
-			}
 			if len(branches) >= MAX_BRANCHES_PER_UNIT {
 				break
 			}
+
+			schedule := schedule
+			wg.Add(1)
+			maestro.RunWithRateLimitedConcurrency(func() {
+				defer wg.Done()
+
+				branch := &BusinessBranch{
+					City:        schedule.City,
+					Address:     schedule.Address,
+					WorkingDays: schedule.WorkingDays,
+					StartOfDay:  schedule.StartOfDay,
+					EndOfDay:    schedule.EndOfDay,
+					OpenSlots:   []*OpenSlot{},
+				}
+
+				openSlots := fetchOpenSlots(ctx, buid, schedule, start, end)
+				hasSlots := len(openSlots) > 0
+				if hasSlots {
+					for _, openSlot := range openSlots {
+						if len(branch.OpenSlots) < MAX_OPEN_SLOTS_PER_BRANCH {
+							branch.OpenSlots = append(branch.OpenSlots, openSlot)
+						} else {
+							break
+						}
+					}
+				}
+
+				results <- scheduleResult{branch: branch, hasSlots: hasSlots}
+			})
 		}
+
+		go func() {
+			wg.Wait()
+			close(results)
+		}()
+
+		// Collect results
+		for result := range results {
+			if result.hasSlots && len(branches) < MAX_BRANCHES_PER_UNIT {
+				branches = append(branches, result.branch)
+			}
+		}
+
 		if len(branches) >= MAX_BRANCHES_PER_UNIT {
 			break
 		}
+
 		offset += MAX_RESULTS_PER_PAGE
-		resp, err = ctx.Client.ScheduleClient.Search(buid, city, MAX_RESULTS_PER_PAGE, offset)
+		resp, err = ctx.Client.ScheduleClient.BatchSearch(buid, cities, MAX_RESULTS_PER_PAGE, offset)
 		if err != nil {
-			ctx.Logger.Warn(fmt.Sprintf("schedules search failed, err: %+v", err))
+			ctx.Logger.Warn(fmt.Sprintf("schedules batch search failed, err: %+v", err))
 			continue
 		}
 		schedules, metadata, err = ctx.Client.ScheduleClient.DecodeSchedules(resp)
