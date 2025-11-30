@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	maestro "skeji/internal/maestro/core"
 	"skeji/internal/maestro/flows"
@@ -29,17 +30,17 @@ var flowRegistry = map[string]FlowHandler{
 	"search_business":      flows.SearchBusiness,
 }
 
-func (s *MaestroService) ExecuteFlow(flowName string, input map[string]any) (map[string]any, error) {
+func (s *MaestroService) ExecuteFlow(ctx context.Context, flowName string, input map[string]any) (map[string]any, error) {
 	handler, exists := flowRegistry[flowName]
 	if !exists {
 		return nil, fmt.Errorf("unknown flow: %s", flowName)
 	}
-	ctx := maestro.NewMaestroContext(input, s.client, s.Logger)
-	err := handler(ctx)
+	maestroCtx := maestro.NewMaestroContext(ctx, input, s.client, s.Logger)
+	err := handler(maestroCtx)
 	if err != nil {
 		return nil, fmt.Errorf("flow execution failed: %v", err)
 	}
-	return ctx.Output, nil
+	return maestroCtx.Output, nil
 }
 
 func (s *MaestroService) GetAvailableFlows() []string {

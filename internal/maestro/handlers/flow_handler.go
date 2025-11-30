@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"skeji/internal/maestro/service"
 	"skeji/pkg/logger"
+	"time"
 )
 
 type FlowHandler struct {
@@ -58,7 +60,11 @@ func (h *FlowHandler) ExecuteFlow(w http.ResponseWriter, r *http.Request) {
 
 	h.log.Info("executing flow", "flow", req.Flow)
 
-	output, err := h.service.ExecuteFlow(req.Flow, req.Input)
+	// Create context with 10-minute timeout for flow execution
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Minute)
+	defer cancel()
+
+	output, err := h.service.ExecuteFlow(ctx, req.Flow, req.Input)
 	if err != nil {
 		h.log.Error("flow execution failed", "flow", req.Flow, "error", err)
 		h.writeError(w, http.StatusInternalServerError, err.Error())

@@ -60,13 +60,21 @@ func SearchBusiness(ctx *maestro.MaestroContext) error {
 	}
 
 	for len(businesses) < MAX_RESULTS_FOR_SEARCH && offset < metadata.TotalCount {
+		// Check if context is cancelled or timed out
+		select {
+		case <-ctx.Ctx.Done():
+			ctx.Logger.Warn("search cancelled or timed out", "businesses_found", len(businesses), "error", ctx.Ctx.Err())
+			return fmt.Errorf("search cancelled: %w", ctx.Ctx.Err())
+		default:
+			// Continue processing
+		}
+
 		var wg sync.WaitGroup
 		var mu sync.Mutex
 
 		for _, unit := range units {
 			unit := unit
 
-			// Early exit if we already have enough results
 			mu.Lock()
 			if len(businesses) >= MAX_RESULTS_FOR_SEARCH {
 				mu.Unlock()
@@ -87,10 +95,8 @@ func SearchBusiness(ctx *maestro.MaestroContext) error {
 					business.Phones = append(business.Phones, phone)
 				}
 
-				// Fetch branches for ALL cities in one batch call
 				branches := fetchBranches(ctx, unit.ID, cities, start, end)
 				if len(branches) > 0 {
-					// Limit to max branches per unit
 					if len(branches) > MAX_BRANCHES_PER_UNIT {
 						branches = branches[:MAX_BRANCHES_PER_UNIT]
 					}
@@ -132,7 +138,6 @@ func fetchBranches(ctx *maestro.MaestroContext, buid string, cities []string, st
 	branches := []*BusinessBranch{}
 	var offset int64 = 0
 
-	// Use batch search to fetch all schedules across all cities in one call
 	resp, err := ctx.Client.ScheduleClient.BatchSearch(buid, cities, MAX_RESULTS_PER_PAGE, offset)
 	if err != nil {
 		ctx.Logger.Warn(fmt.Sprintf("schedules batch search failed, err: %+v", err))
@@ -145,9 +150,8 @@ func fetchBranches(ctx *maestro.MaestroContext, buid string, cities []string, st
 	}
 
 	for len(branches) < MAX_BRANCHES_PER_UNIT && offset < metadata.TotalCount {
-		// Parallelize fetching open slots for all schedules
 		type scheduleResult struct {
-			branch *BusinessBranch
+			branch   *BusinessBranch
 			hasSlots bool
 		}
 
@@ -194,7 +198,6 @@ func fetchBranches(ctx *maestro.MaestroContext, buid string, cities []string, st
 			close(results)
 		}()
 
-		// Collect results
 		for result := range results {
 			if result.hasSlots && len(branches) < MAX_BRANCHES_PER_UNIT {
 				branches = append(branches, result.branch)

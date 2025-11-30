@@ -272,7 +272,6 @@ func (h *ScheduleHandler) BatchSearch(w http.ResponseWriter, r *http.Request, _ 
 		return
 	}
 
-	// Parse comma-separated cities
 	cities := strings.Split(citiesParam, ",")
 	for i := range cities {
 		cities[i] = strings.TrimSpace(cities[i])
