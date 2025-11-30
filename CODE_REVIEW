@@ -7,23 +7,3 @@
   Impact: Searching 5 businesses = hundreds of API calls, massive
   performance hit
   Fix: Implement batch fetching or aggregation pipeline
-
-  🟠 HIGH SEVERITY
-
-  🟡 MEDIUM SEVERITY
-
-  15. Context Leak in withTimeout
-
-  Location: All repositories (lines 56-76)
-  Problem: Creates new timeout context even when parent has shorter
-   deadline
-  Impact: Memory/goroutine leaks
-  Fix: Check parent deadline and reuse if shorter
-
-  19. Idempotency Middleware Goroutine Leak
-
-  Location: pkg/middleware/idempotency.go:68-86
-  Problem: Cleanup goroutine runs indefinitely, leaks on store
-  recreation
-  Impact: Goroutine/memory leak over time
-  Fix: Implement Stop() method and call on cleanup
