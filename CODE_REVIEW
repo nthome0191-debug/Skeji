@@ -18,17 +18,6 @@
   Impact: Orphaned bookings, data integrity violations
   Fix: Fetch and validate business unit and schedule existence
 
-  9. Unchecked Error in Business Unit Update
-
-  Location: internal/businessunits/service/business_unit.go:177
-  Problem: verifyDuplication() error assigned but not checked
-  before proceeding
-  err = s.verifyDuplication(sessCtx, merged)
-  // Missing: if err != nil { return err }
-  if _, err = s.repo.Update(sessCtx, id, merged); err != nil {
-  Impact: Duplicates created despite validation failure
-  Fix: Check error before proceeding
-
   10. Business Unit Limit Check Bypassable
 
   Location: internal/businessunits/service/business_unit.go:522-534

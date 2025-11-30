@@ -175,26 +175,22 @@ func (s *businessUnitService) Update(ctx context.Context, id string, updates *mo
 	s.populateCityLabelPairs(merged)
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
 		err = s.verifyDuplication(sessCtx, merged)
-
+		if err != nil {
+			return apperrors.Conflict(fmt.Sprintf("conflict appeared during update: %v", err))
+		}
 		if _, err = s.repo.Update(sessCtx, id, merged); err != nil {
-			s.cfg.Log.Error("Failed to update business unit",
-				"id", id,
-				"error", err,
-			)
 			return apperrors.Internal("Failed to update business unit", err)
 		}
 		return nil
 	})
-
 	if err != nil {
+		s.cfg.Log.Error("Failed to update business unit", "id", id, "error", err)
 		return err
 	}
-
 	s.cfg.Log.Info("Business unit updated successfully",
 		"id", id,
 		"name", merged.Name,
 	)
-
 	return nil
 }
 

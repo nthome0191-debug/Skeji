@@ -173,7 +173,7 @@ func (s *bookingService) Update(ctx context.Context, id string, updates *model.B
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
 		err = s.verifyDuplication(sessCtx, merged)
 		if err != nil {
-			return err
+			return apperrors.Conflict(fmt.Sprintf("conflict appeared during update: %v", err))
 		}
 		if _, err := s.repo.Update(sessCtx, id, merged); err != nil {
 			return apperrors.Internal("Failed to update booking", err)

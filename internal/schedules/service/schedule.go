@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	scheduleerrors "skeji/internal/schedules/errors"
 	"skeji/internal/schedules/repository"
 	"skeji/internal/schedules/validator"
@@ -173,10 +174,12 @@ func (s *scheduleService) Update(ctx context.Context, id string, updates *model.
 	err = s.repo.ExecuteTransaction(ctx, func(sessCtx mongo.SessionContext) error {
 		err = s.verifyDuplication(sessCtx, merged)
 		if err != nil {
-			return err
+			return apperrors.Conflict(fmt.Sprintf("conflict appeared during update: %v", err))
 		}
-		_, err := s.repo.Update(sessCtx, id, merged)
-		return err
+		if _, err := s.repo.Update(sessCtx, id, merged); err != nil {
+			return apperrors.Internal("Failed to update schedule", err)
+		}
+		return nil
 	})
 	if err != nil {
 		s.cfg.Log.Error("Failed to update schedule",
@@ -185,7 +188,6 @@ func (s *scheduleService) Update(ctx context.Context, id string, updates *model.
 		)
 		return apperrors.Internal("Failed to update schedule", err)
 	}
-
 	s.cfg.Log.Info("Schedule updated successfully", "id", id, "name", merged.Name)
 	return nil
 }
