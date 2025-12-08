@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"skeji/internal/businessunits/handler"
 	"skeji/internal/businessunits/repository"
 	"skeji/internal/businessunits/service"
@@ -19,8 +18,6 @@ const ServiceName = "business-units"
 func main() {
 	cfg := config.Load(ServiceName)
 	cfg.SetMongo()
-
-	fmt.Println("test print natali")
 
 	cfg.Log.Info("Starting Business Units service")
 	businessUnitService := initServices(cfg)
