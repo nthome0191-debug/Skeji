@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: maestro
+  namespace: argocd
+spec:
+  project: skeji
+
+  source:
+    repoURL: https://github.com/nthome0191-debug/Skeji.git
+    targetRevision: HEAD
+    path: deployment/charts/maestro
+    helm:
+      valueFiles:
+      - ../../values/maestro-dev.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apps
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+    - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
