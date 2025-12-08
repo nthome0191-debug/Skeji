@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CLUSTER_NAME="kind-hera-local"
+CLUSTER_NAME="hera-local"
 BASE_DIR="$(dirname "$0")"
+NODE_COUNT=7
+WORKER_COUNT=$((NODE_COUNT - 1))
+APP_WORKERS=3
+INFRA_WORKERS=3
 
 check_binaries() {
   echo "=== Checking required binaries ==="
@@ -53,8 +57,8 @@ check_cluster_api() {
 verify_node_count() {
   echo "=== Verifying node count ==="
   NODE_COUNT=$(kubectl get nodes --no-headers | wc -l | tr -d ' ')
-  if [ "$NODE_COUNT" -ne 5 ]; then
-    echo "wrong node count: expected 5"
+  if [ "$NODE_COUNT" -ne $NODE_COUNT ]; then
+    echo "wrong node count: expected $NODE_COUNT"
     exit 1
   fi
   echo "node count correct"
@@ -68,8 +72,8 @@ verify_node_roles() {
     exit 1
   fi
   WORKERS=$(kubectl get nodes -o json | jq '.items[] | select(.metadata.labels."node-role.kubernetes.io/control-plane" == null)' | jq -s 'length')
-  if [ "$WORKERS" -ne 4 ]; then
-    echo "expected 4 worker nodes"
+  if [ "$WORKERS" -ne $WORKER_COUNT ]; then
+    echo "expected $WORKER_COUNT worker nodes"
     exit 1
   fi
   echo "node role configuration correct"
@@ -77,13 +81,13 @@ verify_node_roles() {
 
 verify_node_labels() {
   echo "=== Checking required node labels ==="
-  APP=$(kubectl get nodes -l skeji.io/type=app --no-headers | wc -l | tr -d ' ')
-  INFRA=$(kubectl get nodes -l skeji.io/type=infra --no-headers | wc -l | tr -d ' ')
-  if [ "$APP" -ne 1 ]; then
+  APP=$(kubectl get nodes -l app=true --no-headers | wc -l | tr -d ' ')
+  INFRA=$(kubectl get nodes -l infra=true --no-headers | wc -l | tr -d ' ')
+  if [ "$APP" -ne $APP_WORKERS ]; then
     echo "missing or invalid app node label"
     exit 1
   fi
-  if [ "$INFRA" -ne 3 ]; then
+  if [ "$INFRA" -ne $INFRA_WORKERS ]; then
     echo "missing or invalid infra node labels"
     exit 1
   fi

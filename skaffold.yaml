@@ -57,7 +57,7 @@
 # profiles:
 #   - name: kind
 #     activation:
-#       - kubeContext: kind-hera-local
+#       - kubeContext: hera-local
 #     build:
 #       local:
 #         push: false

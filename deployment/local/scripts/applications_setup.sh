@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_NAMESPACE="apps"
-KIND_CLUSTER="kind-hera-local"
+KIND_CLUSTER="hera-local"
 
 print_usage() {
     echo "❌ Missing app names."

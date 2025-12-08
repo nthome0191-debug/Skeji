@@ -234,7 +234,7 @@ Skeji uses a custom idempotent migration system that:
 ### Local Development Flow
 
 1. **Environment Setup** - `make local-up` creates a Kind cluster with MongoDB and runs initial migrations
-2. **Kubernetes Context** - Kind cluster named `kind-hera-local` with 1 control-plane + 2 worker nodes
+2. **Kubernetes Context** - Kind cluster named `hera-local` with 1 control-plane + 2 worker nodes
 3. **MongoDB Access** - MongoDB exposed on `localhost:27017` via port forwarding
 4. **Namespaces:**
    - `mongo` - MongoDB deployment
