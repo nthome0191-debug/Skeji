@@ -12,7 +12,7 @@ kubectl get ns $MIGRATION_NAMESPACE >/dev/null 2>&1 || kubectl create namespace 
 
 kubectl delete job $JOB_NAME -n $MIGRATION_NAMESPACE --ignore-not-found=true
 docker build -t $IMAGE_NAME -f $DOCKERFILE .
-kind load docker-image $IMAGE_NAME --name skeji-local
+kind load docker-image $IMAGE_NAME --name kind-hera-local
 kubectl apply -n $MIGRATION_NAMESPACE -f $JOB_FILE
 
 echo "⏳ Waiting for migration job to complete or fail..."

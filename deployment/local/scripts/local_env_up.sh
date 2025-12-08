@@ -16,4 +16,4 @@ bash deployment/local/scripts/applications_setup.sh business-units schedules boo
 
 echo "✅ Local environment ready!"
 
-skaffold dev -p kind
+# skaffold dev -p kind

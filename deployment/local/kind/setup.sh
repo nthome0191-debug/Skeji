@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-CLUSTER_NAME="skeji-local"
+CLUSTER_NAME="kind-hera-local"
 BASE_DIR="$(dirname "$0")"
 
 check_binaries() {

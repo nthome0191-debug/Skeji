@@ -1,65 +1,65 @@
-apiVersion: skaffold/v4beta7
-kind: Config
-metadata:
-  name: skeji
+# apiVersion: skaffold/v4beta7
+# kind: Config
+# metadata:
+#   name: skeji
 
-build:
-  local:
-    push: false
-  artifacts:
-    - image: skeji/business-units
-      context: .
-      docker:
-        dockerfile: build/docker/business-units.Dockerfile
-    - image: skeji/schedules
-      context: .
-      docker:
-        dockerfile: build/docker/schedules.Dockerfile
-    - image: skeji/bookings
-      context: .
-      docker:
-        dockerfile: build/docker/bookings.Dockerfile
-    - image: skeji/maestro
-      context: .
-      docker:
-        dockerfile: build/docker/maestro.Dockerfile
+# build:
+#   local:
+#     push: false
+#   artifacts:
+#     - image: skeji/business-units
+#       context: .
+#       docker:
+#         dockerfile: build/docker/business-units.Dockerfile
+#     - image: skeji/schedules
+#       context: .
+#       docker:
+#         dockerfile: build/docker/schedules.Dockerfile
+#     - image: skeji/bookings
+#       context: .
+#       docker:
+#         dockerfile: build/docker/bookings.Dockerfile
+#     - image: skeji/maestro
+#       context: .
+#       docker:
+#         dockerfile: build/docker/maestro.Dockerfile
 
-manifests:
-  rawYaml:
-    - deployment/local/business-units/*.yaml
-    - deployment/local/schedules/*.yaml
-    - deployment/local/bookings/*.yaml
-    - deployment/local/maestro/*.yaml
-    - deployment/local/mongo/*.yaml
-    - deployment/local/migrate/*.yaml
+# manifests:
+#   rawYaml:
+#     - deployment/local/business-units/*.yaml
+#     - deployment/local/schedules/*.yaml
+#     - deployment/local/bookings/*.yaml
+#     - deployment/local/maestro/*.yaml
+#     - deployment/local/mongo/*.yaml
+#     - deployment/local/migrate/*.yaml
 
-deploy:
-  kubectl: {}
+# deploy:
+#   kubectl: {}
 
-portForward:
-  - resourceType: service
-    resourceName: business-units
-    port: 80
-    localPort: 8080
-  - resourceType: service
-    resourceName: schedules
-    port: 80
-    localPort: 8081
-  - resourceType: service
-    resourceName: bookings
-    port: 80
-    localPort: 8082
-  - resourceType: service
-    resourceName: maestro
-    port: 80
-    localPort: 8090
+# portForward:
+#   - resourceType: service
+#     resourceName: business-units
+#     port: 80
+#     localPort: 8080
+#   - resourceType: service
+#     resourceName: schedules
+#     port: 80
+#     localPort: 8081
+#   - resourceType: service
+#     resourceName: bookings
+#     port: 80
+#     localPort: 8082
+#   - resourceType: service
+#     resourceName: maestro
+#     port: 80
+#     localPort: 8090
 
-profiles:
-  - name: kind
-    activation:
-      - kubeContext: kind-skeji-local
-    build:
-      local:
-        push: false
-    deploy:
-      kubectl: {}
+# profiles:
+#   - name: kind
+#     activation:
+#       - kubeContext: kind-hera-local
+#     build:
+#       local:
+#         push: false
+#     deploy:
+#       kubectl: {}
