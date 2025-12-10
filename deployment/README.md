@@ -68,9 +68,38 @@ image:
   tag: "v1.0.0"
 ```
 
+## Environments
+
+Three environments are configured:
+
+| Environment | Database | Log Level | Resources |
+|------------|----------|-----------|-----------|
+| **dev** | `skeji` | debug | 50m CPU / 64Mi RAM |
+| **staging** | `skeji-staging` | info | 100m CPU / 128Mi RAM |
+| **prod** | `skeji-prod` | warn | 200m CPU / 256Mi RAM |
+
+Values files: `deployment/values/{env}/{service}.yaml`
+
+## Scaling
+
+### Add New Service
+
+1. Create Helm chart: `deployment/charts/new-service/`
+2. Create values files: `deployment/values/{dev,staging,prod}/new-service.yaml`
+3. Edit `deployment/argocd/applicationset.yaml` - add to services list
+4. Push to Git → ApplicationSet auto-generates 3 Applications
+
+### Add New Environment
+
+1. Create values directory: `deployment/values/qa/`
+2. Create values for all services: `{service}.yaml`
+3. Edit `deployment/argocd/applicationset.yaml` - add to environments list
+4. Push to Git → ApplicationSet auto-generates 4 Applications
+
 ## ArgoCD Sync Policy
 
 All applications use automated sync with:
 - Auto-pruning enabled
 - Self-healing enabled
 - Retry backoff: 5s → 3m (max)
+- Create namespace automatically

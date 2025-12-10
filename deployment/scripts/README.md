@@ -16,10 +16,7 @@ Designed to run in CI/CD pipelines after Hera infrastructure deployment.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `GIT_REPO` | **Yes** | - | Git repository URL |
 | `ARGOCD_AUTH_TOKEN` | **Yes** | - | ArgoCD authentication token |
-| `SERVICES` | **Yes** | - | Space-separated list of services to deploy |
-| `GIT_REVISION` | No | `main` | Git branch/tag/commit |
 | `APP_NAME` | No | `skeji` | Application name |
 | `DEPLOYMENT_PATH` | No | `deployment` | Path to deployment configs in repo |
 | `ARGOCD_NAMESPACE` | No | `argocd` | ArgoCD namespace |
@@ -32,19 +29,14 @@ Designed to run in CI/CD pipelines after Hera infrastructure deployment.
 deploy:
   stage: deploy
   script:
-    - export GIT_REPO="https://github.com/your-org/skeji"
-    - export GIT_REVISION="${CI_COMMIT_SHA}"
     - export ARGOCD_AUTH_TOKEN="${ARGOCD_TOKEN}"
-    - export SERVICES="business-units schedules bookings maestro"
     - ./deployment/scripts/setup-argocd.sh
 ```
 
 ### Local Usage
 
 ```bash
-export GIT_REPO="https://github.com/your-org/skeji"
 export ARGOCD_AUTH_TOKEN="your-token-here"
-export SERVICES="business-units schedules bookings maestro"
 ./deployment/scripts/setup-argocd.sh
 ```
 
@@ -54,13 +46,19 @@ export SERVICES="business-units schedules bookings maestro"
 2. 🔍 Verifies ArgoCD is running (installed by Hera)
 3. 🔐 Authenticates with ArgoCD using token
 4. 📂 Applies AppProject from `deployment/argocd/project.yaml`
-5. 🚀 Applies ArgoCD Applications from `deployment/argocd/*.yaml`
-6. 🔄 Triggers initial sync for all services
-7. ✅ GitOps auto-sync enabled (configured in manifests)
+5. 📦 Applies ApplicationSet from `deployment/argocd/applicationset.yaml`
+6. 🎯 ApplicationSet auto-generates 12 Applications (4 services × 3 environments)
+7. ✅ GitOps auto-sync enabled for all generated Applications
 
 ### After running
 
-All services are deployed and GitOps is enabled. Future changes:
+ApplicationSet generates 12 Applications automatically:
+- `business-units-dev`, `business-units-staging`, `business-units-prod`
+- `schedules-dev`, `schedules-staging`, `schedules-prod`
+- `bookings-dev`, `bookings-staging`, `bookings-prod`
+- `maestro-dev`, `maestro-staging`, `maestro-prod`
+
+Future changes are automatically synced:
 
 ```bash
 git add .
@@ -68,7 +66,20 @@ git commit -m "Update service configuration"
 git push
 ```
 
-ArgoCD will automatically sync changes to the cluster.
+ArgoCD ApplicationSet detects changes and syncs to cluster.
+
+### Adding New Service
+
+1. Create chart: `deployment/charts/new-service/`
+2. Create values: `deployment/values/{dev,staging,prod}/new-service.yaml`
+3. Edit `deployment/argocd/applicationset.yaml` - add service to list
+4. Push to Git - ApplicationSet auto-generates 3 new Applications
+
+### Adding New Environment
+
+1. Create values: `deployment/values/qa/*.yaml` for all services
+2. Edit `deployment/argocd/applicationset.yaml` - add environment to list
+3. Push to Git - ApplicationSet auto-generates 4 new Applications
 
 ### Get ArgoCD Token
 

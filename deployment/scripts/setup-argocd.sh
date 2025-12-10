@@ -4,37 +4,16 @@ set -e
 ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
 ARGOCD_SERVER="${ARGOCD_SERVER:-argocd-server.argocd.svc.cluster.local}"
 ARGOCD_AUTH_TOKEN="${ARGOCD_AUTH_TOKEN}"
-GIT_REPO="${GIT_REPO}"
-GIT_REVISION="${GIT_REVISION:-main}"
 APP_NAME="${APP_NAME:-skeji}"
 DEPLOYMENT_PATH="${DEPLOYMENT_PATH:-deployment}"
 ARGOCD_VERSION="${ARGOCD_VERSION:-v2.12.3}"
-SERVICES="${SERVICES}"
 
-echo "🚀 Deploying $APP_NAME microservices to ArgoCD"
+echo "🚀 Deploying $APP_NAME microservices to ArgoCD using ApplicationSet"
 echo ""
-
-if [ -z "$GIT_REPO" ]; then
-    echo "❌ GIT_REPO environment variable is required"
-    echo "   Example: export GIT_REPO='https://github.com/your-org/skeji'"
-    exit 1
-fi
 
 if [ -z "$ARGOCD_AUTH_TOKEN" ]; then
     echo "❌ ARGOCD_AUTH_TOKEN environment variable is required"
     echo "   Example: export ARGOCD_AUTH_TOKEN='eyJhbGc...'"
-    exit 1
-fi
-
-if [ -z "$SERVICES" ]; then
-    echo "❌ SERVICES environment variable is required"
-    echo "   Example: export SERVICES='business-units schedules bookings maestro'"
-    exit 1
-fi
-
-IFS=' ' read -r -a SERVICES_ARRAY <<< "$SERVICES"
-if [ ${#SERVICES_ARRAY[@]} -eq 0 ]; then
-    echo "❌ SERVICES must contain at least one service name"
     exit 1
 fi
 
@@ -74,33 +53,22 @@ kubectl apply -f ${DEPLOYMENT_PATH}/argocd/project.yaml
 echo "✅ AppProject applied"
 echo ""
 
-echo "🚀 Deploying microservices to ArgoCD..."
-echo "   Services: ${SERVICES_ARRAY[*]}"
+echo "📦 Applying ApplicationSet..."
+kubectl apply -f ${DEPLOYMENT_PATH}/argocd/applicationset.yaml
+echo "✅ ApplicationSet applied"
 echo ""
-for service in "${SERVICES_ARRAY[@]}"; do
-    ARGOCD_APP_FILE="${DEPLOYMENT_PATH}/argocd/${service}.yaml"
 
-    if [ ! -f "$ARGOCD_APP_FILE" ]; then
-        echo "  ⚠️  Skipping $service - manifest not found: $ARGOCD_APP_FILE"
-        continue
-    fi
-
-    echo "  📦 Applying $service application..."
-    kubectl apply -f "$ARGOCD_APP_FILE"
-    echo "  ✅ $service application applied"
-done
-
-echo ""
-echo "⏳ Triggering initial sync for all services..."
-for service in "${SERVICES_ARRAY[@]}"; do
-    argocd app sync $service --grpc-web
-done
+echo "⏳ Waiting for ApplicationSet to generate Applications..."
+sleep 5
 
 echo ""
 echo "✅ Deployment complete!"
 echo ""
 echo "📊 Application status:"
-argocd app list --grpc-web | grep -E "NAME|${SERVICES_ARRAY[*]// /|}"
+argocd app list --grpc-web
 echo ""
-echo "🔄 GitOps enabled - changes pushed to $GIT_REPO will auto-sync to cluster"
+echo "🔄 GitOps enabled - ApplicationSet will auto-generate and sync applications"
+echo "   - Environments: dev, staging, prod"
+echo "   - Services: business-units, schedules, bookings, maestro"
+echo "   - Total applications: 12 (4 services × 3 environments)"
 echo ""
