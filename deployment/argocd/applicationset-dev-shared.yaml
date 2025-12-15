@@ -1,0 +1,64 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: skeji-services
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  generators:
+  - matrix:
+      generators:
+      - list:
+          elements:
+          - env: dev
+            cluster: https://kubernetes.default.svc
+
+      - list:
+          elements:
+          - service: business-units
+          - service: schedules
+          - service: bookings
+          - service: maestro
+
+  template:
+    metadata:
+      name: '{{.service}}'
+      labels:
+        app: '{{.service}}'
+        environment: '{{.env}}'
+    spec:
+      project: skeji
+
+      source:
+        repoURL: https://github.com/nthome0191-debug/Skeji.git
+        targetRevision: HEAD
+        path: deployment/charts/{{.service}}
+        helm:
+          valueFiles:
+          - ../../values/{{.env}}/{{.service}}.yaml
+
+      destination:
+        server: '{{.cluster}}'
+        namespace: apps
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+          allowEmpty: false
+        syncOptions:
+        - CreateNamespace=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+      ignoreDifferences:
+      - group: apps
+        kind: Deployment
+        jsonPointers:
+        - /spec/replicas

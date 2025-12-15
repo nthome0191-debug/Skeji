@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
+ENV="${ENV:-local}"
 ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
 ARGOCD_SERVER="${ARGOCD_SERVER:-argocd-server.argocd.svc.cluster.local}"
 ARGOCD_AUTH_TOKEN="${ARGOCD_AUTH_TOKEN}"
@@ -54,7 +55,7 @@ echo "✅ AppProject applied"
 echo ""
 
 echo "📦 Applying ApplicationSet..."
-kubectl apply -f ${DEPLOYMENT_PATH}/argocd/applicationset.yaml
+kubectl apply -f ${DEPLOYMENT_PATH}/argocd/applicationset-${ENV}.yaml
 echo "✅ ApplicationSet applied"
 echo ""
 
@@ -68,7 +69,4 @@ echo "📊 Application status:"
 argocd app list --grpc-web
 echo ""
 echo "🔄 GitOps enabled - ApplicationSet will auto-generate and sync applications"
-echo "   - Environments: dev, staging, prod"
-echo "   - Services: business-units, schedules, bookings, maestro"
-echo "   - Total applications: 12 (4 services × 3 environments)"
 echo ""

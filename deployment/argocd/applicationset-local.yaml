@@ -12,11 +12,7 @@ spec:
       generators:
       - list:
           elements:
-          - env: dev
-            cluster: https://kubernetes.default.svc
-          - env: staging
-            cluster: https://kubernetes.default.svc
-          - env: prod
+          - env: local
             cluster: https://kubernetes.default.svc
 
       - list:
