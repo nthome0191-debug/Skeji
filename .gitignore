@@ -39,7 +39,3 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
-
-#Personal branches
-deployment/argocd/dev-personal/*
-deployment/argocd/local-personal/*

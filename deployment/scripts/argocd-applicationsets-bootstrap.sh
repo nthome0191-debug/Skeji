@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+# ⚠️ Bootstrap script
+# Run ONCE per cluster / new ArgoCD instance
+
 ENV="${ENV:-local}"
 ARGOCD_NAMESPACE="${ARGOCD_NAMESPACE:-argocd}"
 ARGOCD_SERVER="${ARGOCD_SERVER:-argocd-server.argocd.svc.cluster.local}"
@@ -23,12 +26,12 @@ if ! command -v kubectl &> /dev/null; then
     exit 1
 fi
 
-if ! command -v argocd &> /dev/null; then
-    echo "📦 Installing argocd CLI..."
-    curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-amd64
-    chmod +x /usr/local/bin/argocd
-    echo "✅ argocd CLI installed"
-fi
+# if ! command -v argocd &> /dev/null; then
+#     echo "📦 Installing argocd CLI..."
+#     curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-amd64
+#     chmod +x /usr/local/bin/argocd
+#     echo "✅ argocd CLI installed"
+# fi
 
 echo "🔍 Validating ArgoCD installation..."
 if ! kubectl get namespace $ARGOCD_NAMESPACE &> /dev/null; then
@@ -54,10 +57,24 @@ kubectl apply -f ${DEPLOYMENT_PATH}/argocd/project.yaml
 echo "✅ AppProject applied"
 echo ""
 
-echo "📦 Applying ApplicationSet..."
-kubectl apply -f ${DEPLOYMENT_PATH}/argocd/applicationset-${ENV}.yaml
-echo "✅ ApplicationSet applied"
-echo ""
+echo "📦 Applying ApplicationSets..."
+
+APPLICATIONSETS=(
+  "${DEPLOYMENT_PATH}/argocd/applicationset-${ENV}.yaml"
+  "${DEPLOYMENT_PATH}/argocd/applicationset-${ENV}-personal.yaml"
+)
+
+for appset in "${APPLICATIONSETS[@]}"; do
+  if [ -f "$appset" ]; then
+    echo "📦 Applying $(basename "$appset")..."
+    kubectl apply -f "$appset"
+    echo "✅ $(basename "$appset") applied"
+    echo ""
+  else
+    echo "ℹ️  $(basename "$appset") not found, skipping"
+    echo ""
+  fi
+done
 
 echo "⏳ Waiting for ApplicationSet to generate Applications..."
 sleep 5
