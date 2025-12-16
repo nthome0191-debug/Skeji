@@ -13,14 +13,14 @@ spec:
       - repoURL: https://github.com/nthome0191-debug/Skeji.git
         revision: HEAD
         files:
-          - path: "dev-personal/*/config.yaml"
+          - path: "local-personal/*/config.yaml"
 
   template:
     metadata:
       name: '{{.service}}-{{.developer}}'
       labels:
         app: '{{.service}}-{{.developer}}'
-        environment: 'dev'
+        environment: 'local'
     spec:
       project: skeji-personal
 
@@ -30,7 +30,7 @@ spec:
         path: deployment/charts/{{.service}}
         helm:
           valueFiles:
-          - ../../values/dev/{{.service}}.yaml
+          - ../../values/local/{{.service}}.yaml
 
       destination:
         server: https://kubernetes.default.svc
